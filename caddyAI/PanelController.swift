@@ -81,7 +81,16 @@ final class PanelController {
 
 	func show() {
 		refreshLayout()
+		
+		// Fade in animation
+		panel.alphaValue = 0.0
 		panel.orderFrontRegardless()
+		
+		NSAnimationContext.runAnimationGroup { context in
+			context.duration = 0.2
+			context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+			panel.animator().alphaValue = 1.0
+		}
 		
 		// Make the panel the key window to receive keyboard events
 		panel.makeKey()
@@ -93,8 +102,17 @@ final class PanelController {
 	}
 
 	func hide() {
-		panel.orderOut(nil)
-		NotificationCenter.default.post(name: .voiceChatShouldStopSession, object: nil)
+		// Fade out animation before hiding
+		NSAnimationContext.runAnimationGroup { context in
+			context.duration = 0.2
+			context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+			panel.animator().alphaValue = 0.0
+		} completionHandler: { [weak self] in
+			self?.panel.orderOut(nil)
+			// Reset alpha for next show
+			self?.panel.alphaValue = 1.0
+			NotificationCenter.default.post(name: .voiceChatShouldStopSession, object: nil)
+		}
 	}
 
 	func toggle() {

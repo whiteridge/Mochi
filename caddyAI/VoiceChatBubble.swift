@@ -2,12 +2,11 @@ import SwiftUI
 import Combine
 import OSLog
 
-enum VoiceChatState {
+enum VoiceChatState: Equatable {
 	case idle
 	case recording
-	case transcribing
-	case processingContext
 	case chat
+	case success    // New success state
 }
 
 struct ChatMessage: Identifiable {
@@ -26,8 +25,10 @@ struct VoiceChatBubble: View {
 	@State private var messages: [ChatMessage] = []
 	@State private var userInput: String = ""
 	@State private var isThinking = false
+	@State private var isTranscribing = false // Track transcription separately
 	@State private var errorMessage: String?
 	@State private var viewID = 0
+	@State private var contentHeight: CGFloat = 300 // Initialize with open size
 	
 	@Namespace private var animation
 
@@ -54,6 +55,8 @@ struct VoiceChatBubble: View {
 				handleEnterKey()
 				return .handled
 			}
+            // 1. Fix the Expansion Physics: specific animation curve
+			.animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0), value: state)
 	}
 }
 
@@ -62,48 +65,58 @@ struct VoiceChatBubble: View {
 fileprivate extension VoiceChatBubble {
 	@ViewBuilder
 	var bubbleContent: some View {
-		VStack(alignment: .trailing, spacing: 8) {
-			// Use ZStack to keep both views in hierarchy for matchedGeometryEffect
-			ZStack(alignment: .bottomTrailing) {
-				if state == .chat {
-					// === EXPANDED STATE ===
-					chatPanelContent
-						.padding(22)
-						.frame(width: 400)
-						.frame(minHeight: 320)
-						.background(
-							GlassBackground(shape: .roundedRectangle)
-								.matchedGeometryEffect(id: "backgroundShape", in: animation)
+		// Expand outwards from floating position
+		ZStack(alignment: .bottom) {
+			if state == .chat {
+				// === EXPANDED STATE ===
+				// Height Calculation: Content + Input Bar + Padding
+				// Add generous buffer (100) to account for the input bar + top padding
+				let finalHeight = min(max(contentHeight + 100, 200), 600)
+				
+				chatPanelContent
+					.transition(
+						.asymmetric(
+							insertion: .opacity.animation(.easeInOut(duration: 0.3).delay(0.1)),
+							removal: .opacity.animation(.easeInOut(duration: 0.1))
 						)
-						.transition(.opacity)
-				} else if state == .recording || state == .transcribing {
-					// === PILL STATE (Recording) ===
-					recordingBubbleContent
-						.padding(.horizontal, 14)
-						.padding(.vertical, 10)
-						.background(
-							GlassBackground(shape: .capsule)
-								.matchedGeometryEffect(id: "backgroundShape", in: animation)
-						)
-						.transition(.opacity)
-				} else if state == .processingContext {
-					// === PILL STATE (Context) ===
-					contextReadingBubbleContent
-						.padding(.horizontal, 14)
-						.padding(.vertical, 10)
-						.background(
-							GlassBackground(shape: .capsule)
-								.matchedGeometryEffect(id: "backgroundShape", in: animation)
-						)
-						.transition(.opacity)
-				}
+					)
+					.padding(22)
+					.frame(width: 400)
+					.frame(height: finalHeight)
+					.background(
+						GlassBackground(cornerRadius: 24)
+							.matchedGeometryEffect(id: "background", in: animation)
+					)
+					.animation(.spring(response: 0.5, dampingFraction: 0.75), value: contentHeight)
+			} else if state == .recording {
+				// === RECORDING STATE ===
+				recordingBubbleContent
+					.padding(.horizontal, 14)
+					.padding(.vertical, 10)
+					.transition(.opacity)
+					.background(
+						GlassBackground(cornerRadius: 30) // Capsule-ish
+							.matchedGeometryEffect(id: "background", in: animation)
+					)
+			} else if state == .success {
+				// === SUCCESS STATE ===
+				SuccessPill()
+					.padding(.horizontal, 14)
+					.padding(.vertical, 10)
+					.transition(.opacity)
+					.background(
+						GlassBackground(cornerRadius: 30, tint: Color.green.opacity(0.2))
+							.matchedGeometryEffect(id: "background", in: animation)
+					)
 			}
-
+		}
+		.overlay(alignment: .bottomTrailing) {
 			if let errorMessage {
 				Text(errorMessage)
 					.font(.caption)
 					.foregroundStyle(.pink)
 					.padding(.horizontal, 12)
+					.padding(.bottom, -20) // Position below the bubble
 					.multilineTextAlignment(.trailing)
 			}
 		}
@@ -111,8 +124,6 @@ fileprivate extension VoiceChatBubble {
 
 	@ViewBuilder
 	var recordingBubbleContent: some View {
-		let isTranscribing = state == .transcribing
-
 		HStack(spacing: 12) {
 			// Left: Circular logo/icon with glass effect
 			Circle()
@@ -137,22 +148,10 @@ fileprivate extension VoiceChatBubble {
 						.font(.system(size: 16, weight: .medium))
 						.foregroundStyle(.white.opacity(0.7))
 				)
+				.matchedGeometryEffect(id: "appIcon", in: animation)
 			
-			if isTranscribing {
-				HStack(spacing: 8) {
-					ProgressView()
-						.controlSize(.small)
-						.tint(.white.opacity(0.9))
-					Text("Transcribing…")
-						.font(.system(size: 15, weight: .medium, design: .default))
-						.foregroundStyle(.white.opacity(0.85))
-				}
-				.transition(.opacity.animation(.easeInOut(duration: 0.2)))
-			} else {
-				AnimatedDotRow(count: 10)
-					.frame(width: 120, height: 28)
-					.transition(.opacity.animation(.easeInOut(duration: 0.2)))
-			}
+			AnimatedDotRow(count: 10)
+				.frame(width: 120, height: 28)
 
 			// Right: Vibrant stop button
 			Button(action: stopRecording) {
@@ -173,109 +172,131 @@ fileprivate extension VoiceChatBubble {
 					)
 			)
 			.shadow(color: Color(red: 1.0, green: 0.3, blue: 0.2).opacity(0.4), radius: 8, x: 0, y: 4)
-			.disabled(isTranscribing)
-			.transition(.opacity.animation(.easeInOut(duration: 0.2)))
-		}
-	}
-
-	var contextReadingBubbleContent: some View {
-		HStack(spacing: 12) {
-			// Left: Circular logo/icon with glass effect
-			Circle()
-				.fill(Color.white.opacity(0.08))
-				.overlay(
-					Circle()
-						.strokeBorder(
-							LinearGradient(
-								colors: [
-									Color.white.opacity(0.25),
-									Color.white.opacity(0.05)
-								],
-								startPoint: .topLeading,
-								endPoint: .bottomTrailing
-							),
-							lineWidth: 1
-						)
-				)
-				.frame(width: 36, height: 36)
-				.overlay(
-					Image(systemName: "waveform")
-						.font(.system(size: 16, weight: .medium))
-						.foregroundStyle(.white.opacity(0.7))
-				)
-			
-			// Center: Context indicator
-			ContextIndicatorView()
-				.transition(.opacity.combined(with: .scale(scale: 0.9)))
 		}
 	}
 
 	var chatPanelContent: some View {
-		VStack(alignment: .leading, spacing: 16) {
-			HStack {
-				Text("Voice Chat")
-					.font(.system(size: 17, weight: .semibold, design: .default))
-					.foregroundStyle(.white)
-				Spacer()
-				Button {
-					resetConversation()
-				} label: {
-					Image(systemName: "xmark")
-						.font(.system(size: 11, weight: .semibold))
-						.foregroundStyle(.white.opacity(0.7))
-						.frame(width: 28, height: 28)
-						.background(
-							Circle()
-								.fill(Color.white.opacity(0.08))
-								.overlay(
-									Circle()
-										.strokeBorder(
-											LinearGradient(
-												colors: [
-													Color.white.opacity(0.2),
-													Color.white.opacity(0.05)
-												],
-												startPoint: .topLeading,
-												endPoint: .bottomTrailing
-											),
-											lineWidth: 0.5
-										)
-								)
-						)
-				}
-				.buttonStyle(.plain)
-			}
-			.transition(.opacity.animation(.easeInOut(duration: 0.3).delay(0.1)))
+		VStack(spacing: 0) {
+			// Top: Scrollable message area
+			ScrollViewReader { proxy in
+				ScrollView {
+					VStack(alignment: .leading, spacing: 14) {
+						if messages.isEmpty {
+							Text("How can I help?")
+								.font(.system(size: 20, weight: .medium))
+								.foregroundStyle(.white.opacity(0.6))
+								.frame(maxWidth: .infinity, alignment: .center)
+								.padding(.top, 40)
+						} else {
+							ForEach(messages) { message in
+								chatBubble(for: message)
+									.id(message.id)
+							}
+						}
 
-			ScrollView {
-				VStack(alignment: .leading, spacing: 14) {
-					ForEach(messages) { message in
-						chatBubble(for: message)
+						// Show processing/thinking indicator inside the chat
+						if isTranscribing {
+							processingIndicator(text: "Transcribing...")
+								.id("transcribing")
+						} else if isThinking {
+							processingIndicator(text: "Thinking...")
+								.id("thinking")
+						}
 					}
-
-					if isThinking {
-						thinkingBubble
-					}
-				}
-				.frame(maxWidth: .infinity, alignment: .leading)
-				.padding(.vertical, 4)
-			}
-			.frame(maxHeight: 300)
-			.transition(.opacity.animation(.easeInOut(duration: 0.3).delay(0.1)))
-
-			Divider()
-				.overlay(
-					LinearGradient(
-						colors: [Color.white.opacity(0.08), Color.white.opacity(0.02)],
-						startPoint: .leading,
-						endPoint: .trailing
+					.frame(maxWidth: .infinity, alignment: .leading)
+					.padding(.top, 25)
+					.padding(.bottom, 90)
+					.background(
+						GeometryReader { geometry in
+							Color.clear
+								.preference(key: ViewHeightKey.self, value: geometry.size.height)
+						}
 					)
-				)
-				.transition(.opacity.animation(.easeInOut(duration: 0.3).delay(0.1)))
-
+				}
+				.scrollDisabled(contentHeight < 600)
+				.scrollIndicators(.hidden)
+				.frame(maxHeight: .infinity)
+				.onPreferenceChange(ViewHeightKey.self) { height in
+					DispatchQueue.main.async {
+						contentHeight = height
+					}
+				}
+				.onChange(of: messages.count) { _, _ in
+					if let lastId = messages.last?.id {
+						withAnimation {
+							proxy.scrollTo(lastId, anchor: .bottom)
+						}
+					}
+				}
+			}
+			
+			// Bottom: Fixed input bar
 			composer
-				.transition(.opacity.animation(.easeInOut(duration: 0.3).delay(0.1)))
+				.padding(.top, 16)
+				.padding(.bottom, 15)
 		}
+	}
+	
+	// Processing indicator shown inside the chat
+	@ViewBuilder
+	func processingIndicator(text: String) -> some View {
+		HStack(spacing: 12) {
+			// Interlocking circles (app icons)
+			ZStack {
+				Circle()
+					.fill(Color.white.opacity(0.1))
+					.frame(width: 24, height: 24)
+					.overlay(
+						Image(systemName: "number")
+							.font(.system(size: 11, weight: .semibold))
+							.foregroundStyle(.white.opacity(0.7))
+					)
+					.offset(x: -5)
+				
+				Circle()
+					.fill(Color(nsColor: .controlAccentColor).opacity(0.3))
+					.frame(width: 24, height: 24)
+					.overlay(
+						Circle()
+							.strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+					)
+					.overlay(
+						Image(systemName: "waveform")
+							.font(.system(size: 11, weight: .semibold))
+							.foregroundStyle(.white)
+							.matchedGeometryEffect(id: "appIcon", in: animation)
+					)
+					.offset(x: 5)
+			}
+			.frame(width: 34, height: 24)
+			
+			Text(text)
+				.font(.system(size: 14, weight: .medium))
+				.foregroundStyle(.white.opacity(0.75))
+			
+			Spacer()
+		}
+		.padding(.horizontal, 16)
+		.padding(.vertical, 12)
+		.background(
+			RoundedRectangle(cornerRadius: 18, style: .continuous)
+				.fill(Color.white.opacity(0.05))
+				.overlay(
+					RoundedRectangle(cornerRadius: 18, style: .continuous)
+						.strokeBorder(
+							LinearGradient(
+								colors: [
+									Color.white.opacity(0.12),
+									Color.white.opacity(0.03)
+								],
+								startPoint: .topLeading,
+								endPoint: .bottomTrailing
+							),
+							lineWidth: 0.5
+						)
+				)
+		)
+		.transition(.opacity.combined(with: .scale(scale: 0.95)))
 	}
 
 	var composer: some View {
@@ -358,18 +379,29 @@ fileprivate extension VoiceChatBubble {
 				if isUser { Spacer(minLength: 40) }
 				Text(message.content)
 					.font(.system(size: 15, weight: .regular, design: .default))
-					.foregroundStyle(isUser ? Color(white: 0.1) : .white.opacity(0.95))
+					.foregroundStyle(.white.opacity(0.95))
+					.fixedSize(horizontal: false, vertical: true)
 					.padding(.horizontal, 16)
 					.padding(.vertical, 12)
 					.background(
 						Group {
 							if isUser {
-								// User bubble - bright white with shadow
+								// User bubble - slightly lighter dark glass
 								RoundedRectangle(cornerRadius: 18, style: .continuous)
-									.fill(Color.white.opacity(0.95))
+									.fill(Color.white.opacity(0.08))
 									.overlay(
 										RoundedRectangle(cornerRadius: 18, style: .continuous)
-											.strokeBorder(Color.white.opacity(0.3), lineWidth: 0.5)
+											.strokeBorder(
+												LinearGradient(
+													colors: [
+														Color.white.opacity(0.2),
+														Color.white.opacity(0.06)
+													],
+													startPoint: .topLeading,
+													endPoint: .bottomTrailing
+												),
+												lineWidth: 0.5
+											)
 									)
 							} else {
 								// Assistant bubble - glass effect
@@ -392,47 +424,10 @@ fileprivate extension VoiceChatBubble {
 							}
 						}
 					)
-					.shadow(
-						color: isUser ? Color.black.opacity(0.08) : Color.clear,
-						radius: 8,
-						x: 0,
-						y: 2
-					)
 				if !isUser { Spacer(minLength: 40) }
 			}
 		}
 		.transition(.move(edge: isUser ? .trailing : .leading).combined(with: .opacity))
-	}
-
-	var thinkingBubble: some View {
-		HStack(spacing: 10) {
-			AnimatedDotRow(count: 4)
-				.frame(width: 40, height: 20)
-			Text("Thinking…")
-				.font(.system(size: 14, weight: .medium, design: .default))
-				.foregroundStyle(.white.opacity(0.65))
-			Spacer()
-		}
-		.padding(.horizontal, 16)
-		.padding(.vertical, 12)
-		.background(
-			RoundedRectangle(cornerRadius: 18, style: .continuous)
-				.fill(Color.white.opacity(0.05))
-				.overlay(
-					RoundedRectangle(cornerRadius: 18, style: .continuous)
-						.strokeBorder(
-							LinearGradient(
-								colors: [
-									Color.white.opacity(0.12),
-									Color.white.opacity(0.03)
-								],
-								startPoint: .topLeading,
-								endPoint: .bottomTrailing
-							),
-							lineWidth: 0.5
-						)
-				)
-		)
 	}
 }
 
@@ -451,12 +446,9 @@ private extension VoiceChatBubble {
 			// Enter during chat -> Send message if input is not empty
 			logger.debug("Enter pressed: Sending message")
 			sendManualMessage()
-		case .transcribing:
-			// Do nothing during transcription
-			logger.debug("Enter pressed during transcription: Ignoring")
-		case .processingContext:
-			// Do nothing while processing context
-			logger.debug("Enter pressed during context processing: Ignoring")
+		case .success:
+			// Ignore
+			break
 		case .idle:
 			// Do nothing in idle state
 			logger.debug("Enter pressed in idle state: Ignoring")
@@ -464,7 +456,7 @@ private extension VoiceChatBubble {
 	}
 	
 	func beginHotkeySession() {
-		guard state != .recording && state != .transcribing && state != .processingContext else { return }
+		guard state != .recording else { return }
 		resetConversation(animate: false)
 		startRecording()
 	}
@@ -485,9 +477,8 @@ private extension VoiceChatBubble {
 				await MainActor.run {
 					errorMessage = nil
 					viewID += 1
-					withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-						state = .recording
-					}
+					// Let the spring animation in body handle the transition
+					state = .recording
 				}
 			} catch {
 				await MainActor.run {
@@ -498,40 +489,32 @@ private extension VoiceChatBubble {
 	}
 
 	func stopRecording() {
-		withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-			state = .transcribing
-		}
 		errorMessage = nil
 
 		Task {
 			do {
+				// Immediately expand to chat
+				await MainActor.run {
+					state = .chat
+					isTranscribing = true
+				}
+				
 				let audioURL = try await voiceRecorder.stopRecording()
 				let transcript = try await transcriptionService.transcribeFile(at: audioURL)
+				
 				await MainActor.run {
 					errorMessage = nil
 					appendUserMessage(transcript)
-					withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-						state = .processingContext
-					}
+					isTranscribing = false
 				}
 				
-				// Simulate context reading delay (2 seconds)
-				try? await Task.sleep(nanoseconds: 2_000_000_000)
-				
-				await MainActor.run {
-					withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-						state = .chat
-					}
-				}
 				await fetchAssistantResponse()
 			} catch {
 				logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
 				await MainActor.run {
 					self.errorMessage = error.localizedDescription
-					// Use easeInOut for consistent animation
-					withAnimation(.easeInOut(duration: 0.35)) {
-						self.state = .idle
-					}
+					self.isTranscribing = false
+					self.state = .idle
 				}
 			}
 		}
@@ -546,9 +529,7 @@ private extension VoiceChatBubble {
 		let trimmed = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmed.isEmpty else { return }
 		if state != .chat {
-			withAnimation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0)) {
-				state = .chat
-			}
+			state = .chat
 		}
 		messages.append(ChatMessage(role: .user, content: trimmed))
 		userInput = ""
@@ -579,23 +560,37 @@ private extension VoiceChatBubble {
 	}
 
 	func resetConversation(animate: Bool = true) {
-		if animate {
-			// Use easeInOut with longer duration to see the shrink effect
-			withAnimation(.easeInOut(duration: 0.35)) {
-				state = .idle
-			}
-		} else {
-			state = .idle
-		}
+		// Note: animation is handled by the .animation modifier on body
+		state = .idle
 		messages.removeAll()
 		userInput = ""
 		isThinking = false
+		isTranscribing = false
 		errorMessage = nil
 		geminiService.resetConversation()
 	}
 }
 
 // MARK: - Helpers
+
+private struct SuccessPill: View {
+	var body: some View {
+		HStack(spacing: 12) {
+			// Icons
+			HStack(spacing: -8) {
+				Circle()
+					.fill(Color.white.opacity(0.15))
+					.frame(width: 26, height: 26)
+					.overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
+			}
+			
+			Text("Actions complete")
+				.font(.system(size: 15, weight: .medium))
+				.foregroundStyle(.white.opacity(0.95))
+		}
+	}
+}
+
 
 private struct AnimatedDotRow: View {
 	let count: Int
@@ -641,81 +636,28 @@ private struct AnimatedDotRow: View {
 
 // MARK: - Glass Background Component
 
-private enum GlassShape {
-	case capsule
-	case roundedRectangle
-}
-
 private struct GlassBackground: View {
-	let shape: GlassShape
+    // 1. Fix the Expansion Physics: Smooth corner radius animation
+    var cornerRadius: CGFloat
+    var tint: Color = Color.black.opacity(0.5)
 	
 	var body: some View {
-		Group {
-			switch shape {
-			case .capsule:
-				glassMorphCapsule
-			case .roundedRectangle:
-				glassMorphRectangle
-			}
-		}
-	}
-	
-	private var glassMorphCapsule: some View {
 		ZStack {
 			// Base glass layer with material
-			Capsule()
+			RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 				.fill(.ultraThinMaterial)
 			
 			// Dark tint overlay for depth
-			Capsule()
-				.fill(Color.black.opacity(0.5))
+			RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+				.fill(tint)
 		}
 		.overlay(
 			// Primary rim light - simulates light catching the glass edge
-			Capsule()
+			RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 				.strokeBorder(
 					LinearGradient(
 						colors: [
-							Color.white.opacity(0.35),
-							Color.white.opacity(0.08),
-							Color.white.opacity(0.02)
-						],
-						startPoint: .topLeading,
-						endPoint: .bottomTrailing
-					),
-					lineWidth: 1
-				)
-		)
-		.overlay(
-			// Inner glow for glass thickness
-			Capsule()
-				.strokeBorder(
-					Color.white.opacity(0.06),
-					lineWidth: 0.5
-				)
-				.blur(radius: 1)
-				.padding(1)
-		)
-		.shadow(color: Color.black.opacity(0.4), radius: 15, x: 0, y: 10)
-	}
-	
-	private var glassMorphRectangle: some View {
-		ZStack {
-			// Base glass layer with material
-			RoundedRectangle(cornerRadius: 24, style: .continuous)
-				.fill(.ultraThinMaterial)
-			
-			// Dark tint overlay for depth
-			RoundedRectangle(cornerRadius: 24, style: .continuous)
-				.fill(Color.black.opacity(0.5))
-		}
-		.overlay(
-			// Primary rim light - simulates light catching the glass edge
-			RoundedRectangle(cornerRadius: 24, style: .continuous)
-				.strokeBorder(
-					LinearGradient(
-						colors: [
-							Color.white.opacity(0.4),
+							Color.white.opacity(0.4), // Slightly increased for visibility
 							Color.white.opacity(0.15),
 							Color.white.opacity(0.03)
 						],
@@ -727,7 +669,7 @@ private struct GlassBackground: View {
 		)
 		.overlay(
 			// Inner glow for glass thickness
-			RoundedRectangle(cornerRadius: 24, style: .continuous)
+			RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 				.strokeBorder(
 					Color.white.opacity(0.08),
 					lineWidth: 0.5
@@ -739,78 +681,12 @@ private struct GlassBackground: View {
 	}
 }
 
-// MARK: - Context Indicator Component
+// MARK: - Preference Key for Height Measurement
 
-private struct ContextIndicatorView: View {
-	@State private var animationPhase: CGFloat = 0
+private struct ViewHeightKey: PreferenceKey {
+	static var defaultValue: CGFloat = 0
 	
-	var body: some View {
-		HStack(spacing: 8) {
-			// App icons with overlapping effect
-			ZStack {
-				// Slack icon (background)
-				Image(systemName: "number")
-					.font(.system(size: 12, weight: .semibold))
-					.foregroundStyle(.white.opacity(0.7))
-					.frame(width: 20, height: 20)
-					.background(
-						Circle()
-							.fill(Color.white.opacity(0.1))
-					)
-					.offset(x: -4)
-				
-				// Linear icon (foreground)
-				Image(systemName: "tray.full.fill")
-					.font(.system(size: 12, weight: .semibold))
-					.foregroundStyle(.white.opacity(0.8))
-					.frame(width: 20, height: 20)
-					.background(
-						Circle()
-							.fill(Color.white.opacity(0.12))
-					)
-					.offset(x: 4)
-			}
-			.frame(width: 32, height: 20)
-			
-			// Animated text
-			Text("Reading context...")
-				.font(.system(size: 14, weight: .medium, design: .default))
-				.foregroundStyle(.white.opacity(0.75 + animationPhase * 0.25))
-		}
-		.padding(.horizontal, 14)
-		.padding(.vertical, 8)
-		.background(
-			// Glassmorphic capsule background
-			ZStack {
-				Capsule()
-					.fill(.ultraThinMaterial)
-				
-				Capsule()
-					.fill(Color.black.opacity(0.6))
-			}
-			.overlay(
-				// Subtle white gradient stroke
-				Capsule()
-					.strokeBorder(
-						LinearGradient(
-							colors: [
-								Color.white.opacity(0.3),
-								Color.white.opacity(0.08),
-								Color.white.opacity(0.02)
-							],
-							startPoint: .topLeading,
-							endPoint: .bottomTrailing
-						),
-						lineWidth: 0.5
-					)
-			)
-		)
-		.onAppear {
-			// Pulse animation for the text
-			withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-				animationPhase = 1.0
-			}
-		}
+	static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+		value = max(value, nextValue())
 	}
 }
-
