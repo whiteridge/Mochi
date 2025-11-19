@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+google-genai
+composio-core
+composio-gemini
+python-dotenv
+pydantic

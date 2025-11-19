@@ -456,7 +456,7 @@ private extension VoiceChatBubble {
 
 	func cancelVoiceSession() {
 		Task {
-			try? await voiceRecorder.stopRecording()
+			 _ = try? await voiceRecorder.stopRecording()
 			await MainActor.run {
 				resetConversation(animate: false)
 			}

@@ -105,7 +105,7 @@ private struct WaveformBars: View {
 					}
 				}
 			}
-			.onChange(of: amplitude) { newValue in
+			.onChange(of: amplitude) { _, newValue in
 				if newValue > 0 {
 					withAnimation(.linear(duration: 0.18).repeatForever(autoreverses: false)) {
 						phase = .pi * 2

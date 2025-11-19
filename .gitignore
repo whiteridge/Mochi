@@ -36,3 +36,7 @@ secrets.swift
 .idea/
 *.swp
 *.swo
+
+# Backend
+backend/.env
+backend/venv

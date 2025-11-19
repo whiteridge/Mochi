@@ -133,7 +133,7 @@ class GeminiService: ObservableObject {
 			throw GeminiError.modelNotInitialized
 		}
 		
-		let newChat = model.startChat()
+		_ = model.startChat()
 		
 		// Build history from previous messages (excluding the last user message)
 		let historyMessages = messages.dropLast()

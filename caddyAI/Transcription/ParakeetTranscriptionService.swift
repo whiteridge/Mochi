@@ -132,7 +132,7 @@ private enum ParakeetAudioNormalizer {
 		}
 
 		// Create output file with the target format's settings
-		guard let settings = targetFormat.settings as? [String: Any] else {
+		guard let settings = targetFormat.settings as [String: Any]? else {
 			logger.error("Failed to get settings from target format")
 			throw NormalizerError.converterUnavailable
 		}
@@ -259,7 +259,7 @@ private enum ParakeetClipPadder {
 			let destination = paddedChannels[channel]
 			let source = sourceChannels[channel]
 			if framesRead > 0 {
-				destination.assign(from: source, count: Int(framesRead))
+				destination.update(from: source, count: Int(framesRead))
 			}
 			let padCount = Int(minimumFrames - framesRead)
 			if padCount > 0 {
