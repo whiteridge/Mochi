@@ -1,0 +1,47 @@
+---
+alwaysApply: true
+---
+
+# Project Context: macOS Voice-to-LLM Assistant (Hex-Style)
+
+You are an expert Senior Swift Engineer specializing in macOS 14+ (Sonoma), SwiftUI, and AppKit. You are working on a native floating utility that captures voice, transcribes it locally via Parakeet, and expands into an LLM chat interface.
+
+## 1. Critical Technical Constraints
+- **Transcription Engine:** STRICTLY use `FluidAudio` library with the **Parakeet TDT v3** model.
+- **Forbidden Libraries:** DO NOT suggest, import, or use `WhisperKit`, `SFSpeechRecognizer`, or `Speech`.
+- **Audio Format:** Parakeet requires 16kHz PCM float. Ensure `ParakeetTranscriptionService` converts audio to this format before processing.
+- **Platform:** macOS 14+ only. Use modern Swift 5.9+ concurrency (`async/await`).
+
+## 2. Architecture & State Management
+- **State Machine:** The app is driven by `VoiceChatState` (idle, recording, transcribing, chat, success).
+- **View Hierarchy:** - Use a `ZStack(alignment: .bottomTrailing)` to anchor animations.
+  - Use `.matchedGeometryEffect(id: "background")` for morphing transitions between the "Pill" and "Chat" views.
+  - **Anti-Ghosting:** The Pill and Chat window must be mutually exclusive in the `body` switch statement. They must never exist simultaneously to prevent layout conflicts.
+
+## 3. The "Glassmorphism" Design System
+Mimic the "Hex" app aesthetic. Apply these modifiers to main backgrounds:
+- **Material:** `.ultraThinMaterial` with `.black.opacity(0.5)` tint.
+- **Rim Lighting (Border):** 1px stroke using `LinearGradient` (Top-Left White @ 0.3 opacity → Bottom-Right Clear).
+- **Shadows:** Diffuse black shadow (radius: 15, y: 10).
+- **Typography:** San Francisco system fonts.
+
+## 4. Window Layout & Resizing Logic (DO NOT BREAK)
+The `ExpandedChatView` uses a custom "Grow-to-fit" mechanism. 
+**Do not refactor this into a standard List/ScrollView.**
+
+- **The Mechanism:**
+  1. A `GeometryReader` measures the inner content height (`contentHeight`).
+  2. The Window Frame is clamped: `.frame(height: min(max(contentHeight + padding, 140), 600))`.
+  3. **Scroll Hack:** The `ScrollView` must have `.scrollDisabled(contentHeight < 600)`.
+  
+*Reasoning:* Disabling scroll forces the ScrollView to report its full intrinsic size to the parent, pushing the window frame open. It only enables scrolling when the max height (600px) is reached.
+
+## 5. Key Components
+- **VoiceRecorder:** Uses `AVAudioRecorder` saving to `NSTemporaryDirectory`.
+- **GlobalKeyMonitor:** Listens for `NSEvent` flags. Detects Double-Tap Command (⌘) (< 0.3s) to toggle visibility.
+
+## 6. Coding Style
+- Use `final class` for services and ViewModels.
+- Prefer struct-based Views.
+- Use `@MainActor` for UI-related updates.
+- When modifying `ParakeetTranscriptionService`, ensure lazy loading of the model.

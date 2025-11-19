@@ -13,8 +13,9 @@ final class PanelController {
 
 	init(rootView: AnyView) {
 		// Create the panel and configure its style
+		let frame = NSScreen.main?.visibleFrame ?? .zero
 		panel = CaddyPanel(
-			contentRect: .zero,
+			contentRect: frame,
 			styleMask: [.borderless, .nonactivatingPanel],
 			backing: .buffered,
 			defer: false
@@ -26,7 +27,7 @@ final class PanelController {
 		panel.isFloatingPanel = true
 		panel.hidesOnDeactivate = false
 		panel.isMovableByWindowBackground = false
-		panel.hasShadow = true
+		panel.hasShadow = false // Shadow is handled by SwiftUI view
 
 		// Transparent background to let the blur show through
 		panel.isOpaque = false
@@ -34,19 +35,14 @@ final class PanelController {
 
 		// Create the SwiftUI view and host it in the panel
 		hostingView = NSHostingView(rootView: rootView)
+		
+		// Ensure hosting view fills the panel
+		hostingView.autoresizingMask = [.width, .height]
+		hostingView.frame = panel.contentView?.bounds ?? .zero
 		panel.contentView = hostingView
 
-		// Give the panel an initial size that matches the SwiftUI view's intended size
-		let initialSize = NSSize(width: 500, height: 200)
-		panel.setFrame(NSRect(origin: .zero, size: initialSize), display: false)
-
-		layoutObserver = NotificationCenter.default.addObserver(
-			forName: .voiceChatLayoutNeedsUpdate,
-			object: nil,
-			queue: .main
-		) { [weak self] _ in
-			self?.refreshLayout()
-		}
+		// Note: We no longer listen for layout updates to resize the window
+		// The window is now a static full-screen overlay, and SwiftUI handles the positioning.
 	}
 
 	deinit {
@@ -55,28 +51,8 @@ final class PanelController {
 		}
 	}
 
-	private func calculatePanelPosition() {
-		guard let screenFrame = NSScreen.main?.visibleFrame else { return }
-		let panelSize = panel.frame.size
-
-		// Centered horizontally, offset slightly above the bottom (about 12pt ≈ 1cm visually).
-		let newX = screenFrame.origin.x + (screenFrame.width - panelSize.width) / 2
-		let newY = screenFrame.origin.y + 12
-		panel.setFrameOrigin(NSPoint(x: newX, y: newY))
-	}
-
 	private func refreshLayout() {
 		hostingView.layoutSubtreeIfNeeded()
-		let fitting = hostingView.fittingSize
-		guard fitting.width > 0, fitting.height > 0 else { return }
-
-		let currentOrigin = panel.frame.origin
-		panel.setFrame(NSRect(origin: currentOrigin, size: fitting), display: false)
-
-		let contentSize = panel.contentRect(forFrameRect: panel.frame).size
-		hostingView.frame = NSRect(origin: .zero, size: contentSize)
-
-		calculatePanelPosition()
 	}
 
 	func show() {

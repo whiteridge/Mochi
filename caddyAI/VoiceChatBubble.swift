@@ -38,10 +38,14 @@ struct VoiceChatBubble: View {
 	private let geminiService = GeminiService.shared
 
 	var body: some View {
-		bubbleContent
-			.padding(.horizontal, 16)
-			.padding(.vertical, 20)
-			.background(Color.clear)
+		VStack {
+			Spacer()
+			// CONTENT (The ZStack with Pill/Chat)
+			bubbleContent
+		}
+		.padding(.bottom, 20)
+		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+		.background(Color.clear)
 			.onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStartRecording)) { _ in
 				beginHotkeySession()
 			}
@@ -55,8 +59,7 @@ struct VoiceChatBubble: View {
 				handleEnterKey()
 				return .handled
 			}
-            // 1. Fix the Expansion Physics: specific animation curve
-			.animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0), value: state)
+			.animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: state)
 	}
 }
 
@@ -67,57 +70,56 @@ fileprivate extension VoiceChatBubble {
 	var bubbleContent: some View {
 		// Expand outwards from floating position
 		ZStack(alignment: .bottom) {
-			if state == .chat {
+			switch state {
+			case .idle, .recording:
+				if state == .recording {
+					recordingBubbleContent
+						.padding(.horizontal, 14)
+						.padding(.vertical, 10)
+						.background(
+							GlassBackground(cornerRadius: 30) // Capsule-ish
+								.matchedGeometryEffect(id: "background", in: animation)
+						)
+						.transition(.scale(scale: 1))
+				}
+				
+			case .chat:
 				// === EXPANDED STATE ===
 				// Height Calculation: Content + Input Bar + Padding
 				// Add generous buffer (100) to account for the input bar + top padding
-				let finalHeight = min(max(contentHeight + 100, 200), 400)
+				let finalHeight = min(max(contentHeight + 100, 200), 600)
 				
 				chatPanelContent
-					.transition(
-						.asymmetric(
-							insertion: .opacity.animation(.easeInOut(duration: 0.3).delay(0.1)),
-							removal: .opacity.animation(.easeInOut(duration: 0.1))
-						)
-					)
 					.padding(22)
 					.frame(width: 400)
 					.frame(height: finalHeight, alignment: .bottom)
+					.animation(.interpolatingSpring(stiffness: 170, damping: 20), value: finalHeight)
 					.background(
 						GlassBackground(cornerRadius: 24)
-							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
+							.matchedGeometryEffect(id: "background", in: animation)
 					)
-					.animation(.spring(response: 0.5, dampingFraction: 0.75), value: contentHeight)
-			} else if state == .recording {
-				// === RECORDING STATE ===
-				recordingBubbleContent
-					.padding(.horizontal, 14)
-					.padding(.vertical, 10)
-					.transition(.opacity)
-					.background(
-						GlassBackground(cornerRadius: 30) // Capsule-ish
-							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
-					)
-			} else if state == .success {
+					.transition(.scale(scale: 1))
+					
+			case .success:
 				// === SUCCESS STATE ===
 				SuccessPill()
 					.padding(.horizontal, 14)
 					.padding(.vertical, 10)
-					.transition(.opacity)
 					.background(
 						GlassBackground(cornerRadius: 30, tint: Color.green.opacity(0.2))
-							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
+							.matchedGeometryEffect(id: "background", in: animation)
 					)
+					.transition(.scale(scale: 1))
 			}
 		}
-		.overlay(alignment: .bottomTrailing) {
+		.overlay(alignment: .bottom) {
 			if let errorMessage {
 				Text(errorMessage)
 					.font(.caption)
 					.foregroundStyle(.pink)
 					.padding(.horizontal, 12)
 					.padding(.bottom, -20) // Position below the bubble
-					.multilineTextAlignment(.trailing)
+					.multilineTextAlignment(.center)
 			}
 		}
 	}
@@ -154,24 +156,12 @@ fileprivate extension VoiceChatBubble {
 				.frame(width: 120, height: 28)
 
 			// Right: Vibrant stop button
-			Button(action: stopRecording) {
-				RoundedRectangle(cornerRadius: 6, style: .continuous)
-					.fill(.white)
-					.frame(width: 16, height: 16)
-			}
-			.buttonStyle(.plain)
-			.frame(width: 40, height: 40)
-			.background(
-				Circle()
-					.fill(
-						LinearGradient(
-							colors: [Color(red: 1.0, green: 0.4, blue: 0.3), Color(red: 0.95, green: 0.25, blue: 0.2)],
-							startPoint: .topLeading,
-							endPoint: .bottomTrailing
-						)
-					)
+			VoiceActionButton(
+				size: 44,
+				isRecording: true,
+				action: stopRecording
 			)
-			.shadow(color: Color(red: 1.0, green: 0.3, blue: 0.2).opacity(0.4), radius: 8, x: 0, y: 4)
+			.matchedGeometryEffect(id: "actionButton", in: animation)
 		}
 	}
 
@@ -214,7 +204,7 @@ fileprivate extension VoiceChatBubble {
 						}
 					)
 				}
-				.scrollDisabled(contentHeight < 400)
+				.scrollDisabled(contentHeight < 600)
 				.padding(.trailing, -20) // Push scrollbar off-screen
 				.scrollIndicators(.hidden)
 				.scrollBounceBehavior(.basedOnSize)
@@ -339,14 +329,13 @@ fileprivate extension VoiceChatBubble {
 			
 			Spacer()
 			
-			// Microphone button
-			Button(action: startRecording) {
-				Image(systemName: "mic.fill")
-					.font(.system(size: 16, weight: .medium))
-					.foregroundStyle(.white.opacity(0.8))
-			}
-			.buttonStyle(.plain)
-			.frame(width: 32, height: 32)
+			// Microphone button / Stop button
+			VoiceActionButton(
+				size: 28,
+				isRecording: voiceRecorder.isRecording,
+				action: voiceRecorder.isRecording ? stopRecording : startRecording
+			)
+			.matchedGeometryEffect(id: "actionButton", in: animation)
 		}
 		.padding(.horizontal, 16)
 		.padding(.vertical, 12)
@@ -481,8 +470,13 @@ private extension VoiceChatBubble {
 				await MainActor.run {
 					errorMessage = nil
 					viewID += 1
-					// Let the spring animation in body handle the transition
-					state = .recording
+					
+					// Logic Change:
+					// If state == .idle: Transition to .recording (Show Pill).
+					// If state == .chat: Stay in .chat. Do not transition to .recording.
+					if state != .chat {
+						state = .recording
+					}
 				}
 			} catch {
 				await MainActor.run {

@@ -1,26 +1,38 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
+# Xcode
+## User settings
+xcuserdata/
+
+## Derived data
+DerivedData/
 build/
-dist/
-wheels/
-*.egg-info
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
 
-# Virtual environments
-.venv
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
 
-# API Keys and Secrets
-.env
-Secrets.swift
-**/Secrets.swift
+# Swift Package Manager
+.build/
+Packages
+Package.pins
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
-# Xcode user data
-*.xcuserstate
-*.xcuserdatad/
+# Simulator
+Application Support/iphone/
 
-# Cursor
-.cursor/
+# Local Config
+config.json
+secrets.swift
 
-# Cursor rules
-.cursor/rules/
+# OS X
+.DS_Store
 
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
