@@ -71,7 +71,7 @@ fileprivate extension VoiceChatBubble {
 				// === EXPANDED STATE ===
 				// Height Calculation: Content + Input Bar + Padding
 				// Add generous buffer (100) to account for the input bar + top padding
-				let finalHeight = min(max(contentHeight + 100, 200), 600)
+				let finalHeight = min(max(contentHeight + 100, 200), 400)
 				
 				chatPanelContent
 					.transition(
@@ -82,10 +82,10 @@ fileprivate extension VoiceChatBubble {
 					)
 					.padding(22)
 					.frame(width: 400)
-					.frame(height: finalHeight)
+					.frame(height: finalHeight, alignment: .bottom)
 					.background(
 						GlassBackground(cornerRadius: 24)
-							.matchedGeometryEffect(id: "background", in: animation)
+							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
 					)
 					.animation(.spring(response: 0.5, dampingFraction: 0.75), value: contentHeight)
 			} else if state == .recording {
@@ -96,7 +96,7 @@ fileprivate extension VoiceChatBubble {
 					.transition(.opacity)
 					.background(
 						GlassBackground(cornerRadius: 30) // Capsule-ish
-							.matchedGeometryEffect(id: "background", in: animation)
+							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
 					)
 			} else if state == .success {
 				// === SUCCESS STATE ===
@@ -106,7 +106,7 @@ fileprivate extension VoiceChatBubble {
 					.transition(.opacity)
 					.background(
 						GlassBackground(cornerRadius: 30, tint: Color.green.opacity(0.2))
-							.matchedGeometryEffect(id: "background", in: animation)
+							.matchedGeometryEffect(id: "background", in: animation, anchor: .bottom)
 					)
 			}
 		}
@@ -206,6 +206,7 @@ fileprivate extension VoiceChatBubble {
 					.frame(maxWidth: .infinity, alignment: .leading)
 					.padding(.top, 25)
 					.padding(.bottom, 90)
+					.padding(.trailing, 20) // Compensate for negative padding
 					.background(
 						GeometryReader { geometry in
 							Color.clear
@@ -213,8 +214,10 @@ fileprivate extension VoiceChatBubble {
 						}
 					)
 				}
-				.scrollDisabled(contentHeight < 600)
+				.scrollDisabled(contentHeight < 400)
+				.padding(.trailing, -20) // Push scrollbar off-screen
 				.scrollIndicators(.hidden)
+				.scrollBounceBehavior(.basedOnSize)
 				.frame(maxHeight: .infinity)
 				.onPreferenceChange(ViewHeightKey.self) { height in
 					DispatchQueue.main.async {
@@ -229,6 +232,7 @@ fileprivate extension VoiceChatBubble {
 					}
 				}
 			}
+			.clipShape(RoundedRectangle(cornerRadius: 24)) // Clip the overflow
 			
 			// Bottom: Fixed input bar
 			composer

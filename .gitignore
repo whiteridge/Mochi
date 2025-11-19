@@ -17,3 +17,10 @@ Secrets.swift
 # Xcode user data
 *.xcuserstate
 *.xcuserdatad/
+
+# Cursor
+.cursor/
+
+# Cursor rules
+.cursor/rules/
+
