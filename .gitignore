@@ -40,3 +40,6 @@ secrets.swift
 # Backend
 backend/.env
 backend/venv
+
+#Cursor
+.cursor
