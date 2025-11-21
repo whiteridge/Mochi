@@ -6,140 +6,277 @@ struct ConfirmationCardView: View {
     let onCancel: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack {
-                Image(systemName: iconName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 32, height: 32)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(Circle())
-                
-                Text(headerTitle)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                
-                Spacer()
+        VStack(alignment: .leading, spacing: 18) {
+            headerSection
+            
+            if let description = proposal.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !description.isEmpty {
+                Text(description)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
-            // Content
-            VStack(alignment: .leading, spacing: 8) {
-                if let title = proposal.args["title"] as? String {
-                    Text(title)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                }
-                
-                if let description = proposal.args["description"] as? String {
-                    Text(description)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .lineLimit(3)
-                }
-                
-                // Key Fields (e.g. Priority, Assignee)
-                HStack(spacing: 12) {
-                    if let priority = proposal.args["priority"] {
-                        TagView(text: "Priority: \(priority)", color: .orange)
-                    }
-                    if let assignee = proposal.args["assignee"] { // Assuming assignee ID or name
-                        TagView(text: "Assignee: \(assignee)", color: .blue)
-                    }
-                }
-                .padding(.top, 4)
-            }
-            .padding(12)
-            .background(Color.black.opacity(0.2))
-            .cornerRadius(12)
+            Divider()
+                .background(Color.white.opacity(0.08))
+                .padding(.vertical, 4)
             
-            // Actions
-            HStack(spacing: 12) {
-                Button(action: onCancel) {
-                    Text("Cancel")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(10)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 16) {
+                    MetadataField(title: "Team", value: teamDisplay)
+                    MetadataField(title: "Project", value: projectDisplay)
                 }
-                .buttonStyle(.plain)
                 
-                Button(action: onConfirm) {
-                    Text(confirmButtonTitle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.green.opacity(0.8), Color.green.opacity(0.6)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        )
+                HStack(spacing: 16) {
+                    MetadataField(title: "Status", value: statusDisplay)
+                    MetadataField(title: "Priority", value: priorityDisplay)
+                    MetadataField(title: "Assignee", value: assigneeDisplay)
                 }
-                .buttonStyle(.plain)
             }
+            
+            actionButton
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .overlay(Color.black.opacity(0.4))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
-    }
-    
-    // MARK: - Helpers
-    
-    private var iconName: String {
-        if proposal.tool.contains("create") { return "plus.circle.fill" }
-        if proposal.tool.contains("update") { return "pencil.circle.fill" }
-        if proposal.tool.contains("delete") { return "trash.circle.fill" }
-        return "doc.text.fill"
-    }
-    
-    private var headerTitle: String {
-        if proposal.tool.contains("issue") {
-            if proposal.tool.contains("create") { return "Create Issue" }
-            if proposal.tool.contains("update") { return "Update Issue" }
-        }
-        return "Confirm Action"
-    }
-    
-    private var confirmButtonTitle: String {
-        if proposal.tool.contains("create") { return "Create Ticket" }
-        if proposal.tool.contains("update") { return "Update Ticket" }
-        return "Confirm"
+        .padding(22)
+        .background(cardBackground)
+        .overlay(cardBorder)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.black.opacity(0.45), radius: 20, x: 0, y: 14)
     }
 }
 
-struct TagView: View {
-    let text: String
-    let color: Color
+// MARK: - Sections
+
+private extension ConfirmationCardView {
+    var headerSection: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(titleDisplay)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+                
+                Text("I'll create an urgent ticket and notify the right teams.")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.55))
+            }
+            
+            Spacer()
+            
+            Button(action: onCancel) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(8)
+                    .background(
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    var actionButton: some View {
+        Button {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+            onConfirm()
+        } label: {
+            Text(confirmButtonTitle)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "29A35F"),
+                            Color.black
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .cornerRadius(24)
+                )
+                .shadow(
+                    color: Color(hex: "29A35F").opacity(0.55),
+                    radius: 16,
+                    x: 0,
+                    y: 10
+                )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    var cardBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black.opacity(0.75))
+        }
+    }
+    
+    var cardBorder: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.25),
+                        Color.white.opacity(0.05)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1
+            )
+    }
+}
+
+// MARK: - Display Helpers
+
+private extension ConfirmationCardView {
+    var titleDisplay: String {
+        proposal.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "Untitled Issue"
+    }
+    
+    var priorityDisplay: String {
+        proposal.priority?.nilIfEmpty ?? "Select"
+    }
+    
+    var statusDisplay: String {
+        proposal.status?.nilIfEmpty ?? "Todo"
+    }
+    
+    var assigneeDisplay: String {
+        let name = proposal.args["assigneeName"] as? String
+        return name?.nilIfEmpty
+            ?? (proposal.args["assignee"] as? String)?.nilIfEmpty
+            ?? proposal.assigneeId?.nilIfEmpty
+            ?? "Unassigned"
+    }
+    
+    var teamDisplay: String {
+        let name = proposal.args["teamName"] as? String
+        return name?.nilIfEmpty
+            ?? (proposal.args["team"] as? String)?.nilIfEmpty
+            ?? proposal.teamId?.nilIfEmpty
+            ?? "Select"
+    }
+    
+    var projectDisplay: String {
+        let name = proposal.args["projectName"] as? String
+        return name?.nilIfEmpty
+            ?? (proposal.args["project"] as? String)?.nilIfEmpty
+            ?? proposal.projectId?.nilIfEmpty
+            ?? "None"
+    }
+    
+    var confirmButtonTitle: String {
+        let tool = proposal.tool.lowercased()
+        if tool.contains("create") { return "Create ticket" }
+        if tool.contains("update") { return "Update ticket" }
+        return "Confirm action"
+    }
+}
+
+// MARK: - Metadata Field
+
+private struct MetadataField: View {
+    let title: String
+    let value: String
     
     var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(color.opacity(0.9))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.15))
-            .cornerRadius(6)
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(color.opacity(0.3), lineWidth: 0.5)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.5))
+            
+            HStack(spacing: 8) {
+                Text(value)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                
+                Spacer(minLength: 4)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.22),
+                                Color.white.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.75
+                    )
+            )
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Extensions
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension Optional where Wrapped == String {
+    var nilIfEmpty: String? {
+        switch self {
+        case .some(let value):
+            return value.nilIfEmpty
+        case .none:
+            return nil
+        }
+    }
+}
+
+private extension Color {
+    init(hex: String) {
+        let sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: sanitized).scanHexInt64(&int)
+        
+        let r, g, b: UInt64
+        switch sanitized.count {
+        case 3: // RGB (12-bit)
+            (r, g, b) = (
+                ((int >> 8) * 17),
+                ((int >> 4) & 0xF) * 17,
+                (int & 0xF) * 17
+            )
+        case 6: // RGB (24-bit)
+            (r, g, b) = (
+                (int >> 16) & 0xFF,
+                (int >> 8) & 0xFF,
+                int & 0xFF
+            )
+        default:
+            (r, g, b) = (1, 1, 1)
+        }
+        
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255
+        )
     }
 }

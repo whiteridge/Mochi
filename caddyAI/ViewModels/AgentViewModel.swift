@@ -54,8 +54,14 @@ class AgentViewModel: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        // Add user message to UI
-        messages.append(ChatMessage(role: .user, content: trimmed))
+        // Don't show the special __CONFIRMED__ token in the UI
+        // It's an internal protocol message for the backend
+        let isConfirmationToken = trimmed == "__CONFIRMED__"
+        
+        // Add user message to UI (unless it's the confirmation token)
+        if !isConfirmationToken {
+            messages.append(ChatMessage(role: .user, content: trimmed))
+        }
         userInput = ""
         
         // Update state
@@ -72,10 +78,9 @@ class AgentViewModel: ObservableObject {
     
     func confirmProposal() {
         guard proposal != nil else { return }
-        // Send "CONFIRMED" message to backend
-        // We treat this as a user message but maybe we don't show it in the UI? 
-        // For now, let's show it to be explicit.
-        processInput(text: "CONFIRMED")
+        // Send special confirmation token to backend
+        // This prevents false positives (e.g., user saying "yes" in conversation)
+        processInput(text: "__CONFIRMED__")
         
         withAnimation {
             proposal = nil

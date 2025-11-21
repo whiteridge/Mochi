@@ -22,6 +22,57 @@ class AgentService:
         # Note: API key for Composio is picked up from COMPOSIO_API_KEY env var by default if not passed
         self.composio = Composio(provider=GeminiProvider())
 
+    def _is_write_action(self, tool_name: str, tool_args: dict) -> bool:
+        """
+        Detect if a tool represents a Write action that requires user confirmation.
+        Composio tool names are UPPERCASE (e.g., LINEAR_CREATE_LINEAR_ISSUE),
+        so we need case-insensitive matching.
+        """
+        tool_name_lower = tool_name.lower()
+        
+        # Check for common write prefixes
+        write_prefixes = ["create_", "update_", "delete_", "remove_", "manage_"]
+        if any(prefix in tool_name_lower for prefix in write_prefixes):
+            print(f"DEBUG: Detected WRITE action (prefix match): {tool_name}")
+            return True
+        
+        # Special case: GraphQL mutations via run_query_or_mutation
+        if "run_query_or_mutation" in tool_name_lower:
+            query = tool_args.get("query", "").strip().lower()
+            if query.startswith("mutation"):
+                print(f"DEBUG: Detected WRITE action (mutation): {tool_name}")
+                return True
+        
+        print(f"DEBUG: Detected READ action: {tool_name}")
+        return False
+
+    def _format_history(self, history: List[Dict[str, str]]) -> List[types.Content]:
+        """
+        Formats the chat history into the structure expected by Gemini SDK.
+        """
+        formatted_history = []
+        for msg in history:
+            role = msg.get("role", "user")
+            content = msg.get("parts", [])
+            
+            # Handle case where content might be a string (from simple dicts)
+            if isinstance(content, str):
+                parts = [types.Part(text=content)]
+            elif isinstance(content, list):
+                # Assuming list of strings or dicts, normalize to types.Part
+                parts = []
+                for part in content:
+                    if isinstance(part, str):
+                        parts.append(types.Part(text=part))
+                    elif isinstance(part, dict) and "text" in part:
+                        parts.append(types.Part(text=part["text"]))
+            else:
+                parts = [types.Part(text=str(content))]
+                
+            formatted_history.append(types.Content(role=role, parts=parts))
+            
+        return formatted_history
+
     def run_agent(self, user_input: str, user_id: str, chat_history: List[Dict[str, str]] = []):
         """
         Runs the agent with the given user input and user_id.
@@ -99,25 +150,28 @@ class AgentService:
     1.  **Identify the Target Tool:** (e.g., `linear_create_issue`).
     2.  **Check Required Arguments:** Does this tool require an ID (e.g., `project_id`, `team_id`)?
     3.  **Check Your Context:** Do you have this ID?
-        *   **YES:** Execute the tool immediately.
+        *   **YES:** Proceed to step 4.
         *   **NO:** **STOP.** Do not complain. Look at your other tools.
-    4.  **FIND THE ID:**
+    4.  **FIND THE ID (if needed):**
         *   Use a **Search Tool** (e.g., `linear_list_linear_issues`, `linear_list_linear_projects`, `linear_list_linear_teams`) using the name the user provided.
         *   Execute the search.
         *   Extract the ID from the result.
-        *   **THEN** execute the original request using that ID.
+        *   **THEN** proceed to step 5.
+    5.  **CALL THE TOOL:** Execute the action by calling the tool with all necessary arguments.
+
+    ### PROACTIVE EXECUTION RULE - CRITICAL
+    When the user implies a Write action (Create/Update/Delete):
+    *   **DO NOT** ask "Shall I create this?" or "Would you like me to...?"
+    *   **IMMEDIATELY** call the tool with your best inference of the arguments.
+    *   The system has an automatic confirmation mechanism that will show a preview to the user.
+    *   You will NEVER see this preview - it happens in the UI layer.
+    *   Just focus on calling the tool correctly. The interception is handled for you.
 
     ### SUMMARIZATION & READ ACTIONS
     When reading content (Issues, Emails, Comments, etc.):
     *   **DO NOT** output raw JSON or long lists.
     *   **ALWAYS** provide a concise summary (max 2-3 sentences).
     *   Focus on the key details: Title, Status, Assignee, and latest update.
-
-    ### WRITE ACTIONS & PROPOSALS
-    When the user requests a modification (Create, Update, Delete):
-    *   **DO NOT** execute the tool immediately if it is a significant change.
-    *   Instead, output a Structured Proposal containing the title, description, and key fields.
-    *   Wait for the user to confirm.
 
     ### TOOL MAPPING
     *   If you need to SEARCH for an issue, use `linear_list_linear_issues`.
@@ -141,7 +195,7 @@ class AgentService:
     *   Search for the item -> Read its description -> Infer the visual details from the text.
 
     ### FINAL INSTRUCTION
-    Be concise. Don't tell the user you are searching. Just do the search, get the ID, and do the work.
+    Be concise. Don't tell the user you are searching. Just do the search, get the ID, and execute the tool.
     """
         
         config = types.GenerateContentConfig(
@@ -150,10 +204,13 @@ class AgentService:
         )
 
         # 4. Start Chat
+        # Format history using the helper
+        formatted_history = self._format_history(chat_history)
+        
         chat = self.client.chats.create(
             model="gemini-2.5-flash", 
             config=config,
-            history=chat_history
+            history=formatted_history
         )
         
         try:
@@ -162,17 +219,13 @@ class AgentService:
             
             action_performed = None
             
-            # Define Write Tools that require confirmation
-            WRITE_TOOLS = [
-                "linear_create_linear_issue",
-                "linear_update_linear_issue",
-                "linear_delete_linear_issue",
-                "linear_create_a_comment"
-            ]
-
             # 5. Handle Tool Execution Loop
             max_iterations = 5
             for _ in range(max_iterations):
+                # Track if this iteration has a write action
+                has_write_action = False
+                should_intercept = False
+                
                 # Check if the model wants to call a function
                 if response.candidates and response.candidates[0].content.parts:
                     for part in response.candidates[0].content.parts:
@@ -182,48 +235,66 @@ class AgentService:
                             print(f"DEBUG: Gemini calling tool: {tool_name} with args: {args}")
                             
                             # INTERCEPTION LOGIC
-                            if tool_name in WRITE_TOOLS:
-                                # Check if user has confirmed
-                                if "CONFIRMED" in user_input:
-                                    print(f"DEBUG: Action Confirmed. Executing {tool_name}")
-                                    # Proceed to execution below
+                            is_write = self._is_write_action(tool_name, args)
+                            has_write_action = is_write
+                            
+                            if is_write:
+                                # Check if user has confirmed using the special token
+                                # We use exact match to prevent false positives
+                                # Frontend sends "__CONFIRMED__" when user clicks the confirm button
+                                user_input_trimmed = user_input.strip()
+                                
+                                if user_input_trimmed == "__CONFIRMED__":
+                                    print(f"DEBUG: Action Confirmed via token. Executing {tool_name}")
+                                    # Clear the flag - allow execution to proceed
+                                    should_intercept = False
                                 else:
                                     print(f"DEBUG: Intercepting {tool_name} for confirmation.")
-                                    # Yield Proposal Event
+                                    # Set flag to prevent execution
+                                    should_intercept = True
+                                    
+                                    # Yield Proposal Event with enriched metadata
                                     yield {
                                         "type": "proposal",
                                         "tool": tool_name,
                                         "content": args
                                     }
+                                    # Do NOT yield a message - let the UI handle it
                                     # Stop execution here for this turn
-                                    # We return a message to the model so it knows we are waiting
-                                    # But we yield a 'proposal' to the frontend
                                     return
+                            
+                            # Only yield tool status for READ actions or confirmed WRITE actions
+                            if not should_intercept:
+                                yield {
+                                    "type": "tool_status",
+                                    "tool": "Linear", 
+                                    "status": "searching"
+                                }
 
-                            # YIELD TOOL STATUS EVENT
-                            yield {
-                                "type": "tool_status",
-                                "tool": "Linear", # We can make this dynamic based on tool_name if needed
-                                "status": "searching"
-                            }
+                # Only execute tools if we didn't intercept
+                if not should_intercept:
+                    try:
+                        function_responses, executed = GeminiProvider.handle_response(response, composio_tools)
+                    except Exception as tool_error:
+                        print(f"DEBUG: Tool Execution Failed: {tool_error}")
+                        break
 
-                try:
-                    function_responses, executed = GeminiProvider.handle_response(response, composio_tools)
-                except Exception as tool_error:
-                    print(f"DEBUG: Tool Execution Failed: {tool_error}")
-                    break
-
-                if executed:
-                    print(f"DEBUG: Tool Output: {function_responses}")
-                    print("Tool executed. Sending results back to model.")
-                    
-                    # Send tool outputs back to Gemini
-                    response = chat.send_message(function_responses)
-                    
-                    action_performed = "Linear Action Executed" 
+                    if executed:
+                        print(f"DEBUG: Tool Output: {function_responses}")
+                        print("Tool executed. Sending results back to model.")
+                        
+                        if has_write_action:
+                            action_performed = "Linear Action Executed"
+                        
+                        # Send tool outputs back to Gemini
+                        response = chat.send_message(function_responses)
+                        
+                    else:
+                        # No more tool calls, we have the final text response
+                        break
                 else:
-                    # No more tool calls, we have the final text response
-                    break
+                    # We intercepted, stop the loop
+                    return
             
             # YIELD FINAL MESSAGE EVENT
             yield {

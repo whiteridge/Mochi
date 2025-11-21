@@ -63,7 +63,8 @@ fileprivate extension VoiceChatBubble {
                 // === EXPANDED STATE ===
                 // Height Calculation: Content + Input Bar + Padding
                 // Add generous buffer (100) to account for the input bar + top padding
-                let finalHeight = min(max(contentHeight + 100, 200), 600)
+                let cardAllowance: CGFloat = viewModel.proposal == nil ? 0 : 220
+                let finalHeight = min(max(contentHeight + 100 + cardAllowance, 200), 600)
                 
                 ZStack(alignment: .bottom) {
                     chatPanelContent
@@ -77,22 +78,7 @@ fileprivate extension VoiceChatBubble {
                         )
                         .transition(.scale(scale: 1))
                     
-                    // Confirmation Card Overlay
-                    if let proposal = viewModel.proposal {
-                        ConfirmationCardView(
-                            proposal: proposal,
-                            onConfirm: {
-                                viewModel.confirmProposal()
-                            },
-                            onCancel: {
-                                viewModel.cancelProposal()
-                            }
-                        )
-                        .padding(.bottom, 80) // Position above input bar
-                        .padding(.horizontal, 16)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(10) // Ensure it's on top
-                    }
+                    // Confirmation Card Removed from here
                 }
                     
             case .success:
@@ -187,6 +173,11 @@ fileprivate extension VoiceChatBubble {
                             processingIndicator(text: "Thinking...")
                                 .id("thinking")
                         }
+                        
+                        // Bottom anchor for scroll-to behavior
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottomAnchor")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 25)
@@ -210,9 +201,17 @@ fileprivate extension VoiceChatBubble {
                     }
                 }
                 .onChange(of: viewModel.messages.count) { _, _ in
-                    if let lastId = viewModel.messages.last?.id {
-                        withAnimation {
-                            proxy.scrollTo(lastId, anchor: .bottom)
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+                .onChange(of: viewModel.proposal) { oldValue, newValue in
+                    // When card appears/disappears, scroll to maintain bottom position
+                    if newValue != nil || oldValue != nil {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            }
                         }
                     }
                 }
@@ -226,11 +225,27 @@ fileprivate extension VoiceChatBubble {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             
+            // Confirmation Card (Integrated into flow)
+            if let proposal = viewModel.proposal {
+                ConfirmationCardView(
+                    proposal: proposal,
+                    onConfirm: {
+                        viewModel.confirmProposal()
+                    },
+                    onCancel: {
+                        viewModel.cancelProposal()
+                    }
+                )
+                .padding(.bottom, 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
             // Bottom: Fixed input bar
             composer
                 .padding(.top, 16)
                 .padding(.bottom, 15)
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.proposal)
     }
     
     // Processing indicator shown inside the chat
