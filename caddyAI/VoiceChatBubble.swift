@@ -2,49 +2,36 @@ import SwiftUI
 import Combine
 import OSLog
 
+struct ViewHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+struct InputViewHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct VoiceChatBubble: View {
     @StateObject private var viewModel = AgentViewModel()
     @State private var viewID = 0
-    @State private var contentHeight: CGFloat = 300 // Initialize with open size
+    // Height state is no longer manually calculated for the frame, but we use GeometryReader in the new layout
     
     @Namespace private var animation
 
     @StateObject private var voiceRecorder = VoiceRecorder()
+    @State private var scrollContentHeight: CGFloat = 100
+    @State private var inputContentHeight: CGFloat = 0
     private let transcriptionService = ParakeetTranscriptionService()
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
     var body: some View {
-        VStack {
-            Spacer()
-            // CONTENT (The ZStack with Pill/Chat)
-            bubbleContent
-        }
-        .padding(.bottom, 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background(Color.clear)
-            .onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStartRecording)) { _ in
-                beginHotkeySession()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStopSession)) { _ in
-                cancelVoiceSession()
-            }
-            .onChange(of: viewModel.state) { _, _ in
-                NotificationCenter.default.post(name: .voiceChatLayoutNeedsUpdate, object: nil)
-            }
-            .onKeyPress(.return) {
-                handleEnterKey()
-                return .handled
-            }
-            .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
-    }
-}
-
-// MARK: - Content Builders
-
-fileprivate extension VoiceChatBubble {
-    @ViewBuilder
-    var bubbleContent: some View {
-        // Expand outwards from floating position
         ZStack(alignment: .bottom) {
             switch viewModel.state {
             case .idle, .recording:
@@ -53,7 +40,7 @@ fileprivate extension VoiceChatBubble {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(
-                            GlassBackground(cornerRadius: 30) // Capsule-ish
+                            GlassBackground(cornerRadius: 30)
                                 .matchedGeometryEffect(id: "background", in: animation)
                         )
                         .transition(.scale(scale: 1))
@@ -61,26 +48,10 @@ fileprivate extension VoiceChatBubble {
                 
             case .chat, .processing:
                 // === EXPANDED STATE ===
-                // Height Calculation: Content + Input Bar + Padding
-                // Add generous buffer (100) to account for the input bar + top padding
-                let cardAllowance: CGFloat = viewModel.proposal == nil ? 0 : 220
-                let finalHeight = min(max(contentHeight + 100 + cardAllowance, 200), 600)
+                expandedChatContent
+                    .matchedGeometryEffect(id: "background", in: animation)
+                    .transition(.scale(scale: 1))
                 
-                ZStack(alignment: .bottom) {
-                    chatPanelContent
-                        .padding(22)
-                        .frame(width: 400)
-                        .frame(height: finalHeight, alignment: .bottom)
-                        .animation(.interpolatingSpring(stiffness: 170, damping: 20), value: finalHeight)
-                        .background(
-                            GlassBackground(cornerRadius: 24)
-                                .matchedGeometryEffect(id: "background", in: animation)
-                        )
-                        .transition(.scale(scale: 1))
-                    
-                    // Confirmation Card Removed from here
-                }
-                    
             case .success:
                 // === SUCCESS STATE ===
                 SuccessPill()
@@ -93,16 +64,149 @@ fileprivate extension VoiceChatBubble {
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
             }
         }
+        .padding(.bottom, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(Color.clear)
+        .onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStartRecording)) { _ in
+            beginHotkeySession()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStopSession)) { _ in
+            cancelVoiceSession()
+        }
+        .onChange(of: viewModel.state) { _, _ in
+            NotificationCenter.default.post(name: .voiceChatLayoutNeedsUpdate, object: nil)
+        }
+        .onKeyPress(.return) {
+            handleEnterKey()
+            return .handled
+        }
+        .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
+        // Error overlay
         .overlay(alignment: .bottom) {
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.pink)
                     .padding(.horizontal, 12)
-                    .padding(.bottom, -20) // Position below the bubble
+                    .padding(.bottom, -20)
                     .multilineTextAlignment(.center)
             }
         }
+    }
+}
+
+// MARK: - Content Builders
+
+fileprivate extension VoiceChatBubble {
+    
+    var expandedChatContent: some View {
+        VStack(spacing: 0) {
+            
+            // 1. CHAT HISTORY (Flexible)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        Spacer(minLength: 0)
+                        
+                        if viewModel.messages.isEmpty {
+                            Text("How can I help?")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 40)
+                        } else {
+                            ForEach(viewModel.messages) { message in
+                                ChatBubbleRow(message: message)
+                                    .id(message.id)
+                            }
+                        }
+                        
+                        if viewModel.isTranscribing {
+                            processingIndicator(text: "Transcribing...")
+                                .id("transcribing")
+                        } else if viewModel.isThinking {
+                            processingIndicator(text: "Thinking...")
+                                .id("thinking")
+                        }
+                        
+                        if let tool = viewModel.activeTool {
+                            ToolStatusView(tool: tool)
+                                .padding(.vertical, 8)
+                                .transition(.opacity)
+                        }
+                        
+                        if let proposal = viewModel.proposal {
+                            ConfirmationCardView(
+                                proposal: proposal,
+                                onConfirm: { viewModel.confirmProposal() },
+                                onCancel: { viewModel.cancelProposal() }
+                            )
+                            .padding(.top, 16)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        
+                        Color.clear.frame(height: 10).id("bottomAnchor")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
+                    .padding(.bottom, 20)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: ViewHeightKey.self, value: geo.size.height)
+                        }
+                    )
+                }
+                .onPreferenceChange(ViewHeightKey.self) { height in
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        scrollContentHeight = height
+                    }
+                }
+                .onChange(of: viewModel.proposal) { _, newValue in
+                    if newValue != nil {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 1.0)) {
+                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+                .onChange(of: viewModel.messages.count) { _, _ in
+                    withAnimation {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+            }
+            .frame(
+                height: min(
+                    max(scrollContentHeight, 0),
+                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.92) - inputContentHeight
+                )
+            )
+            .layoutPriority(1)
+            
+            // 2. INPUT BAR
+            InputBarView(
+                text: $viewModel.userInput,
+                isRecording: voiceRecorder.isRecording,
+                startRecording: startRecording,
+                stopRecording: stopRecording,
+                sendAction: sendManualMessage
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
+            .matchedGeometryEffect(id: "actionButton", in: animation, isSource: false)
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: InputViewHeightKey.self, value: geo.size.height)
+                }
+            )
+            .onPreferenceChange(InputViewHeightKey.self) { height in
+                inputContentHeight = height
+            }
+        }
+        .frame(width: 650)
+        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
+        .cornerRadius(24)
     }
 
     @ViewBuilder
@@ -134,7 +238,7 @@ fileprivate extension VoiceChatBubble {
                 .matchedGeometryEffect(id: "appIcon", in: animation)
             
             AnimatedDotRow(count: 10)
-                .frame(width: 120, height: 28)
+                .frame(width: 84, height: 28)
 
             // Right: Vibrant stop button
             VoiceActionButton(
@@ -144,108 +248,6 @@ fileprivate extension VoiceChatBubble {
             )
             .matchedGeometryEffect(id: "actionButton", in: animation)
         }
-    }
-
-    var chatPanelContent: some View {
-        VStack(spacing: 0) {
-            // Top: Scrollable message area
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        if viewModel.messages.isEmpty {
-                            Text("How can I help?")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.top, 40)
-                        } else {
-                            ForEach(viewModel.messages) { message in
-                                chatBubble(for: message)
-                                    .id(message.id)
-                            }
-                        }
-
-                        // Show processing/thinking indicator inside the chat
-                        if viewModel.isTranscribing {
-                            processingIndicator(text: "Transcribing...")
-                                .id("transcribing")
-                        } else if viewModel.isThinking {
-                            processingIndicator(text: "Thinking...")
-                                .id("thinking")
-                        }
-                        
-                        // Bottom anchor for scroll-to behavior
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottomAnchor")
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 25)
-                    .padding(.bottom, 90)
-                    .padding(.trailing, 20) // Compensate for negative padding
-                    .background(
-                        GeometryReader { geometry in
-                            Color.clear
-                                .preference(key: ViewHeightKey.self, value: geometry.size.height)
-                        }
-                    )
-                }
-                .scrollDisabled(contentHeight < 600)
-                .padding(.trailing, -20) // Push scrollbar off-screen
-                .scrollIndicators(.hidden)
-                .scrollBounceBehavior(.basedOnSize)
-                .frame(maxHeight: .infinity)
-                .onPreferenceChange(ViewHeightKey.self) { height in
-                    DispatchQueue.main.async {
-                        contentHeight = height
-                    }
-                }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                    }
-                }
-                .onChange(of: viewModel.proposal) { oldValue, newValue in
-                    // When card appears/disappears, scroll to maintain bottom position
-                    if newValue != nil || oldValue != nil {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            }
-                        }
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 24)) // Clip the overflow
-            
-            // Tool Status Pill
-            if let activeTool = viewModel.activeTool {
-                ToolStatusView(toolName: activeTool.name, status: activeTool.status)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // Confirmation Card (Integrated into flow)
-            if let proposal = viewModel.proposal {
-                ConfirmationCardView(
-                    proposal: proposal,
-                    onConfirm: {
-                        viewModel.confirmProposal()
-                    },
-                    onCancel: {
-                        viewModel.cancelProposal()
-                    }
-                )
-                .padding(.bottom, 6)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // Bottom: Fixed input bar
-            composer
-                .padding(.top, 16)
-                .padding(.bottom, 15)
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.proposal)
     }
     
     // Processing indicator shown inside the chat
@@ -309,8 +311,109 @@ fileprivate extension VoiceChatBubble {
         )
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
+}
 
-    var composer: some View {
+// MARK: - Actions
+
+@MainActor
+private extension VoiceChatBubble {
+    func handleEnterKey() {
+        switch viewModel.state {
+        case .recording:
+            logger.debug("Enter pressed: Stopping recording")
+            stopRecording()
+        case .chat, .processing:
+            logger.debug("Enter pressed: Sending message")
+            sendManualMessage()
+        case .success:
+            break
+        case .idle:
+            logger.debug("Enter pressed in idle state: Ignoring")
+        }
+    }
+    
+    func beginHotkeySession() {
+        guard viewModel.state != .recording else { return }
+        resetConversation(animate: false)
+        startRecording()
+    }
+
+    func cancelVoiceSession() {
+        Task {
+             _ = try? await voiceRecorder.stopRecording()
+            await MainActor.run {
+                resetConversation(animate: false)
+            }
+        }
+    }
+
+    func startRecording() {
+        Task {
+            do {
+                try await voiceRecorder.startRecording()
+                await MainActor.run {
+                    viewModel.errorMessage = nil
+                    viewID += 1
+                    if viewModel.state != .chat {
+                        viewModel.state = .recording
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    viewModel.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func stopRecording() {
+        viewModel.errorMessage = nil
+
+        Task {
+            do {
+                await MainActor.run {
+                    viewModel.state = .chat
+                    viewModel.isTranscribing = true
+                }
+                
+                let audioURL = try await voiceRecorder.stopRecording()
+                let transcript = try await transcriptionService.transcribeFile(at: audioURL)
+                
+                await MainActor.run {
+                    viewModel.errorMessage = nil
+                    viewModel.isTranscribing = false
+                    viewModel.processInput(text: transcript)
+                }
+            } catch {
+                logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
+                await MainActor.run {
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.isTranscribing = false
+                    viewModel.state = .idle
+                }
+            }
+        }
+    }
+
+    func sendManualMessage() {
+        viewModel.processInput(text: viewModel.userInput)
+    }
+
+    func resetConversation(animate: Bool = true) {
+        viewModel.reset()
+    }
+}
+
+// MARK: - Supporting Views
+
+private struct InputBarView: View {
+    @Binding var text: String
+    var isRecording: Bool
+    var startRecording: () -> Void
+    var stopRecording: () -> Void
+    var sendAction: () -> Void
+    
+    var body: some View {
         HStack(spacing: 10) {
             // Logo icon with glass effect
             Circle()
@@ -337,52 +440,60 @@ fileprivate extension VoiceChatBubble {
                 )
             
             // Text field
-            TextField("Type to Caddy", text: $viewModel.userInput, axis: .vertical)
+            TextField("Type to Caddy", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .regular, design: .default))
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(3)
-                .onSubmit(sendManualMessage)
+                .onSubmit(sendAction)
             
             Spacer()
             
             // Microphone button / Stop button
             VoiceActionButton(
                 size: 28,
-                isRecording: voiceRecorder.isRecording,
-                action: voiceRecorder.isRecording ? stopRecording : startRecording
+                isRecording: isRecording,
+                action: isRecording ? stopRecording : startRecording
             )
-            .matchedGeometryEffect(id: "actionButton", in: animation)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
             ZStack {
-                // Recessed background - darker than main glass
-                Capsule()
-                    .fill(Color.black.opacity(0.3))
+                // 1. Base Dark Layer
+                Color.black.opacity(0.8)
                 
-                // Inner shadow effect (top darker, bottom lighter - inverted from main glass)
-                Capsule()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                Color.black.opacity(0.4),    // Dark at top (shadow)
-                                Color.white.opacity(0.0),    // Transition
-                                Color.white.opacity(0.08)    // Light at bottom (catching light)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
+                // 2. Subtle Shine
+                LinearGradient(
+                    colors: [Color.white.opacity(0.05), Color.clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
-            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 1)
         )
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.2),
+                            Color.white.opacity(0.05)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
     }
+}
 
-    @ViewBuilder
-    func chatBubble(for message: ChatMessage) -> some View {
+private struct ChatBubbleRow: View {
+    let message: ChatMessage
+    
+    var body: some View {
         let isUser = message.role == .user
         VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
             HStack {
@@ -441,110 +552,6 @@ fileprivate extension VoiceChatBubble {
     }
 }
 
-// MARK: - Actions
-
-@MainActor
-private extension VoiceChatBubble {
-    /// Handle Enter key press based on current state
-    func handleEnterKey() {
-        switch viewModel.state {
-        case .recording:
-            // Enter during recording -> Stop recording
-            logger.debug("Enter pressed: Stopping recording")
-            stopRecording()
-        case .chat, .processing:
-            // Enter during chat -> Send message if input is not empty
-            logger.debug("Enter pressed: Sending message")
-            sendManualMessage()
-        case .success:
-            // Ignore
-            break
-        case .idle:
-            // Do nothing in idle state
-            logger.debug("Enter pressed in idle state: Ignoring")
-        }
-    }
-    
-    func beginHotkeySession() {
-        guard viewModel.state != .recording else { return }
-        resetConversation(animate: false)
-        startRecording()
-    }
-
-    func cancelVoiceSession() {
-        Task {
-             _ = try? await voiceRecorder.stopRecording()
-            await MainActor.run {
-                resetConversation(animate: false)
-            }
-        }
-    }
-
-    func startRecording() {
-        Task {
-            do {
-                try await voiceRecorder.startRecording()
-                await MainActor.run {
-                    viewModel.errorMessage = nil
-                    viewID += 1
-                    
-                    // Logic Change:
-                    // If state == .idle: Transition to .recording (Show Pill).
-                    // If state == .chat: Stay in .chat. Do not transition to .recording.
-                    if viewModel.state != .chat {
-                        viewModel.state = .recording
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    viewModel.errorMessage = error.localizedDescription
-                }
-            }
-        }
-    }
-
-    func stopRecording() {
-        viewModel.errorMessage = nil
-
-        Task {
-            do {
-                // Immediately expand to chat
-                await MainActor.run {
-                    viewModel.state = .chat
-                    viewModel.isTranscribing = true
-                }
-                
-                let audioURL = try await voiceRecorder.stopRecording()
-                let transcript = try await transcriptionService.transcribeFile(at: audioURL)
-                
-                await MainActor.run {
-                    viewModel.errorMessage = nil
-                    viewModel.isTranscribing = false
-                    viewModel.processInput(text: transcript)
-                }
-            } catch {
-                logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
-                await MainActor.run {
-                    viewModel.errorMessage = error.localizedDescription
-                    viewModel.isTranscribing = false
-                    viewModel.state = .idle
-                }
-            }
-        }
-    }
-
-    func sendManualMessage() {
-        viewModel.processInput(text: viewModel.userInput)
-    }
-
-    func resetConversation(animate: Bool = true) {
-        // Note: animation is handled by the .animation modifier on body
-        viewModel.reset()
-    }
-}
-
-// MARK: - Helpers
-
 private struct SuccessPill: View {
     var body: some View {
         HStack(spacing: 12) {
@@ -562,7 +569,6 @@ private struct SuccessPill: View {
         }
     }
 }
-
 
 private struct AnimatedDotRow: View {
     let count: Int
@@ -606,10 +612,7 @@ private struct AnimatedDotRow: View {
     }
 }
 
-// MARK: - Glass Background Component
-
 private struct GlassBackground: View {
-    // 1. Fix the Expansion Physics: Smooth corner radius animation
     var cornerRadius: CGFloat
     var tint: Color = Color.black.opacity(0.5)
     
@@ -650,15 +653,5 @@ private struct GlassBackground: View {
                 .padding(1)
         )
         .shadow(color: Color.black.opacity(0.4), radius: 18, x: 0, y: 12)
-    }
-}
-
-// MARK: - Preference Key for Height Measurement
-
-private struct ViewHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

@@ -5,6 +5,8 @@ struct ConfirmationCardView: View {
     let onConfirm: () -> Void
     let onCancel: () -> Void
     
+    @State private var rotation: Double = 0
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             headerSection
@@ -77,32 +79,67 @@ private extension ConfirmationCardView {
     }
     
     var actionButton: some View {
-        Button {
+        let mossGreen = Color(red: 90/255, green: 140/255, blue: 90/255) // Desaturated Olive
+
+        return Button {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
             onConfirm()
         } label: {
             Text(confirmButtonTitle)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .font(.system(size: 15, weight: .semibold)) // Slightly bolder text
+                .foregroundColor(.white)
+                .padding(.horizontal, 24) // Match "Type to Caddy" length approximately
+                .frame(height: 48) // Fixed height for perfect pill shape
                 .background(
-                    LinearGradient(
-                        colors: [
-                            Color(hex: "29A35F"),
-                            Color.black
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .cornerRadius(24)
+                    ZStack {
+                        // Layer 1: Dark Base
+                        Color.black.opacity(0.5)
+                        
+                        // Layer 2: The "Spotlight" (Top-Center Radial)
+                        GeometryReader { geo in
+                            let size = geo.size.width
+                            ZStack {
+                                RadialGradient(
+                                    colors: [
+                                        mossGreen.opacity(0.6), // Core highlight
+                                        mossGreen.opacity(0.1), // Fade
+                                        Color.clear             // End
+                                    ],
+                                    center: UnitPoint(x: 0.5, y: 0.15), // Offset to orbit around edge
+                                    startRadius: 0,
+                                    endRadius: size * 0.4 // Tighter spread
+                                )
+                                .frame(width: size, height: size)
+                                .rotationEffect(.degrees(rotation))
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+                        }
+                    }
                 )
-                .shadow(
-                    color: Color(hex: "29A35F").opacity(0.55),
-                    radius: 16,
-                    x: 0,
-                    y: 10
+                .clipShape(Capsule()) // Perfect semicircular ends
+                .onAppear {
+                    withAnimation(.linear(duration: 10).repeatForever(autoreverses: false)) {
+                        rotation = 360
+                    }
+                }
+                // Layer 3: The "Glass Edge" (Rim Light)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.3), // Bright Top Rim
+                                    Color.white.opacity(0.1), // Fading sides
+                                    Color.white.opacity(0.02) // Invisible Bottom
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
                 )
+                // Layer 4: Subtle Outer Bloom
+                .shadow(color: mossGreen.opacity(0.2), radius: 12, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -245,38 +282,5 @@ private extension Optional where Wrapped == String {
         case .none:
             return nil
         }
-    }
-}
-
-private extension Color {
-    init(hex: String) {
-        let sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: sanitized).scanHexInt64(&int)
-        
-        let r, g, b: UInt64
-        switch sanitized.count {
-        case 3: // RGB (12-bit)
-            (r, g, b) = (
-                ((int >> 8) * 17),
-                ((int >> 4) & 0xF) * 17,
-                (int & 0xF) * 17
-            )
-        case 6: // RGB (24-bit)
-            (r, g, b) = (
-                (int >> 16) & 0xFF,
-                (int >> 8) & 0xFF,
-                int & 0xFF
-            )
-        default:
-            (r, g, b) = (1, 1, 1)
-        }
-        
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255
-        )
     }
 }

@@ -1,101 +1,98 @@
 import SwiftUI
 
 struct ToolStatusView: View {
-    let toolName: String
-    let status: String
+    let tool: ToolStatus
+    @State private var isAnimating = false
     
     var body: some View {
-        HStack(spacing: 10) {
-            // Tool Icon (Linear Logo Placeholder)
+        HStack(spacing: 8) {
+            // 1. The Icon (Linear Brand Style)
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(width: 28, height: 28)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "5E6AD2"), Color(hex: "C9C9FC")], // Linear Purples
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 16, height: 16)
                 
-                // Use a specific icon for Linear if possible, else generic
-                Image(systemName: toolName.lowercased().contains("linear") ? "checklist" : "network")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
+                // Optional: Internal graphic if needed, otherwise just the orb looks good
             }
             
-            HStack(spacing: 0) {
-                Text("\(status.capitalized) \(toolName)")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                
-                TypingEllipsis()
-                    .padding(.leading, 2)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            GlassBackground(cornerRadius: 30)
-        )
-    }
-}
-
-// MARK: - Subcomponents
-
-private struct TypingEllipsis: View {
-    @State private var dotCount = 0
-    
-    var body: some View {
-        Text(String(repeating: ".", count: dotCount))
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.white.opacity(0.9))
-            .frame(width: 12, alignment: .leading) // Fixed width to prevent jitter
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.5).repeatForever()) {
-                    // This is a simple animation, but for a text-based one we need a timer
+            // 2. The Text
+            Text(tool.status)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(0.9))
+            
+            // 3. The Stable Animation (3 Dots)
+            HStack(spacing: 3) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(Color.white.opacity(0.8))
+                        .frame(width: 3, height: 3)
+                        .opacity(isAnimating ? 1 : 0.3)
+                        // Staggered animation
+                        .animation(
+                            Animation.easeInOut(duration: 0.6)
+                                .repeatForever()
+                                .delay(Double(index) * 0.2),
+                            value: isAnimating
+                        )
                 }
             }
-            .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-                dotCount = (dotCount + 1) % 4
-            }
+            .offset(y: 1) // Optical alignment with text baseline
+        }
+        // 4. Compact Styling
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .background(Color.black.opacity(0.3))
+        .clipShape(Capsule())
+        // 5. Glass Border
+        .overlay(
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.2), .white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+        .onAppear {
+            isAnimating = true
+        }
     }
 }
 
-private struct GlassBackground: View {
-    var cornerRadius: CGFloat
-    var tint: Color = Color.black.opacity(0.5)
-    
-    var body: some View {
-        ZStack {
-            // Base glass layer with material
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-            
-            // Dark tint overlay for depth
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(tint)
+// MARK: - Color Extension for Hex Support
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
         }
-        .overlay(
-            // Primary rim light
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.4),
-                            Color.white.opacity(0.15),
-                            Color.white.opacity(0.03)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
         )
-        .overlay(
-            // Inner glow
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(
-                    Color.white.opacity(0.08),
-                    lineWidth: 0.5
-                )
-                .blur(radius: 1.5)
-                .padding(1)
-        )
-        .shadow(color: Color.black.opacity(0.4), radius: 18, x: 0, y: 12)
     }
 }

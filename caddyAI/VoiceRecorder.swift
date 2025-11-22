@@ -33,58 +33,40 @@ final class VoiceRecorder: NSObject, ObservableObject {
 	private var hasTapInstalled = false
 
 	func startRecording() async throws {
-		guard !isRecording else { return }
+		let inputNode = audioEngine.inputNode
 		
-		// Ensure clean state
-		frameCount = 0
+		// 1. Get the NATIVE hardware format (Fixes the 16kHz vs 44.1kHz crash)
+		let hardwareFormat = inputNode.inputFormat(forBus: 0)
 		
-		// Aggressively clean up any existing state
-		if audioEngine.isRunning {
-			print("VoiceRecorder: Stopping running engine")
-			audioEngine.stop()
-			// Give the audio system time to fully stop
-			try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+		// 2. Safety Check
+		guard hardwareFormat.sampleRate > 0 else {
+			print("Error: Invalid hardware sample rate (0).")
+            throw RecorderError.failedToStart(NSError(domain: "VoiceRecorder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid hardware sample rate (0)."]))
 		}
 		
-		// Remove any existing taps before resetting
+		// 3. Cleanup & Tap
 		if hasTapInstalled {
-			print("VoiceRecorder: Removing existing taps")
-			audioEngine.inputNode.removeTap(onBus: 0)
+			inputNode.removeTap(onBus: 0)
 			hasTapInstalled = false
 		}
 		
-		print("VoiceRecorder: Resetting audio engine")
-		audioEngine.reset()
-		
-		// Critical: Give the audio system time to fully reset and release resources
-		// This prevents the "there already is a thread" error (HALC_IOThread error)
-		// Especially important on first run when audio hardware is initializing
-		try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
-		
-		// Get a fresh reference to inputNode after reset
-		let inputNode = audioEngine.inputNode
-		let hardwareFormat = inputNode.inputFormat(forBus: 0)
-		print("VoiceRecorder: Hardware format: \(hardwareFormat.sampleRate)Hz, \(hardwareFormat.channelCount) ch")
-
-		guard hardwareFormat.channelCount > 0 else {
-			throw RecorderError.microphoneUnavailable
-		}
-
-		// Use a standard format for recording that CAF files support well
-		// We'll convert to 16kHz mono later for Parakeet
+		// Setup output file and format (Preserving existing file logic)
+		// We convert to a standard Float32 format but keep the sample rate to minimize conversion artifacts
+		// or let the converter handle it if we want to enforce 16kHz later (Parakeet handles resampling).
+		// Here we stick to hardware rate for recording to file, or 1 channel.
 		guard let recordFormat = AVAudioFormat(
 			commonFormat: .pcmFormatFloat32,
 			sampleRate: hardwareFormat.sampleRate,
-			channels: min(hardwareFormat.channelCount, 1),
+			channels: 1,
 			interleaved: false
 		) else {
 			throw RecorderError.failedToCreateFile
 		}
-
+		
 		let url = FileManager.default.temporaryDirectory
 			.appendingPathComponent("voice-\(UUID().uuidString)")
 			.appendingPathExtension("caf")
-
+		
 		outputURL = url
 		recordingFormat = recordFormat
 		
@@ -104,32 +86,23 @@ final class VoiceRecorder: NSObject, ObservableObject {
 		} catch {
 			throw RecorderError.failedToCreateFile
 		}
-
-		inputNode.installTap(onBus: 0, bufferSize: 1024, format: hardwareFormat) { [weak self] buffer, _ in
-			self?.handleIncomingBuffer(buffer)
+		
+		// 4. Install Tap using the EXACT hardware format
+		// Do not try to change sample rate here. It causes the crash.
+		inputNode.installTap(onBus: 0, bufferSize: 1024, format: hardwareFormat) { [weak self] buffer, time in
+			guard let self = self else { return }
+			self.handleIncomingBuffer(buffer)
 		}
 		hasTapInstalled = true
-
-		audioEngine.prepare()
-		do {
+		
+		// 5. Prepare and Start
+		if !audioEngine.isRunning {
+			audioEngine.prepare()
 			try audioEngine.start()
-			isRecording = true
-			print("VoiceRecorder: Audio engine started successfully")
-			print("VoiceRecorder: Recording format: \(recordFormat.sampleRate)Hz, \(recordFormat.channelCount) ch")
-			print("VoiceRecorder: Hardware format: \(hardwareFormat.sampleRate)Hz, \(hardwareFormat.channelCount) ch")
-			
-			// Give the audio system time to actually start capturing audio data
-			// This is especially important on the first recording attempt when
-			// the audio hardware is initializing for the first time
-			try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
-			print("VoiceRecorder: Ready to capture audio")
-		} catch {
-			print("VoiceRecorder: Failed to start audio engine: \(error)")
-			inputNode.removeTap(onBus: 0)
-			hasTapInstalled = false
-			audioFile = nil
-			throw RecorderError.failedToStart(error)
 		}
+		
+		isRecording = true
+		print("VoiceRecorder: Started successfully at \(hardwareFormat.sampleRate)Hz")
 	}
 
 	func stopRecording() async throws -> URL {

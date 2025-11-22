@@ -1,7 +1,6 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Project Context: CaddyAI (macOS Voice-to-LLM Assistant)
 
 You are an expert Senior Swift Engineer and Python Backend Developer. You are working on a hybrid application consisting of a native macOS frontend (SwiftUI) and an agentic Python backend (FastAPI).
