@@ -30,6 +30,8 @@ class AgentViewModel: ObservableObject {
                             withAnimation(.easeInOut(duration: 0.5)) {
                                 state = .idle
                             }
+                            // Dismiss the panel after the success animation completes
+                            NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                         }
                     }
                 }
@@ -77,7 +79,14 @@ class AgentViewModel: ObservableObject {
     }
     
     func confirmProposal() {
-        guard proposal != nil else { return }
+        guard let p = proposal else { return }
+        
+        // Inject hidden context so the model knows what it proposed
+        // This is critical because the backend is stateless and the original proposal
+        // was intercepted and never added to history.
+        let context = "I proposed to call \(p.tool) with arguments: \(p.args)"
+        messages.append(ChatMessage(role: .assistant, content: context, isHidden: true))
+        
         // Send special confirmation token to backend
         // This prevents false positives (e.g., user saying "yes" in conversation)
         processInput(text: "__CONFIRMED__")
@@ -135,6 +144,7 @@ class AgentViewModel: ObservableObject {
                         
                         // Determine next state
                         if event.actionPerformed != nil {
+                            print("DEBUG: Action Performed received. Switching to success state.")
                             state = .success
                         } else {
                             state = .chat

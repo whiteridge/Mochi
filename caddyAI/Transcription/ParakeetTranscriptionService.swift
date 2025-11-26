@@ -95,8 +95,17 @@ private enum ParakeetAudioNormalizer {
 			throw NormalizerError.converterUnavailable
 		}
 		
+		do {
+			let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+			let size = (attrs[.size] as? NSNumber)?.int64Value ?? -1
+			logger.notice("Source file metadata -> size=\(size) bytes, modified=\(String(describing: attrs[.modificationDate]))")
+		} catch {
+			logger.error("Failed to fetch source file metadata: \(error.localizedDescription, privacy: .public)")
+		}
+		
 		let sourceFile: AVAudioFile
 		do {
+			// Open WITHOUT format conversion - let AVAudioFile detect native format
 			sourceFile = try AVAudioFile(forReading: url)
 		} catch {
 			logger.error("Failed to open audio file: \(error.localizedDescription, privacy: .public)")
@@ -139,59 +148,97 @@ private enum ParakeetAudioNormalizer {
 		
 		let outputFile = try AVAudioFile(forWriting: destinationURL, settings: settings)
 		let bufferCapacity: AVAudioFrameCount = 4096
+		
+		guard
+			let inputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: bufferCapacity),
+			let convertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: bufferCapacity * 2)
+		else {
+			logger.error("Failed to create audio buffers for conversion")
+			throw NormalizerError.bufferAllocationFailed
+		}
 
 		logger.notice("Converting clip to 16kHz mono Float32 for Parakeet")
 		logger.notice("Source file has \(sourceFile.length) frames")
 
-		while true {
-			guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: bufferCapacity) else {
-				logger.error("Failed to allocate input buffer")
-				throw NormalizerError.bufferAllocationFailed
+		var didReachEOF = false
+		var readError: Error?
+		
+		let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+			if didReachEOF {
+				outStatus.pointee = .endOfStream
+				return nil
 			}
 			
 			do {
+				logger.debug("Attempting to read \(bufferCapacity) frames from source file")
 				try sourceFile.read(into: inputBuffer)
 			} catch {
-				logger.error("Failed to read from source file: \(error.localizedDescription, privacy: .public)")
-				throw error
-			}
-
-			if inputBuffer.frameLength == 0 {
-				logger.notice("Finished reading source file")
-				break
-			}
-
-			let ratio = targetSampleRate / format.sampleRate
-			let convertedCapacity = AVAudioFrameCount(ceil(Double(inputBuffer.frameLength) * ratio))
-			guard let convertedBuffer = AVAudioPCMBuffer(
-				pcmFormat: targetFormat,
-				frameCapacity: max(convertedCapacity, 1)
-			) else {
-				throw NormalizerError.bufferAllocationFailed
-			}
-
-			var providedInput = false
-			let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-				if providedInput {
+				// If we are at the end of the file, treat this error as EOF
+				if sourceFile.framePosition >= sourceFile.length {
+					logger.notice("Read error at EOF (frame \(sourceFile.framePosition)), treating as normal EOF")
+					didReachEOF = true
 					outStatus.pointee = .endOfStream
 					return nil
 				}
-				providedInput = true
-				outStatus.pointee = .haveData
-				return inputBuffer
+
+				readError = error
+				logger.error("Failed to read from source file at frame \(sourceFile.framePosition): \(error.localizedDescription, privacy: .public)")
+				outStatus.pointee = .endOfStream
+				return nil
 			}
-
-			var error: NSError?
-			converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
-
-			if let error {
-				throw error
+			
+			if inputBuffer.frameLength == 0 {
+				logger.notice("Finished reading source file (EOF)")
+				didReachEOF = true
+				outStatus.pointee = .endOfStream
+				return nil
 			}
-
+			
+			outStatus.pointee = .haveData
+			return inputBuffer
+		}
+		
+		var totalConvertedFrames: AVAudioFramePosition = 0
+		
+		conversionLoop: while true {
+			convertedBuffer.frameLength = 0
+			
+			var conversionError: NSError?
+			let status = converter.convert(to: convertedBuffer, error: &conversionError, withInputFrom: inputBlock)
+			
+			if let conversionError {
+				logger.error("Audio conversion failed: \(conversionError.localizedDescription, privacy: .public)")
+				throw conversionError
+			}
+			
+			if let readError {
+				throw readError
+			}
+			
 			if convertedBuffer.frameLength > 0 {
 				try outputFile.write(from: convertedBuffer)
+				totalConvertedFrames += AVAudioFramePosition(convertedBuffer.frameLength)
+				logger.debug("Wrote \(convertedBuffer.frameLength) converted frames (total \(totalConvertedFrames))")
+			}
+			
+			switch status {
+			case .haveData:
+				continue
+			case .inputRanDry:
+				if didReachEOF {
+					break conversionLoop
+				}
+				continue
+			case .endOfStream:
+				break conversionLoop
+			case .error:
+				throw NormalizerError.converterUnavailable
+			@unknown default:
+				break conversionLoop
 			}
 		}
+		
+		logger.notice("Normalized clip length: \(totalConvertedFrames) frames @ \(targetSampleRate)Hz")
 
 		return PreparedClip(url: destinationURL, cleanupURL: destinationURL)
 	}

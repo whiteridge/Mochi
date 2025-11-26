@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
 	private var panelController: PanelController?
 	private let globalKeyMonitor = GlobalKeyMonitor()
+	private var dismissObserver: NSObjectProtocol?
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		panelController = PanelController(rootView: AnyView(VoiceChatBubble()))
@@ -13,6 +14,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			self?.handleDoubleCommandTap()
 		}
 		globalKeyMonitor.start()
+		
+		// Listen for dismiss notification (e.g., after success animation completes)
+		dismissObserver = NotificationCenter.default.addObserver(
+			forName: .voiceChatShouldDismissPanel,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			self?.panelController?.hide()
+		}
 	}
 	
 	/// Handle double-tap Command key event

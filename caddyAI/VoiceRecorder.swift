@@ -114,20 +114,44 @@ final class VoiceRecorder: NSObject, ObservableObject {
 			throw RecorderError.noAudioCaptured
 		}
 
+		// Stop engine FIRST to prevent new tap callbacks
+		audioEngine.stop()
+		print("VoiceRecorder: Audio engine stop requested")
+		
+		// Then remove tap
 		if hasTapInstalled {
 			audioEngine.inputNode.removeTap(onBus: 0)
 			hasTapInstalled = false
+			print("VoiceRecorder: Tap removed from input node")
+		} else {
+			print("VoiceRecorder: No tap installed at stopRecording time")
 		}
-		audioEngine.stop()
+		
+		// Reset the engine
 		audioEngine.reset()
+		print("VoiceRecorder: Audio engine reset")
 
 		// Ensure the file is fully written and closed
 		print("VoiceRecorder: Recorded \(frameCount) frames")
 		let capturedFrames = frameCount
-		audioFile = nil
 		
-		// Give the file system a moment to finalize the write
-		try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+		// Close the file handle explicitly by storing reference then niling
+		let fileToClose = audioFile
+		audioFile = nil
+		if let fileToClose {
+			print("VoiceRecorder: Closing audio file handle for \(fileToClose.url.lastPathComponent)")
+		} else {
+			print("VoiceRecorder: Audio file already nil before close")
+		}
+		// Allow time for any pending writes and file close
+		try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for safety
+		
+		// Explicitly release the file reference
+		_ = fileToClose
+		
+		if let url = outputURL {
+			logFileMetadata(at: url, context: "post-close pre-guard")
+		}
 
 		guard let url = outputURL else {
 			isRecording = false
@@ -147,6 +171,14 @@ final class VoiceRecorder: NSObject, ObservableObject {
 			try? FileManager.default.removeItem(at: url)
 			throw RecorderError.noAudioCaptured
 		}
+		
+		// Additional safety: verify file exists and has size
+		let fileExists = FileManager.default.fileExists(atPath: url.path)
+		guard fileExists else {
+			throw RecorderError.failedToCreateFile
+		}
+		
+		logFileMetadata(at: url, context: "pre-return")
 		
 		return url
 	}
@@ -181,9 +213,16 @@ final class VoiceRecorder: NSObject, ObservableObject {
 				}
 				
 				var error: NSError?
+				var providedInput = false
 				let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-					outStatus.pointee = .haveData
-					return buffer
+					if !providedInput {
+						providedInput = true
+						outStatus.pointee = .haveData
+						return buffer
+					} else {
+						outStatus.pointee = .endOfStream
+						return nil
+					}
 				}
 				
 				let status = converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
@@ -200,6 +239,19 @@ final class VoiceRecorder: NSObject, ObservableObject {
 			}
 		} catch {
 			print("VoiceRecorder write error: \(error)")
+		}
+	}
+}
+
+private extension VoiceRecorder {
+	func logFileMetadata(at url: URL, context: String) {
+		do {
+			let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+			let size = (attrs[.size] as? NSNumber)?.int64Value ?? -1
+			let modDate = attrs[.modificationDate] as? Date ?? .distantPast
+			print("VoiceRecorder: [\(context)] file=\(url.lastPathComponent) size=\(size) bytes modified=\(modDate)")
+		} catch {
+			print("VoiceRecorder: [\(context)] failed to fetch file metadata for \(url.lastPathComponent): \(error)")
 		}
 	}
 }

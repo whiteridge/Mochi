@@ -23,6 +23,7 @@ struct ChatMessage: Identifiable, Equatable {
     let id = UUID()
     let role: ChatRole
     let content: String
+    var isHidden: Bool = false
 }
 
 enum ChatRole {

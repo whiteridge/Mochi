@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Any
 import json
-from backend.agent_service import AgentService
+from agent_service import AgentService
 
 app = FastAPI(title="CaddyAI Backend")
 

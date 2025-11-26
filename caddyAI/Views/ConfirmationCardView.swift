@@ -181,7 +181,20 @@ private extension ConfirmationCardView {
     }
     
     var statusDisplay: String {
-        proposal.status?.nilIfEmpty ?? "Todo"
+        let stateName = proposal.args["stateName"] as? String
+        if let name = stateName?.nilIfEmpty {
+            return name
+        }
+        if let statusArg = (proposal.args["status"] as? String)?.nilIfEmpty {
+            return statusArg
+        }
+        if let statusValue = proposal.status?.nilIfEmpty {
+            if isUUID(statusValue) {
+                return "Todo"
+            }
+            return statusValue
+        }
+        return "Todo"
     }
     
     var assigneeDisplay: String {
@@ -194,18 +207,47 @@ private extension ConfirmationCardView {
     
     var teamDisplay: String {
         let name = proposal.args["teamName"] as? String
-        return name?.nilIfEmpty
-            ?? (proposal.args["team"] as? String)?.nilIfEmpty
-            ?? proposal.teamId?.nilIfEmpty
-            ?? "Select"
+        if let name = name?.nilIfEmpty {
+            return name
+        }
+        if let team = (proposal.args["team"] as? String)?.nilIfEmpty {
+            return team
+        }
+        if let teamId = proposal.teamId?.nilIfEmpty {
+            // If it looks like a UUID, show a user-friendly message instead
+            if isUUID(teamId) {
+                return "Select Team"
+            }
+            return teamId
+        }
+        return "Select"
     }
     
     var projectDisplay: String {
         let name = proposal.args["projectName"] as? String
-        return name?.nilIfEmpty
-            ?? (proposal.args["project"] as? String)?.nilIfEmpty
-            ?? proposal.projectId?.nilIfEmpty
-            ?? "None"
+        if let name = name?.nilIfEmpty {
+            return name
+        }
+        if let project = (proposal.args["project"] as? String)?.nilIfEmpty {
+            return project
+        }
+        if let projectId = proposal.projectId?.nilIfEmpty {
+            // If it looks like a UUID, show a user-friendly message instead
+            if isUUID(projectId) {
+                return "None"
+            }
+            return projectId
+        }
+        return "None"
+    }
+    
+    // Helper function to detect UUID format
+    private func isUUID(_ string: String) -> Bool {
+        // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (8-4-4-4-12 hex digits)
+        let uuidPattern = #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#
+        let regex = try? NSRegularExpression(pattern: uuidPattern, options: .caseInsensitive)
+        let range = NSRange(location: 0, length: string.utf16.count)
+        return regex?.firstMatch(in: string, options: [], range: range) != nil
     }
     
     var confirmButtonTitle: String {

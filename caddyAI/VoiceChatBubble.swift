@@ -115,7 +115,7 @@ fileprivate extension VoiceChatBubble {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.top, 40)
                         } else {
-                            ForEach(viewModel.messages) { message in
+                            ForEach(viewModel.messages.filter { !$0.isHidden }) { message in
                                 ChatBubbleRow(message: message)
                                     .id(message.id)
                             }
@@ -131,6 +131,7 @@ fileprivate extension VoiceChatBubble {
                         
                         if let tool = viewModel.activeTool {
                             ToolStatusView(tool: tool)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 8)
                                 .transition(.opacity)
                         }

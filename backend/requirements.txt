@@ -2,6 +2,9 @@ fastapi
 uvicorn
 google-genai
 composio-core
-composio-gemini
+composio-google
 python-dotenv
 pydantic
+pytest
+pytest-asyncio
+httpx
