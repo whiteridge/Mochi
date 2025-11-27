@@ -177,7 +177,11 @@ private extension ConfirmationCardView {
     }
     
     var priorityDisplay: String {
-        proposal.priority?.nilIfEmpty ?? "Select"
+        // First check for enriched priorityName from backend
+        if let priorityName = (proposal.args["priorityName"] as? String)?.nilIfEmpty {
+            return priorityName
+        }
+        return proposal.priority?.nilIfEmpty ?? "No Priority"
     }
     
     var statusDisplay: String {
@@ -198,23 +202,27 @@ private extension ConfirmationCardView {
     }
     
     var assigneeDisplay: String {
-        let name = proposal.args["assigneeName"] as? String
-        return name?.nilIfEmpty
-            ?? (proposal.args["assignee"] as? String)?.nilIfEmpty
-            ?? proposal.assigneeId?.nilIfEmpty
-            ?? "Unassigned"
+        // First check for enriched assignee name from backend
+        if let name = (proposal.args["assigneeName"] as? String)?.nilIfEmpty {
+            return name
+        }
+        // Fall back to assigneeId, but show user-friendly message if it's a UUID
+        if let assigneeId = proposal.assigneeId?.nilIfEmpty {
+            if isUUID(assigneeId) {
+                return "Unassigned"
+            }
+            return assigneeId
+        }
+        return "Unassigned"
     }
     
     var teamDisplay: String {
-        let name = proposal.args["teamName"] as? String
-        if let name = name?.nilIfEmpty {
+        // First check for enriched team name from backend
+        if let name = (proposal.args["teamName"] as? String)?.nilIfEmpty {
             return name
         }
-        if let team = (proposal.args["team"] as? String)?.nilIfEmpty {
-            return team
-        }
+        // Fall back to teamId, but show user-friendly message if it's a UUID
         if let teamId = proposal.teamId?.nilIfEmpty {
-            // If it looks like a UUID, show a user-friendly message instead
             if isUUID(teamId) {
                 return "Select Team"
             }
@@ -224,15 +232,12 @@ private extension ConfirmationCardView {
     }
     
     var projectDisplay: String {
-        let name = proposal.args["projectName"] as? String
-        if let name = name?.nilIfEmpty {
+        // First check for enriched project name from backend
+        if let name = (proposal.args["projectName"] as? String)?.nilIfEmpty {
             return name
         }
-        if let project = (proposal.args["project"] as? String)?.nilIfEmpty {
-            return project
-        }
+        // Fall back to projectId, but show user-friendly message if it's a UUID
         if let projectId = proposal.projectId?.nilIfEmpty {
-            // If it looks like a UUID, show a user-friendly message instead
             if isUUID(projectId) {
                 return "None"
             }
@@ -277,10 +282,6 @@ private struct MetadataField: View {
                     .lineLimit(1)
                 
                 Spacer(minLength: 4)
-                
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.4))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)

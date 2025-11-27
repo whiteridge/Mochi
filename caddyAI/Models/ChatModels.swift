@@ -117,15 +117,15 @@ struct ProposalData: Equatable {
     }
     
     var teamId: String? {
-        args["team_id"] as? String ?? args["teamId"] as? String
+        args["team_id"] as? String ?? args["teamId"] as? String ?? args["team"] as? String
     }
     
     var projectId: String? {
-        args["project_id"] as? String ?? args["projectId"] as? String
+        args["project_id"] as? String ?? args["projectId"] as? String ?? args["project"] as? String
     }
     
     var assigneeId: String? {
-        args["assignee_id"] as? String ?? args["assigneeId"] as? String
+        args["assignee_id"] as? String ?? args["assigneeId"] as? String ?? args["assignee"] as? String
     }
     
     var status: String? {
