@@ -184,8 +184,14 @@ class LinearService:
                 print("DEBUG: Failed to parse Linear query string response as JSON.")
                 return None
 
-        if isinstance(data, dict) and "data" in data:
-            return data["data"]
+        # Keep unwrapping nested "data" keys until we reach actual content
+        # Composio wraps GraphQL responses, which also have a "data" key
+        while isinstance(data, dict) and "data" in data:
+            inner = data.get("data")
+            if isinstance(inner, dict):
+                data = inner
+            else:
+                break
 
         return data if isinstance(data, dict) else None
     
