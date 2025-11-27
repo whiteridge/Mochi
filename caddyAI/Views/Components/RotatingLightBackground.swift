@@ -20,11 +20,11 @@ struct RotatingLightBackground: View {
         shape: ShapeType = .capsule,
         rotationSpeed: Double = 10,
         colors: [Color] = [
-            Color(red: 0.2, green: 0.8, blue: 0.6),   // Cyan-green
-            Color(red: 0.1, green: 0.6, blue: 0.5),   // Teal
-            Color(red: 0.3, green: 0.9, blue: 0.7),   // Bright mint
-            Color(red: 0.15, green: 0.5, blue: 0.45), // Deep teal
-            Color(red: 0.2, green: 0.8, blue: 0.6)    // Loop back to start
+            Color(red: 0.25, green: 0.85, blue: 0.35), // Vibrant green
+            Color(red: 0.15, green: 0.65, blue: 0.25), // Mid green
+            Color(red: 0.35, green: 0.95, blue: 0.45), // Highlight green
+            Color(red: 0.10, green: 0.55, blue: 0.20), // Deep green
+            Color(red: 0.25, green: 0.85, blue: 0.35)  // Loop
         ]
     ) {
         self.shapeType = shape
@@ -47,7 +47,8 @@ struct RotatingLightBackground: View {
                     endAngle: .degrees(360)
                 )
                 .rotationEffect(.degrees(rotation))
-                .blur(radius: 30) // Diffuse the gradient for a soft glow
+                .blur(radius: 60) // Diffuse the gradient for a soft glow
+                .opacity(0.8) // Less completely filled with color
                 .scaleEffect(1.5) // Scale up so blur doesn't show edges
                 
                 // Layer 3: Glass material overlay
