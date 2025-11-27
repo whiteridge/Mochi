@@ -4,8 +4,7 @@ struct ConfirmationCardView: View {
     let proposal: ProposalData
     let onConfirm: () -> Void
     let onCancel: () -> Void
-    
-    @State private var rotation: Double = 0
+    var rotatingLightNamespace: Namespace.ID
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -79,67 +78,23 @@ private extension ConfirmationCardView {
     }
     
     var actionButton: some View {
-        let mossGreen = Color(red: 90/255, green: 140/255, blue: 90/255) // Desaturated Olive
-
-        return Button {
+        Button {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
             onConfirm()
         } label: {
             Text(confirmButtonTitle)
-                .font(.system(size: 15, weight: .semibold)) // Slightly bolder text
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 24) // Match "Type to Caddy" length approximately
-                .frame(height: 48) // Fixed height for perfect pill shape
+                .padding(.horizontal, 24)
+                .frame(height: 48)
                 .background(
-                    ZStack {
-                        // Layer 1: Dark Base
-                        Color.black.opacity(0.5)
-                        
-                        // Layer 2: The "Spotlight" (Top-Center Radial)
-                        GeometryReader { geo in
-                            let size = geo.size.width
-                            ZStack {
-                                RadialGradient(
-                                    colors: [
-                                        mossGreen.opacity(0.6), // Core highlight
-                                        mossGreen.opacity(0.1), // Fade
-                                        Color.clear             // End
-                                    ],
-                                    center: UnitPoint(x: 0.5, y: 0.15), // Offset to orbit around edge
-                                    startRadius: 0,
-                                    endRadius: size * 0.4 // Tighter spread
-                                )
-                                .frame(width: size, height: size)
-                                .rotationEffect(.degrees(rotation))
-                            }
-                            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
-                        }
-                    }
+                    // Rotating light background that will morph via matchedGeometryEffect
+                    RotatingLightBackground(
+                        shape: .capsule,
+                        rotationSpeed: 10.0
+                    )
+                    .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)
                 )
-                .clipShape(Capsule()) // Perfect semicircular ends
-                .onAppear {
-                    withAnimation(.linear(duration: 10).repeatForever(autoreverses: false)) {
-                        rotation = 360
-                    }
-                }
-                // Layer 3: The "Glass Edge" (Rim Light)
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.3), // Bright Top Rim
-                                    Color.white.opacity(0.1), // Fading sides
-                                    Color.white.opacity(0.02) // Invisible Bottom
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1
-                        )
-                )
-                // Layer 4: Subtle Outer Bloom
-                .shadow(color: mossGreen.opacity(0.2), radius: 12, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }

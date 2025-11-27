@@ -18,12 +18,21 @@ struct InputViewHeightKey: PreferenceKey {
     }
 }
 
+struct ConfirmButtonFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
 struct VoiceChatBubble: View {
     @StateObject private var viewModel = AgentViewModel()
     @State private var viewID = 0
     // Height state is no longer manually calculated for the frame, but we use GeometryReader in the new layout
     
     @Namespace private var animation
+    @Namespace private var rotatingLightNamespace
 
     @StateObject private var voiceRecorder = VoiceRecorder()
     @State private var scrollContentHeight: CGFloat = 100
@@ -33,6 +42,10 @@ struct VoiceChatBubble: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Root-level rotating light background that morphs based on state
+            rotatingLightBackgroundLayer
+            
+            // Content layers
             switch viewModel.state {
             case .idle, .recording:
                 if viewModel.state == .recording {
@@ -46,22 +59,10 @@ struct VoiceChatBubble: View {
                         .transition(.scale(scale: 1))
                 }
                 
-            case .chat, .processing:
-                // === EXPANDED STATE ===
-                expandedChatContent
-                    .matchedGeometryEffect(id: "background", in: animation)
-                    .transition(.scale(scale: 1))
-                
-            case .success:
-                // === SUCCESS STATE ===
-                SuccessPill()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        GlassBackground(cornerRadius: 30, tint: Color.green.opacity(0.2))
-                            .matchedGeometryEffect(id: "background", in: animation)
-                    )
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+            case .chat, .processing, .success:
+                // === UNIFIED CHAT & SUCCESS STATE ===
+                // We wrap both in a single container to allow for true morphing of the background/frame
+                chatAndSuccessWrapper
             }
         }
         .padding(.bottom, 20)
@@ -81,6 +82,7 @@ struct VoiceChatBubble: View {
             return .handled
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.isExecutingAction)
         // Error overlay
         .overlay(alignment: .bottom) {
             if let errorMessage = viewModel.errorMessage {
@@ -93,6 +95,16 @@ struct VoiceChatBubble: View {
             }
         }
     }
+    
+    @ViewBuilder
+    private var rotatingLightBackgroundLayer: some View {
+        // The rotating light is rendered in different places:
+        // - chat state with proposal: rendered by ConfirmationCardView button
+        // - processing state with isExecutingAction: rendered in expandedChatContent overlay
+        // - success state: rendered in SuccessPill
+        // So this layer is empty - the rotating light is handled by the content views
+        EmptyView()
+    }
 }
 
 // MARK: - Content Builders
@@ -101,7 +113,6 @@ fileprivate extension VoiceChatBubble {
     
     var expandedChatContent: some View {
         VStack(spacing: 0) {
-            
             // 1. CHAT HISTORY (Flexible)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -140,7 +151,8 @@ fileprivate extension VoiceChatBubble {
                             ConfirmationCardView(
                                 proposal: proposal,
                                 onConfirm: { viewModel.confirmProposal() },
-                                onCancel: { viewModel.cancelProposal() }
+                                onCancel: { viewModel.cancelProposal() },
+                                rotatingLightNamespace: rotatingLightNamespace
                             )
                             .padding(.top, 16)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -205,10 +217,54 @@ fileprivate extension VoiceChatBubble {
                 inputContentHeight = height
             }
         }
-        .frame(width: 650)
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
-        .cornerRadius(24)
     }
+
+    @ViewBuilder
+    var chatAndSuccessWrapper: some View {
+        let isSuccess = viewModel.state == .success
+        
+        VStack(spacing: 0) {
+            if isSuccess {
+                SuccessPill()
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            } else {
+                expandedChatContent
+                    .transition(.opacity)
+            }
+        }
+        // Animate the frame width: 650 for chat, intrinsic for pill
+        .frame(width: isSuccess ? nil : 650)
+        .background(
+            ZStack {
+                // Glass background (fade out in success to emphasize the light, or keep it?)
+                // The original SuccessPill didn't have glass, so let's fade it out.
+                if !isSuccess {
+                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                        .transition(.opacity)
+                }
+                
+                // Rotating Light
+                // In Chat: visible only if processing & executing.
+                // In Success: always visible.
+                if (viewModel.isExecutingAction && viewModel.state == .processing) || isSuccess {
+                    RotatingLightBackground(
+                        cornerRadius: isSuccess ? 50 : 24,
+                        shape: isSuccess ? .capsule : .roundedRect,
+                        rotationSpeed: isSuccess ? 2.0 : 10.0
+                    )
+                    // We don't need matchedGeometryEffect here because it's the same view instance (conditionally present)
+                    // But to ensure smooth transition from "processing" to "success", we want it to be the SAME view.
+                    // The condition `(processing) || isSuccess` ensures it stays alive during the switch.
+                    .opacity(isSuccess ? 1.0 : 0.6)
+                }
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: isSuccess ? 50 : 24, style: .continuous))
+        // Animate layout changes
+        .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: isSuccess)
+        .animation(.easeOut(duration: 0.3), value: viewModel.isExecutingAction)
+    }
+
 
     @ViewBuilder
     var recordingBubbleContent: some View {
@@ -409,19 +465,24 @@ private extension VoiceChatBubble {
 
 private struct SuccessPill: View {
     var body: some View {
+        // Content determines size, background follows
         HStack(spacing: 12) {
-            // Icons
-            HStack(spacing: -8) {
-                Circle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 26, height: 26)
-                    .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
-            }
+            // Checkmark icon
+            Circle()
+                .fill(Color.white.opacity(0.15))
+                .frame(width: 26, height: 26)
+                .overlay(
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                )
             
-            Text("Actions complete")
+            Text("Action complete")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.white.opacity(0.95))
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
     }
 }
 

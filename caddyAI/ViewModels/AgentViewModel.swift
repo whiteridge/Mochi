@@ -44,6 +44,7 @@ class AgentViewModel: ObservableObject {
     @Published var userInput: String = ""
     @Published var isThinking: Bool = false
     @Published var isTranscribing: Bool = false
+    @Published var isExecutingAction: Bool = false
     @Published var errorMessage: String?
     
     // MARK: - Dependencies
@@ -80,6 +81,9 @@ class AgentViewModel: ObservableObject {
     
     func confirmProposal() {
         guard let p = proposal else { return }
+        
+        // Set executing flag before processing
+        isExecutingAction = true
         
         // Inject hidden context so the model knows what it proposed
         // This is critical because the backend is stateless and the original proposal
@@ -145,8 +149,10 @@ class AgentViewModel: ObservableObject {
                         // Determine next state
                         if event.actionPerformed != nil {
                             print("DEBUG: Action Performed received. Switching to success state.")
+                            isExecutingAction = false // Action complete
                             state = .success
                         } else {
+                            isExecutingAction = false // No action performed, reset flag
                             state = .chat
                         }
                     }
@@ -155,6 +161,7 @@ class AgentViewModel: ObservableObject {
             
         } catch {
             isThinking = false
+            isExecutingAction = false // Reset on error
             activeTool = nil
             errorMessage = error.localizedDescription
             state = .chat // Fallback to chat on error so user can retry
@@ -167,6 +174,7 @@ class AgentViewModel: ObservableObject {
         userInput = ""
         isThinking = false
         isTranscribing = false
+        isExecutingAction = false
         errorMessage = nil
         proposal = nil
     }
