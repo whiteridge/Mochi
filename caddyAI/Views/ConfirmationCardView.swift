@@ -6,6 +6,8 @@ struct ConfirmationCardView: View {
     let onCancel: () -> Void
     var rotatingLightNamespace: Namespace.ID
     
+    @State private var rotation: Double = 0
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             headerSection
@@ -78,7 +80,7 @@ private extension ConfirmationCardView {
     }
     
     var actionButton: some View {
-        Button {
+        return Button {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
             onConfirm()
         } label: {
@@ -90,7 +92,8 @@ private extension ConfirmationCardView {
                 .background(
                     // Rotating light background that will morph via matchedGeometryEffect
                     RotatingLightBackground(
-                        shape: .capsule,
+                        cornerRadius: 24,
+                        shape: RotatingLightBackground.ShapeType.capsule,
                         rotationSpeed: 10.0
                     )
                     .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)

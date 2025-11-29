@@ -34,12 +34,20 @@ struct InputBarView: View {
                 )
             
             // Text field
-            TextField("Type to Caddy", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .regular, design: .default))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(3)
-                .onSubmit(sendAction)
+            ZStack(alignment: .leading) {
+                if text.isEmpty {
+                    Text("Type to Caddy")
+                        .font(.system(size: 15, weight: .regular, design: .default))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                
+                TextField("", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 15, weight: .regular, design: .default))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(3)
+                    .onSubmit(sendAction)
+            }
             
             Spacer()
             
@@ -54,15 +62,10 @@ struct InputBarView: View {
         .padding(.vertical, 12)
         .background(
             ZStack {
-                // 1. Base Dark Layer
-                Color.black.opacity(0.8)
-                
-                // 2. Subtle Shine
-                LinearGradient(
-                    colors: [Color.white.opacity(0.05), Color.clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                Capsule()
+                    .fill(Color.black.opacity(0.75))
             }
         )
         .clipShape(Capsule())
@@ -83,4 +86,5 @@ struct InputBarView: View {
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
     }
 }
+
 

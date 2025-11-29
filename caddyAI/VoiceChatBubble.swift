@@ -27,7 +27,7 @@ struct ConfirmButtonFrameKey: PreferenceKey {
 }
 
 struct VoiceChatBubble: View {
-    @StateObject private var viewModel = AgentViewModel()
+        @StateObject private var viewModel = AgentViewModel()
     @State private var viewID = 0
     // Height state is no longer manually calculated for the frame, but we use GeometryReader in the new layout
     
@@ -47,21 +47,21 @@ struct VoiceChatBubble: View {
             
             // Content layers
             switch viewModel.state {
-            case .idle, .recording:
-                if viewModel.state == .recording {
-                    recordingBubbleContent
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            GlassBackground(cornerRadius: 30)
-                                .matchedGeometryEffect(id: "background", in: animation)
-                        )
-                        .transition(.scale(scale: 1))
-                }
+            case .recording:
+                recordingBubbleContent
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        GlassBackground(cornerRadius: 30)
+                            .matchedGeometryEffect(id: "background", in: animation)
+                    )
+                    .transition(.scale(scale: 1))
+                    
+            case .idle:
+                EmptyView()
                 
             case .chat, .processing, .success:
-                // === UNIFIED CHAT & SUCCESS STATE ===
-                // We wrap both in a single container to allow for true morphing of the background/frame
+                // === CHAT & SUCCESS STATE ===
                 chatAndSuccessWrapper
             }
         }
@@ -238,9 +238,18 @@ fileprivate extension VoiceChatBubble {
             ZStack {
                 // Glass background (fade out in success to emphasize the light, or keep it?)
                 // The original SuccessPill didn't have glass, so let's fade it out.
-                if !isSuccess {
-                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                // Glass background
+                if isSuccess {
+                    // Success state: Darker glass pill
+                    GlassBackground(cornerRadius: 50, tint: Color.black.opacity(0.35))
                         .transition(.opacity)
+                } else {
+                    // Chat state: Dark glass window
+                    ZStack {
+                        VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                        Color.black.opacity(0.2) // Darken the glass
+                    }
+                    .transition(.opacity)
                 }
                 
                 // Rotating Light
@@ -250,7 +259,7 @@ fileprivate extension VoiceChatBubble {
                     RotatingLightBackground(
                         cornerRadius: isSuccess ? 50 : 24,
                         shape: isSuccess ? .capsule : .roundedRect,
-                        rotationSpeed: isSuccess ? 2.0 : 10.0
+                        rotationSpeed: isSuccess ? 0.8 : 10.0
                     )
                     // We don't need matchedGeometryEffect here because it's the same view instance (conditionally present)
                     // But to ensure smooth transition from "processing" to "success", we want it to be the SAME view.
@@ -465,26 +474,33 @@ private extension VoiceChatBubble {
 
 private struct SuccessPill: View {
     var body: some View {
-        // Content determines size, background follows
         HStack(spacing: 12) {
-            // Checkmark icon
-            Circle()
-                .fill(Color.white.opacity(0.15))
-                .frame(width: 26, height: 26)
-                .overlay(
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                )
+            // Icons
+            HStack(spacing: -8) {
+                Circle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 26, height: 26)
+                    .overlay(
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    )
+                    // 1. Add shadow to the icon group
+                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+            }
             
-            Text("Action complete")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+            Text("Actions complete")
+                .font(.system(size: 15, weight: .semibold)) // 2. Bump weight to Semibold
+                .foregroundStyle(.white)
+                // 3. Add a strong drop shadow to the text
+                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
     }
 }
+
+
 
 private struct AnimatedDotRow: View {
     let count: Int

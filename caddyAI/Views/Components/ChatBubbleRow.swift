@@ -62,3 +62,4 @@ struct ChatBubbleRow: View {
     }
 }
 
+
