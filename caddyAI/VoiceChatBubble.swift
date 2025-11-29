@@ -115,7 +115,7 @@ fileprivate extension VoiceChatBubble {
         VStack(spacing: 0) {
             // 1. CHAT HISTORY (Flexible)
             ScrollViewReader { proxy in
-                ScrollView {
+                ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 16) {
                         Spacer(minLength: 0)
                         
@@ -169,6 +169,7 @@ fileprivate extension VoiceChatBubble {
                         }
                     )
                 }
+                .scrollContentBackground(.hidden)
                 .onPreferenceChange(ViewHeightKey.self) { height in
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         scrollContentHeight = height
