@@ -74,9 +74,16 @@ class AgentService:
         # 2. Convert tools to google-genai format
         gemini_tools = convert_to_gemini_tools(all_composio_tools)
         
+
         num_declarations = 0
         if gemini_tools and gemini_tools[0].function_declarations:
-            num_declarations = len(gemini_tools[0].function_declarations)
+            declarations = gemini_tools[0].function_declarations
+            num_declarations = len(declarations)
+            
+            # Log available Slack tools
+            slack_tool_names = [d.name for d in declarations if d.name.lower().startswith("slack_")]
+            print(f"DEBUG: Slack tools available to Gemini: {slack_tool_names}", flush=True)
+            
         print(f"DEBUG: Passing {num_declarations} function declarations to Gemini config", flush=True)
 
         # 3. Configure Gemini
@@ -259,7 +266,7 @@ class AgentService:
                             if not should_intercept:
                                 yield {
                                     "type": "tool_status",
-                                    "tool": "Caddy", 
+                                    "tool": tool_name, 
                                     "status": "searching"
                                 }
                 

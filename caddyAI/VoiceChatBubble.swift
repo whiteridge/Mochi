@@ -102,7 +102,6 @@ fileprivate extension VoiceChatBubble {
             // 1. CHAT HISTORY (Flexible)
             ChatHistoryView(
                 messages: viewModel.messages,
-                isTranscribing: viewModel.isTranscribing,
                 currentStatus: viewModel.currentStatus,
                 proposal: viewModel.proposal,
                 onConfirmProposal: { viewModel.confirmProposal() },
@@ -254,7 +253,7 @@ private extension VoiceChatBubble {
             do {
                 await MainActor.run {
                     viewModel.state = .chat
-                    viewModel.isTranscribing = true
+                    viewModel.currentStatus = .transcribing
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
@@ -262,14 +261,14 @@ private extension VoiceChatBubble {
                 
                 await MainActor.run {
                     viewModel.errorMessage = nil
-                    viewModel.isTranscribing = false
+                    // currentStatus will be updated to .thinking in processInput
                     viewModel.processInput(text: transcript)
                 }
             } catch {
                 logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run {
                     viewModel.errorMessage = error.localizedDescription
-                    viewModel.isTranscribing = false
+                    viewModel.currentStatus = nil
                     viewModel.state = .idle
                 }
             }

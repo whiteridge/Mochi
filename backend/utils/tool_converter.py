@@ -1,6 +1,6 @@
 """Utility functions for converting Composio tools to Gemini format."""
 
-from typing import Any, List
+from typing import Any, List, Dict
 from google.genai import types
 
 
@@ -74,6 +74,31 @@ def clean_schema(obj: Any, is_property_definition: bool = False) -> Any:
         return obj
 
 
+
+def _sanitize_schema_dict(d: Dict[str, Any]) -> None:
+    """
+    In-place remove keys that the Gemini Schema proto does not support.
+    Recursively cleans nested dictionaries and lists.
+    """
+    if not isinstance(d, dict):
+        return
+
+    # Remove known-bad keys
+    # humanParameterDescription is the main culprit causing proto parsing errors
+    keys_to_remove = ["humanParameterDescription"]
+    for k in keys_to_remove:
+        d.pop(k, None)
+
+    # Recurse into nested dicts/lists
+    for key, value in list(d.items()):
+        if isinstance(value, dict):
+            _sanitize_schema_dict(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _sanitize_schema_dict(item)
+
+
 def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
     """
     Convert Composio FunctionDeclarations to google-genai format.
@@ -88,29 +113,59 @@ def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
     
     for tool in composio_tools:
         try:
-            # Check if it's a FunctionDeclaration from vertexai
-            if hasattr(tool, 'to_dict'):
+            tool_name = "unknown"
+            description = ""
+            params = {}
+            
+            # Case 1: Raw Dict (OpenAI format from Composio without provider)
+            if isinstance(tool, dict):
+                # Check if it's wrapped in {"type": "function", "function": {...}}
+                if tool.get("type") == "function" and "function" in tool:
+                    func_def = tool["function"]
+                    tool_name = func_def.get("name", "unknown")
+                    description = func_def.get("description", "")
+                    raw_params = func_def.get("parameters", {})
+                else:
+                    # Maybe it's the function dict directly?
+                    tool_name = tool.get("name", "unknown")
+                    description = tool.get("description", "")
+                    raw_params = tool.get("parameters", {})
+                
+                # Sanitize parameters
+                _sanitize_schema_dict(raw_params)
+                params = clean_schema(raw_params)
+                
+            # Case 2: FunctionDeclaration object (from VertexAI/GoogleProvider)
+            elif hasattr(tool, 'to_dict'):
                 # Convert to dict and then to google-genai format
                 tool_dict = tool.to_dict()
                 tool_name = tool_dict.get('name', 'unknown')
                 
                 # Clean the parameters to remove unsupported fields
                 raw_params = tool_dict.get('parameters', {})
+                _sanitize_schema_dict(raw_params)
                 params = clean_schema(raw_params)
                 
-                # Create a FunctionDeclaration in google-genai format
-                func_decl = types.FunctionDeclaration(
-                    name=tool_name,
-                    description=tool_dict.get('description', ''),
-                    parameters=params
-                )
-                function_declarations.append(func_decl)
+            # Case 3: Already in Tool format (google-genai)
             elif hasattr(tool, 'function_declarations'):
                 # Already in Tool format, extract function declarations
                 for fd in tool.function_declarations:
                     function_declarations.append(fd)
+                continue
+            else:
+                print(f"DEBUG: Unknown tool format: {type(tool)}", flush=True)
+                continue
+
+            # Create a FunctionDeclaration in google-genai format
+            func_decl = types.FunctionDeclaration(
+                name=tool_name,
+                description=description,
+                parameters=params
+            )
+            function_declarations.append(func_decl)
+            
         except Exception as tool_error:
-            print(f"DEBUG: Failed to convert tool: {tool_error}", flush=True)
+            print(f"DEBUG: Failed to convert tool {tool_name if 'tool_name' in locals() else 'unknown'}: {tool_error}", flush=True)
             continue
     
     # Combine all function declarations into a single Tool

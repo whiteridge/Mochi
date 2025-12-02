@@ -17,12 +17,15 @@ struct ToolStatus: Equatable {
 
 public enum AgentStatus: Equatable, Identifiable {
     case thinking
+    case transcribing
     case searching(appName: String)
 
     public var id: String {
         switch self {
         case .thinking:
             return "thinking"
+        case .transcribing:
+            return "transcribing"
         case .searching(let app):
             return "search-\(app)"
         }
@@ -32,6 +35,8 @@ public enum AgentStatus: Equatable, Identifiable {
         switch self {
         case .thinking:
             return "Thinking..."
+        case .transcribing:
+            return "Transcribing..."
         case .searching(let appName):
             return "Searching \(appName)..."
         }
@@ -67,7 +72,6 @@ class AgentViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var userInput: String = ""
     @Published var isThinking: Bool = false
-    @Published var isTranscribing: Bool = false
     @Published var isExecutingAction: Bool = false
     @Published var errorMessage: String?
     
@@ -150,8 +154,8 @@ class AgentViewModel: ObservableObject {
                             activeTool = ToolStatus(name: toolName, status: status)
                             isThinking = false // Stop generic thinking, show tool status
                             // Map tool status to searching state
-                            // We assume toolName is the app name for now
-                            currentStatus = .searching(appName: toolName)
+                            let appName = formatAppName(from: toolName)
+                            currentStatus = .searching(appName: appName)
                         }
                     }
                     
@@ -174,7 +178,7 @@ class AgentViewModel: ObservableObject {
                         currentStatus = nil // Clear status on message
                         
                         // Add assistant response to UI
-                        messages.append(ChatMessage(role: .assistant, content: content))
+                        messages.append(ChatMessage(role: .assistant, content: content.trimmingCharacters(in: .whitespacesAndNewlines)))
                         
                         // Determine next state
                         if event.actionPerformed != nil {
@@ -205,9 +209,23 @@ class AgentViewModel: ObservableObject {
         userInput = ""
         isThinking = false
         currentStatus = nil
-        isTranscribing = false
         isExecutingAction = false
         errorMessage = nil
         proposal = nil
+    }
+    
+    private func formatAppName(from toolName: String) -> String {
+        // Tool names are typically "appname_action_name" (e.g. "linear_get_issue", "slack_send_message")
+        // We want to extract "Linear" or "Slack"
+        
+        let components = toolName.split(separator: "_")
+        guard let first = components.first else { return toolName.capitalized }
+        
+        let appName = String(first).capitalized
+        
+        // Handle special cases or typos if needed (e.g. "Zlack" -> "Slack" if that was a real issue, but assuming user typo)
+        // For now, standard capitalization should work for "linear" -> "Linear", "slack" -> "Slack", "google_calendar" -> "Google"
+        
+        return appName
     }
 }

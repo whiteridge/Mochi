@@ -1,10 +1,11 @@
 """Composio SDK service wrapper for tool fetching and action execution."""
 
+
 import os
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 from composio import Composio
-from composio_google import GoogleProvider
+# from composio_google import GoogleProvider # Removed to avoid schema conversion issues
 
 load_dotenv()
 
@@ -13,13 +14,15 @@ class ComposioService:
     """Service for interacting with Composio SDK."""
     
     def __init__(self):
-        """Initialize Composio with GoogleProvider."""
+        """Initialize Composio."""
         try:
+            # We do NOT use GoogleProvider because it attempts to convert tool schemas
+            # to Vertex AI format internally, which fails on some fields (humanParameterDescription).
+            # By omitting the provider, we get raw OpenAI-compatible schemas which we convert manually.
             self.composio = Composio(
-                provider=GoogleProvider(),
                 api_key=os.getenv("COMPOSIO_API_KEY")
             )
-            print("DEBUG: Composio initialized successfully with GoogleProvider")
+            print("DEBUG: Composio initialized successfully (Raw Mode)")
         except Exception as exc:
             raise RuntimeError(
                 f"Failed to initialize Composio SDK: {exc}"

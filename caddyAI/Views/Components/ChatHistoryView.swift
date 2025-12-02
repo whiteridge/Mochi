@@ -10,7 +10,6 @@ struct ViewHeightKey: PreferenceKey {
 
 struct ChatHistoryView: View {
     let messages: [ChatMessage]
-    let isTranscribing: Bool
     let currentStatus: AgentStatus?
     let proposal: ProposalData?
     let onConfirmProposal: () -> Void
@@ -41,10 +40,7 @@ struct ChatHistoryView: View {
                         }
                     }
                     
-                    if isTranscribing {
-                        ProcessingIndicatorView(text: "Transcribing...", animation: animation)
-                            .id("transcribing")
-                    }
+
                     
                     if let status = currentStatus {
                         HStack {
@@ -96,67 +92,4 @@ struct ChatHistoryView: View {
     }
 }
 
-struct ProcessingIndicatorView: View {
-    let text: String
-    let animation: Namespace.ID
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Interlocking circles (app icons)
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(width: 24, height: 24)
-                    .overlay(
-                        Image(systemName: "number")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    )
-                    .offset(x: -5)
-                
-                Circle()
-                    .fill(Color(nsColor: .controlAccentColor).opacity(0.3))
-                    .frame(width: 24, height: 24)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-                    .overlay(
-                        Image(systemName: "waveform")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .matchedGeometryEffect(id: "appIcon", in: animation)
-                    )
-                    .offset(x: 5)
-            }
-            .frame(width: 34, height: 24)
-            
-            Text(text)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.75))
-            
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.12),
-                                    Color.white.opacity(0.03)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-        )
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-    }
-}
+

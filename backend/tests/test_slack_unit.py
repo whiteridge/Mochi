@@ -216,7 +216,39 @@ def test_slack_channel_summary_flow(mock_agent_service):
     assert args2.kwargs["slug"] == "slack_fetch_conversation_history"
     assert args2.kwargs["arguments"]["channel"] == "C_GENERAL"
     
+
+    
     # Verify final message
     message_events = [e for e in events if e["type"] == "message"]
     assert len(message_events) > 0
     assert "summary" in message_events[-1]["content"]
+
+def test_sanitize_schema_dict():
+    from backend.utils.tool_converter import _sanitize_schema_dict
+    
+    bad_schema = {
+        "type": "object",
+        "properties": {
+            "is_private": {
+                "type": "boolean",
+                "humanParameterDescription": "Is the channel private?"
+            },
+            "nested": {
+                "type": "object",
+                "properties": {
+                    "inner": {
+                        "type": "string",
+                        "humanParameterDescription": "Inner param"
+                    }
+                }
+            }
+        }
+    }
+    
+    _sanitize_schema_dict(bad_schema)
+    
+    # Check top level
+    assert "humanParameterDescription" not in bad_schema["properties"]["is_private"]
+    
+    # Check nested
+    assert "humanParameterDescription" not in bad_schema["properties"]["nested"]["properties"]["inner"]
