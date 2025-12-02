@@ -6,6 +6,7 @@ from google.genai import types
 
 from services.composio_service import ComposioService
 from services.linear_service import LinearService
+from services.slack_service import SlackService
 from utils.tool_converter import convert_to_gemini_tools
 from utils.chat_utils import format_history
 
@@ -13,7 +14,7 @@ load_dotenv()
 
 
 class AgentService:
-    """Main agent service for orchestrating conversations with Linear tools."""
+    """Main agent service for orchestrating conversations with Linear and Slack tools."""
     
     def __init__(self):
         """Initialize the agent service with Gemini client and service dependencies."""
@@ -25,6 +26,7 @@ class AgentService:
         # Initialize services
         self.composio_service = ComposioService()
         self.linear_service = LinearService(self.composio_service)
+        self.slack_service = SlackService(self.composio_service)
 
     def run_agent(self, user_input: str, user_id: str, chat_history: List[Dict[str, str]] = []):
         """
@@ -36,33 +38,41 @@ class AgentService:
         """
         print(f"Running agent for user: {user_id} with input: {user_input}")
         
-        # 1. Get tools for the user (Linear)
-        try:
-            composio_tools = self.linear_service.load_tools(user_id=user_id)
-            
-            print(f"DEBUG: Loaded {len(composio_tools) if composio_tools else 0} tools for user {user_id}")
+        # 1. Get tools for the user (Linear + Slack)
+        all_composio_tools = []
+        errors = []
 
-        except RuntimeError as e:
-            print(f"DEBUG: RuntimeError fetching tools: {e}")
-            yield {
-                "type": "message",
-                "content": f"Error fetching tools: {str(e)}. Please ensure you are connected to Linear.",
-                "action_performed": None
-            }
-            return
+        # Load Linear Tools
+        try:
+            linear_tools = self.linear_service.load_tools(user_id=user_id)
+            if linear_tools:
+                all_composio_tools.extend(linear_tools)
+                print(f"DEBUG: Loaded {len(linear_tools)} Linear tools")
         except Exception as e:
-            print(f"DEBUG: Exception fetching tools: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"DEBUG: Error fetching Linear tools: {e}")
+            errors.append(f"Linear: {str(e)}")
+
+        # Load Slack Tools
+        try:
+            slack_tools = self.slack_service.load_tools(user_id=user_id)
+            if slack_tools:
+                all_composio_tools.extend(slack_tools)
+                print(f"DEBUG: Loaded {len(slack_tools)} Slack tools")
+        except Exception as e:
+            print(f"DEBUG: Error fetching Slack tools: {e}")
+            errors.append(f"Slack: {str(e)}")
+
+        if not all_composio_tools:
+            error_msg = "Error fetching tools. " + "; ".join(errors)
             yield {
                 "type": "message",
-                "content": f"Error fetching tools: {str(e)}. Please ensure you are connected to Linear.",
+                "content": f"{error_msg}. Please ensure you are connected to your apps.",
                 "action_performed": None
             }
             return
 
         # 2. Convert tools to google-genai format
-        gemini_tools = convert_to_gemini_tools(composio_tools)
+        gemini_tools = convert_to_gemini_tools(all_composio_tools)
         
         num_declarations = 0
         if gemini_tools and gemini_tools[0].function_declarations:
@@ -71,30 +81,33 @@ class AgentService:
 
         # 3. Configure Gemini
         system_instruction = """
-    You are Caddy, an advanced autonomous agent capable of interacting with external apps (Linear, etc.) on behalf of the user.
+    You are Caddy, an advanced autonomous agent capable of interacting with external apps (Linear, Slack, etc.) on behalf of the user.
 
     ### THE GOLDEN RULE: RESOLVE BEFORE YOU REJECT
-    Users will almost NEVER provide technical IDs (like UUIDs or database keys). They will provide **Natural Language Names** (e.g., "The Marketing Project", "Blue Hexagon Ticket", "Meeting with Sarah").
+    Users will almost NEVER provide technical IDs (like UUIDs or database keys). They will provide **Natural Language Names** (e.g., "The Marketing Project", "Blue Hexagon Ticket", "#eng channel", "DM to Alice").
 
     **Your Primary Directive is to map these Names to IDs automatically.**
+    
+    For Slack, when a user asks to send a message to a channel (e.g. '#general' or 'general'), always prefer a channel whose name or name_normalized exactly matches the requested name, rather than defaulting to other channels such as the workspace's default general channel.
 
     ### OPERATING PROCEDURE
-    When a user asks for an action (e.g., "Create an issue in 'Mobile App' project"):
+    When a user asks for an action (e.g., "Create an issue in 'Mobile App' project" or "Send a message to #general"):
 
-    1.  **Identify the Target Tool:** (e.g., `linear_create_issue`).
-    2.  **Check Required Arguments:** Does this tool require an ID (e.g., `project_id`, `team_id`)?
+    1.  **Identify the Target Tool:** (e.g., `linear_create_issue`, `slack_send_message`).
+    2.  **Check Required Arguments:** Does this tool require an ID (e.g., `project_id`, `channel`)?
     3.  **Check Your Context:** Do you have this ID?
         *   **YES:** Proceed to step 4.
         *   **NO:** **STOP.** Do not complain. Look at your other tools.
     4.  **FIND THE ID (if needed):**
-        *   Use a **Search Tool** (e.g., `linear_list_linear_issues`, `linear_list_linear_projects`, `linear_list_linear_teams`) using the name the user provided.
+        *   **Linear:** Use `linear_list_linear_issues`, `linear_list_linear_projects`, `linear_list_linear_teams`.
+        *   **Slack:** Use `slack_list_all_channels` (or `slack_list_conversations`) for channels, `slack_list_all_users` for people.
         *   Execute the search.
         *   Extract the ID from the result.
         *   **THEN** proceed to step 5.
     5.  **CALL THE TOOL:** Execute the action by calling the tool with all necessary arguments.
 
     ### PROACTIVE EXECUTION RULE - CRITICAL
-    When the user implies a Write action (Create/Update/Delete):
+    When the user implies a Write action (Create/Update/Delete/Send):
     *   **DO NOT** ask "Shall I create this?" or "Would you like me to...?"
     *   **IMMEDIATELY** call the tool with your best inference of the arguments.
     *   The system has an automatic confirmation mechanism that will show a preview to the user.
@@ -102,25 +115,41 @@ class AgentService:
     *   Just focus on calling the tool correctly. The interception is handled for you.
 
     ### SUMMARIZATION & READ ACTIONS
-    When reading content (Issues, Emails, Comments, etc.):
+    When reading content (Issues, Emails, Comments, Messages):
     *   **DO NOT** output raw JSON or long lists.
     *   **ALWAYS** provide a concise summary (max 2-3 sentences).
-    *   Focus on the key details: Title, Status, Assignee, and latest update.
+    *   Focus on the key details: Title, Status, Assignee, Content, and latest update.
 
     ### TOOL MAPPING
-    *   If you need to SEARCH for an issue, use `linear_list_linear_issues`.
-    *   If you need to find a Project ID, use `linear_list_linear_projects`.
-    *   If you need to find a User ID, use `linear_list_linear_users`.
-    *   If you need to find a Team ID, use `linear_list_linear_teams`.
+    **Linear:**
+    *   Search Issue: `linear_list_linear_issues`
+    *   Find Project ID: `linear_list_linear_projects`
+    *   Find User ID: `linear_list_linear_users`
+    *   Find Team ID: `linear_list_linear_teams`
 
-    ### EXAMPLE (Mental Chain of Thought)
-    **User:** "Add a task 'Buy Milk' to the Personal project."
-    **Bad Agent:** "I need a project ID to create a task."
+    **Slack:**
+    *   Find Channel ID: `slack_list_all_channels` or `slack_list_conversations` (filter by name)
+    *   Find User ID: `slack_list_all_users` (filter by name/email)
+    *   Find User ID: `slack_list_all_users` (filter by name/email)
+    *   Send Message: `slack_send_message` (requires channel ID)
+    *   Read History: `slack_fetch_conversation_history` (requires channel ID)
+
+    ### SLACK SUMMARIZATION
+    When the user asks about the contents of a channel (e.g. "Summarize #general" or "What's been happening in the General channel?"), you must:
+    1.  Use Slack tools to resolve the channel name to a channel ID (e.g. `slack_list_all_channels`).
+    2.  Use Slack conversation history tools (such as `slack_fetch_conversation_history`) to fetch recent messages.
+    3.  Read and summarize those messages.
+    
+    You are not allowed to say that the tools cannot retrieve Slack messages unless you have tried the history tool and it fails with an error.
+
+    ### EXAMPLE (Mental Chain of Thought - Slack)
+    **User:** "Send a message to #random saying Hello"
+    **Bad Agent:** "I need a channel ID for #random."
     **Good Agent (YOU):**
-    *   "I need to create a task, but I need the ID for 'Personal'."
-    *   "I will call `linear_list_linear_projects(filter={'name': {'eq': 'Personal'}})`."
-    *   "Result found: Project 'Personal' has ID 'abc-123'."
-    *   "Now I will call `linear_create_linear_issue(title='Buy Milk', project_id='abc-123')`."
+    *   "I need to send a message, but I need the ID for '#random'."
+    *   "I will call `slack_list_all_channels(types='public_channel,private_channel')`."
+    *   "Result found: Channel '#random' has ID 'C12345'."
+    *   "Now I will call `slack_send_message(channel='C12345', text='Hello')`."
 
     ### HANDLING UI/VISUAL QUESTIONS
     If users ask about colors, button placements, or visual attributes:
@@ -186,7 +215,12 @@ class AgentService:
                             print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
                             
                             # INTERCEPTION LOGIC
-                            is_write = self.linear_service.is_write_action(tool_name, args)
+                            # Check Linear
+                            is_linear_write = self.linear_service.is_write_action(tool_name, args)
+                            # Check Slack
+                            is_slack_write = self.slack_service.is_write_action(tool_name, args)
+                            
+                            is_write = is_linear_write or is_slack_write
                             has_write_action = is_write
                             
                             if is_write:
@@ -205,7 +239,11 @@ class AgentService:
                                     should_intercept = True
                                     
                                     # Enrich proposal with human-readable names
-                                    enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
+                                    enriched_args = args
+                                    if is_linear_write:
+                                        enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
+                                    elif is_slack_write:
+                                        enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
                                     
                                     # Yield Proposal Event with enriched metadata
                                     yield {
@@ -221,7 +259,7 @@ class AgentService:
                             if not should_intercept:
                                 yield {
                                     "type": "tool_status",
-                                    "tool": "Linear", 
+                                    "tool": "Caddy", 
                                     "status": "searching"
                                 }
                 
@@ -286,7 +324,7 @@ class AgentService:
                     if executed and function_responses:
                         if has_write_action:
                             write_action_executed = True
-                            action_performed = "Linear Action Executed"
+                            action_performed = "Action Executed"
                         
                         # Send tool outputs back to Gemini
                         response = chat.send_message(function_responses)
@@ -304,7 +342,7 @@ class AgentService:
             
             # Ensure action_performed is set if a write action was executed in any iteration
             if write_action_executed:
-                action_performed = "Linear Action Executed"
+                action_performed = "Action Executed"
 
             # YIELD FINAL MESSAGE EVENT
             final_text = response.text if hasattr(response, 'text') else str(response)

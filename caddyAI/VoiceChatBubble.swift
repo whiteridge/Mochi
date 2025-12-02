@@ -103,8 +103,7 @@ fileprivate extension VoiceChatBubble {
             ChatHistoryView(
                 messages: viewModel.messages,
                 isTranscribing: viewModel.isTranscribing,
-                isThinking: viewModel.isThinking,
-                activeTool: viewModel.activeTool,
+                currentStatus: viewModel.currentStatus,
                 proposal: viewModel.proposal,
                 onConfirmProposal: { viewModel.confirmProposal() },
                 onCancelProposal: { viewModel.cancelProposal() },

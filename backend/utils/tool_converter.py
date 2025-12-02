@@ -28,8 +28,21 @@ def clean_schema(obj: Any, is_property_definition: bool = False) -> Any:
         # First pass: collect property names
         raw_properties = obj.get('properties', {})
         
+        # Allowed keys for Gemini Schema
+        allowed_keys = {
+            "type", "format", "title", "description", "nullable",
+            "default", "items", "minItems", "maxItems", "enum",
+            "properties", "required", "minimum", "maximum",
+            "minLength", "maxLength", "pattern", "example", "anyOf",
+            "additionalProperties",
+        }
+
         for key, value in obj.items():
-            # Skip metadata fields
+            # Skip keys not in allowed set
+            if key not in allowed_keys:
+                continue
+            
+            # Skip metadata fields that shouldn't be in property definitions
             if key in metadata_fields:
                 continue
             

@@ -15,6 +15,29 @@ struct ToolStatus: Equatable {
     let status: String
 }
 
+public enum AgentStatus: Equatable, Identifiable {
+    case thinking
+    case searching(appName: String)
+
+    public var id: String {
+        switch self {
+        case .thinking:
+            return "thinking"
+        case .searching(let app):
+            return "search-\(app)"
+        }
+    }
+
+    var labelText: String {
+        switch self {
+        case .thinking:
+            return "Thinking..."
+        case .searching(let appName):
+            return "Searching \(appName)..."
+        }
+    }
+}
+
 @MainActor
 class AgentViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -38,6 +61,7 @@ class AgentViewModel: ObservableObject {
             }
         }
     }
+    @Published var currentStatus: AgentStatus? = nil
     @Published var activeTool: ToolStatus?
     @Published var proposal: ProposalData? // New: Proposal State
     @Published var messages: [ChatMessage] = []
@@ -70,6 +94,7 @@ class AgentViewModel: ObservableObject {
         // Update state
         state = .processing // This will trigger the thinking animation if handled in View
         isThinking = true
+        currentStatus = .thinking
         errorMessage = nil
         activeTool = nil
         proposal = nil // Clear any previous proposal
@@ -124,6 +149,9 @@ class AgentViewModel: ObservableObject {
                         withAnimation {
                             activeTool = ToolStatus(name: toolName, status: status)
                             isThinking = false // Stop generic thinking, show tool status
+                            // Map tool status to searching state
+                            // We assume toolName is the app name for now
+                            currentStatus = .searching(appName: toolName)
                         }
                     }
                     
@@ -133,6 +161,7 @@ class AgentViewModel: ObservableObject {
                             proposal = ProposalData(tool: tool, args: content)
                             isThinking = false
                             activeTool = nil
+                            currentStatus = nil // Clear status on proposal
                             // We stay in .processing or move to a specific .confirming state?
                             // Let's keep it simple: if proposal is not nil, the View shows the card.
                         }
@@ -142,6 +171,7 @@ class AgentViewModel: ObservableObject {
                     if let content = event.content?.value as? String {
                         isThinking = false
                         activeTool = nil // Clear tool status
+                        currentStatus = nil // Clear status on message
                         
                         // Add assistant response to UI
                         messages.append(ChatMessage(role: .assistant, content: content))
@@ -161,6 +191,7 @@ class AgentViewModel: ObservableObject {
             
         } catch {
             isThinking = false
+            currentStatus = nil
             isExecutingAction = false // Reset on error
             activeTool = nil
             errorMessage = error.localizedDescription
@@ -173,6 +204,7 @@ class AgentViewModel: ObservableObject {
         messages.removeAll()
         userInput = ""
         isThinking = false
+        currentStatus = nil
         isTranscribing = false
         isExecutingAction = false
         errorMessage = nil

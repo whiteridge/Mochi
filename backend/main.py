@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Any
 import json
+import os
 from agent_service import AgentService
 
 app = FastAPI(title="CaddyAI Backend")
@@ -52,7 +53,11 @@ async def chat_endpoint(request: ChatRequest):
 
     # Create a generator that yields JSON strings followed by a newline
     def event_generator():
-        for event in agent_service.run_agent(user_input, request.user_id, chat_history=gemini_history):
+        # Use configured user_id if available (for dev/single-user mode), otherwise use request user_id
+        effective_user_id = os.getenv("COMPOSIO_USER_ID", request.user_id)
+        print(f"DEBUG: Using effective user_id: {effective_user_id}")
+        
+        for event in agent_service.run_agent(user_input, effective_user_id, chat_history=gemini_history):
             yield json.dumps(event) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")

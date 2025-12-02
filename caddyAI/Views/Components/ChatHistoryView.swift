@@ -11,8 +11,7 @@ struct ViewHeightKey: PreferenceKey {
 struct ChatHistoryView: View {
     let messages: [ChatMessage]
     let isTranscribing: Bool
-    let isThinking: Bool
-    let activeTool: ToolStatus?
+    let currentStatus: AgentStatus?
     let proposal: ProposalData?
     let onConfirmProposal: () -> Void
     let onCancelProposal: () -> Void
@@ -45,16 +44,15 @@ struct ChatHistoryView: View {
                     if isTranscribing {
                         ProcessingIndicatorView(text: "Transcribing...", animation: animation)
                             .id("transcribing")
-                    } else if isThinking {
-                        ProcessingIndicatorView(text: "Thinking...", animation: animation)
-                            .id("thinking")
                     }
                     
-                    if let tool = activeTool {
-                        ToolStatusView(tool: tool)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8)
-                            .transition(.opacity)
+                    if let status = currentStatus {
+                        HStack {
+                            StatusPillView(text: status.labelText)
+                            Spacer()
+                        }
+                        .padding(.leading, 4) // Align with chat bubbles
+                        .transition(.opacity)
                     }
                     
                     if let proposal = proposal {
