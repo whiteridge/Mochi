@@ -2,22 +2,6 @@ import SwiftUI
 import Combine
 import OSLog
 
-struct ViewHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-struct InputViewHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 struct ConfirmButtonFrameKey: PreferenceKey {
     static var defaultValue: CGRect = .zero
     
@@ -27,9 +11,8 @@ struct ConfirmButtonFrameKey: PreferenceKey {
 }
 
 struct VoiceChatBubble: View {
-        @StateObject private var viewModel = AgentViewModel()
+    @StateObject private var viewModel = AgentViewModel()
     @State private var viewID = 0
-    // Height state is no longer manually calculated for the frame, but we use GeometryReader in the new layout
     
     @Namespace private var animation
     @Namespace private var rotatingLightNamespace
@@ -48,14 +31,17 @@ struct VoiceChatBubble: View {
             // Content layers
             switch viewModel.state {
             case .recording:
-                recordingBubbleContent
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        GlassBackground(cornerRadius: 30)
-                            .matchedGeometryEffect(id: "background", in: animation)
-                    )
-                    .transition(.scale(scale: 1))
+                RecordingBubbleView(
+                    stopRecording: stopRecording,
+                    animation: animation
+                )
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    GlassBackground(cornerRadius: 30)
+                        .matchedGeometryEffect(id: "background", in: animation)
+                )
+                .transition(.scale(scale: 1))
                     
             case .idle:
                 EmptyView()
@@ -114,80 +100,20 @@ fileprivate extension VoiceChatBubble {
     var expandedChatContent: some View {
         VStack(spacing: 0) {
             // 1. CHAT HISTORY (Flexible)
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        Spacer(minLength: 0)
-                        
-                        if viewModel.messages.isEmpty {
-                            Text("How can I help?")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.top, 40)
-                        } else {
-                            ForEach(viewModel.messages.filter { !$0.isHidden }) { message in
-                                ChatBubbleRow(message: message)
-                                    .id(message.id)
-                            }
-                        }
-                        
-                        if viewModel.isTranscribing {
-                            processingIndicator(text: "Transcribing...")
-                                .id("transcribing")
-                        } else if viewModel.isThinking {
-                            processingIndicator(text: "Thinking...")
-                                .id("thinking")
-                        }
-                        
-                        if let tool = viewModel.activeTool {
-                            ToolStatusView(tool: tool)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 8)
-                                .transition(.opacity)
-                        }
-                        
-                        if let proposal = viewModel.proposal {
-                            ConfirmationCardView(
-                                proposal: proposal,
-                                onConfirm: { viewModel.confirmProposal() },
-                                onCancel: { viewModel.cancelProposal() },
-                                rotatingLightNamespace: rotatingLightNamespace
-                            )
-                            .padding(.top, 16)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                        
-                        Color.clear.frame(height: 10).id("bottomAnchor")
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 24)
-                    .padding(.bottom, 20)
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: ViewHeightKey.self, value: geo.size.height)
-                        }
-                    )
-                }
-                .scrollContentBackground(.hidden)
-                .onPreferenceChange(ViewHeightKey.self) { height in
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        scrollContentHeight = height
-                    }
-                }
-                .onChange(of: viewModel.proposal) { _, newValue in
-                    if newValue != nil {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 1.0)) {
-                                proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                            }
-                        }
-                    }
-                }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    withAnimation {
-                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                    }
+            ChatHistoryView(
+                messages: viewModel.messages,
+                isTranscribing: viewModel.isTranscribing,
+                isThinking: viewModel.isThinking,
+                activeTool: viewModel.activeTool,
+                proposal: viewModel.proposal,
+                onConfirmProposal: { viewModel.confirmProposal() },
+                onCancelProposal: { viewModel.cancelProposal() },
+                rotatingLightNamespace: rotatingLightNamespace,
+                animation: animation
+            )
+            .onPreferenceChange(ViewHeightKey.self) { height in
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    scrollContentHeight = height
                 }
             }
             .frame(
@@ -199,20 +125,13 @@ fileprivate extension VoiceChatBubble {
             .layoutPriority(1)
             
             // 2. INPUT BAR
-            InputBarView(
+            ChatInputSection(
                 text: $viewModel.userInput,
                 isRecording: voiceRecorder.isRecording,
                 startRecording: startRecording,
                 stopRecording: stopRecording,
-                sendAction: sendManualMessage
-            )
-            .padding(.horizontal, 16)
-            .padding(.bottom, 20)
-            .matchedGeometryEffect(id: "actionButton", in: animation, isSource: false)
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: InputViewHeightKey.self, value: geo.size.height)
-                }
+                sendAction: sendManualMessage,
+                animation: animation
             )
             .onPreferenceChange(InputViewHeightKey.self) { height in
                 inputContentHeight = height
@@ -226,7 +145,7 @@ fileprivate extension VoiceChatBubble {
         
         VStack(spacing: 0) {
             if isSuccess {
-                SuccessPill()
+                SuccessPillView()
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
             } else {
                 expandedChatContent
@@ -273,110 +192,6 @@ fileprivate extension VoiceChatBubble {
         // Animate layout changes
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: isSuccess)
         .animation(.easeOut(duration: 0.3), value: viewModel.isExecutingAction)
-    }
-
-
-    @ViewBuilder
-    var recordingBubbleContent: some View {
-        HStack(spacing: 12) {
-            // Left: Circular logo/icon with glass effect
-            Circle()
-                .fill(Color.white.opacity(0.08))
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.25),
-                                    Color.white.opacity(0.05)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Image(systemName: "waveform")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                )
-                .matchedGeometryEffect(id: "appIcon", in: animation)
-            
-            AnimatedDotRow(count: 10)
-                .frame(width: 84, height: 28)
-
-            // Right: Vibrant stop button
-            VoiceActionButton(
-                size: 44,
-                isRecording: true,
-                action: stopRecording
-            )
-            .matchedGeometryEffect(id: "actionButton", in: animation)
-        }
-    }
-    
-    // Processing indicator shown inside the chat
-    @ViewBuilder
-    func processingIndicator(text: String) -> some View {
-        HStack(spacing: 12) {
-            // Interlocking circles (app icons)
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(width: 24, height: 24)
-                    .overlay(
-                        Image(systemName: "number")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                    )
-                    .offset(x: -5)
-                
-                Circle()
-                    .fill(Color(nsColor: .controlAccentColor).opacity(0.3))
-                    .frame(width: 24, height: 24)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-                    .overlay(
-                        Image(systemName: "waveform")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .matchedGeometryEffect(id: "appIcon", in: animation)
-                    )
-                    .offset(x: 5)
-            }
-            .frame(width: 34, height: 24)
-            
-            Text(text)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.75))
-            
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.12),
-                                    Color.white.opacity(0.03)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-        )
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 }
 
@@ -468,79 +283,5 @@ private extension VoiceChatBubble {
 
     func resetConversation(animate: Bool = true) {
         viewModel.reset()
-    }
-}
-
-// MARK: - Supporting Views
-
-private struct SuccessPill: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icons
-            HStack(spacing: -8) {
-                Circle()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 26, height: 26)
-                    .overlay(
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                    )
-                    // 1. Add shadow to the icon group
-                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-            }
-            
-            Text("Actions complete")
-                .font(.system(size: 15, weight: .semibold)) // 2. Bump weight to Semibold
-                .foregroundStyle(.white)
-                // 3. Add a strong drop shadow to the text
-                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
-    }
-}
-
-
-
-private struct AnimatedDotRow: View {
-    let count: Int
-
-    var body: some View {
-        GeometryReader { proxy in
-            let maxHeight = max(proxy.size.height, 1)
-            let spacing: CGFloat = 3
-            let totalSpacing = spacing * CGFloat(max(count - 1, 0))
-            let availableWidth = max(proxy.size.width - totalSpacing, CGFloat(count))
-            let barWidth = availableWidth / CGFloat(max(count, 1))
-
-            TimelineView(.animation) { timeline in
-                let phase = timeline.date.timeIntervalSinceReferenceDate.remainder(dividingBy: 1.4) / 1.4 * (.pi * 2)
-                HStack(spacing: spacing) {
-                    ForEach(0..<count, id: \.self) { index in
-                        let relative = Double(index) / Double(max(count - 1, 1))
-                        let distanceFromCenter = abs(relative - 0.5)
-                        let envelope = 0.35 + (1 - distanceFromCenter * 2) * 0.65
-                        let wave = (sin(phase + relative * .pi * 1.8) + 1) / 2
-                        let height = max(3, CGFloat(wave) * maxHeight * CGFloat(envelope))
-
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.85),
-                                        Color.white.opacity(0.6)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: max(barWidth, 1), height: height)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            }
-        }
-        .frame(height: 32)
     }
 }
