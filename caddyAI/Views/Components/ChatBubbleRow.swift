@@ -14,12 +14,8 @@ struct ChatBubbleRow: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(.ultraThinMaterial)
+                    .background(GlassBackground(cornerRadius: 22))
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                    )
                     .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 if !isUser { Spacer(minLength: 60) }
             }

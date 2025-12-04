@@ -163,8 +163,10 @@ fileprivate extension VoiceChatBubble {
                         .transition(.opacity)
                 } else {
                     // Chat state: Dark glass window
-                    // Chat state: Dark glass window
-                    GlassBackground(cornerRadius: 24)
+                    ZStack {
+                        VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                        Color.black.opacity(0.2) // Darken the glass
+                    }
                     .transition(.opacity)
                 }
                 
