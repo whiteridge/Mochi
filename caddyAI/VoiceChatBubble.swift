@@ -159,14 +159,12 @@ fileprivate extension VoiceChatBubble {
                 // Glass background
                 if isSuccess {
                     // Success state: Darker glass pill
-                    GlassBackground(cornerRadius: 50, tint: Color.black.opacity(0.35))
+                    GlassBackground(cornerRadius: 50)
                         .transition(.opacity)
                 } else {
                     // Chat state: Dark glass window
-                    ZStack {
-                        VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                        Color.black.opacity(0.2) // Darken the glass
-                    }
+                    // Chat state: Dark glass window
+                    GlassBackground(cornerRadius: 24)
                     .transition(.opacity)
                 }
                 

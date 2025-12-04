@@ -39,12 +39,8 @@ struct StatusPillView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
+        .background(GlassBackground(cornerRadius: 20))
         .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-        )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .animation(.easeInOut(duration: 0.25), value: text) // Animate text change
     }

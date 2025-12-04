@@ -2,13 +2,13 @@ import SwiftUI
 
 struct GlassBackground: View {
     var cornerRadius: CGFloat
-    var tint: Color = Color.black.opacity(0.5)
+    var tint: Color = Color.black.opacity(0.85)
     
     var body: some View {
         ZStack {
             // Base glass layer with material
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(.thickMaterial)
             
             // Dark tint overlay for depth
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

@@ -63,9 +63,9 @@ struct InputBarView: View {
         .background(
             ZStack {
                 Capsule()
-                    .fill(.ultraThinMaterial)
+                    .fill(.thickMaterial)
                 Capsule()
-                    .fill(Color.black.opacity(0.75))
+                    .fill(Color.black.opacity(0.85))
             }
         )
         .clipShape(Capsule())

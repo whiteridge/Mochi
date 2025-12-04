@@ -105,9 +105,9 @@ private extension ConfirmationCardView {
     var cardBackground: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(.thickMaterial)
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black.opacity(0.75))
+                .fill(Color.black.opacity(0.85))
         }
     }
     
