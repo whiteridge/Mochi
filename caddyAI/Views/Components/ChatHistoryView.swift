@@ -13,6 +13,7 @@ struct ChatHistoryView: View {
     let currentStatus: AgentStatus?
     let proposal: ProposalData?
     let typewriterText: String // Progressive text reveal
+    let isProcessing: Bool // Hide placeholder during processing
     let onConfirmProposal: () -> Void
     let onCancelProposal: () -> Void
     let rotatingLightNamespace: Namespace.ID
@@ -28,17 +29,10 @@ struct ChatHistoryView: View {
                 VStack(spacing: 16) {
                     Spacer(minLength: 0)
                     
-                    if messages.isEmpty && typewriterText.isEmpty {
-                        Text("How can I help?")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 40)
-                    } else {
-                        ForEach(messages.filter { !$0.isHidden }) { message in
-                            ChatBubbleRow(message: message)
-                                .id(message.id)
-                        }
+                    // Show messages (no placeholder to avoid flash during transitions)
+                    ForEach(messages.filter { !$0.isHidden }) { message in
+                        ChatBubbleRow(message: message)
+                            .id(message.id)
                     }
                     
                     // Typewriter text (progressive reveal)

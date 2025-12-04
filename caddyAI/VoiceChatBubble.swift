@@ -105,6 +105,7 @@ fileprivate extension VoiceChatBubble {
                 currentStatus: viewModel.currentStatus,
                 proposal: viewModel.proposal,
                 typewriterText: viewModel.typewriterText,
+                isProcessing: viewModel.state == .processing,
                 onConfirmProposal: { viewModel.confirmProposal() },
                 onCancelProposal: { viewModel.cancelProposal() },
                 rotatingLightNamespace: rotatingLightNamespace,
@@ -254,7 +255,8 @@ private extension VoiceChatBubble {
             do {
                 await MainActor.run {
                     viewModel.state = .chat
-                    viewModel.currentStatus = .transcribing
+                    // Don't show any status pill - it will appear when tools are invoked
+                    viewModel.currentStatus = nil
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
@@ -262,7 +264,6 @@ private extension VoiceChatBubble {
                 
                 await MainActor.run {
                     viewModel.errorMessage = nil
-                    // currentStatus will be updated to .thinking in processInput
                     viewModel.processInput(text: transcript)
                 }
             } catch {
