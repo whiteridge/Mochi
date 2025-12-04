@@ -1,13 +1,23 @@
 """Composio SDK service wrapper for tool fetching and action execution."""
 
-
 import os
-from typing import Dict, Any, List
+import time
+import json
+from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 from composio import Composio
 # from composio_google import GoogleProvider # Removed to avoid schema conversion issues
 
 load_dotenv()
+
+# Read-only tools that are safe to cache (5 min TTL)
+READ_ONLY_CACHEABLE_TOOLS = {
+    "LINEAR_GET_ALL_LINEAR_TEAMS",
+    "LINEAR_LIST_LINEAR_TEAMS",
+    "LINEAR_LIST_LINEAR_STATES",
+    "LINEAR_LIST_LINEAR_LABELS",
+    "SLACK_LIST_ALL_CHANNELS",
+}
 
 
 class ComposioService:
@@ -27,6 +37,31 @@ class ComposioService:
             raise RuntimeError(
                 f"Failed to initialize Composio SDK: {exc}"
             ) from exc
+        
+        # In-memory cache for read-only tools
+        self._cache: Dict[tuple, Dict[str, Any]] = {}
+        self._cache_ttl_seconds = 300  # 5 minutes
+    
+    # --- Cache Helper Methods ---
+    
+    def _cache_key(self, tool_name: str, args: Dict[str, Any]) -> tuple:
+        """Generate a cache key from tool name and arguments."""
+        return (tool_name.upper(), json.dumps(args, sort_keys=True))
+    
+    def _get_cached(self, tool_name: str, args: Dict[str, Any]) -> Optional[Any]:
+        """Get cached result if still valid (within TTL)."""
+        key = self._cache_key(tool_name, args)
+        entry = self._cache.get(key)
+        if entry and time.time() - entry["ts"] < self._cache_ttl_seconds:
+            print(f"DEBUG: Cache HIT for {tool_name}")
+            return entry["value"]
+        return None
+    
+    def _set_cached(self, tool_name: str, args: Dict[str, Any], value: Any) -> None:
+        """Store result in cache with timestamp."""
+        key = self._cache_key(tool_name, args)
+        self._cache[key] = {"value": value, "ts": time.time()}
+        print(f"DEBUG: Cached result for {tool_name}")
     
     def fetch_tools(self, user_id: str, slugs: List[str]):
         """
@@ -87,6 +122,12 @@ class ComposioService:
         Returns:
             Raw result object from Composio
         """
+        # Check cache first for read-only tools
+        if slug.upper() in READ_ONLY_CACHEABLE_TOOLS:
+            cached = self._get_cached(slug, arguments)
+            if cached is not None:
+                return cached
+        
         result = self.composio.tools.execute(
             slug=slug,
             arguments=arguments,
@@ -181,6 +222,12 @@ class ComposioService:
             except Exception as e:
                 print(f"DEBUG: Error handling Slack history filtering: {e}")
                 pass
+
+        # Cache successful results for read-only tools
+        if slug.upper() in READ_ONLY_CACHEABLE_TOOLS:
+            # Only cache if result looks successful (has data)
+            if hasattr(result, 'data') or (isinstance(result, dict) and result.get('data')):
+                self._set_cached(slug, arguments, result)
 
         return result
 

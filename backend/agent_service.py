@@ -13,6 +13,44 @@ from utils.chat_utils import format_history
 load_dotenv()
 
 
+# --- Early Summary Helpers (no LLM call) ---
+
+def map_tool_to_app(tool_name: str) -> str:
+    """Map a tool name to its app identifier.
+    
+    Examples:
+        LINEAR_CREATE_ISSUE -> "linear"
+        SLACK_SEND_MESSAGE -> "slack"
+    """
+    name_upper = tool_name.upper()
+    if name_upper.startswith("LINEAR_"):
+        return "linear"
+    if name_upper.startswith("SLACK_"):
+        return "slack"
+    if name_upper.startswith("GITHUB_"):
+        return "github"
+    if name_upper.startswith("NOTION_"):
+        return "notion"
+    # Fallback: extract first word before underscore
+    parts = tool_name.split("_")
+    return parts[0].lower() if parts else tool_name.lower()
+
+
+def make_early_summary(app_id: str) -> str:
+    """Generate a deterministic early summary for the given app.
+    
+    This is called as soon as the first tool call is detected, BEFORE
+    any tool is executed. No LLM call is made.
+    """
+    templates = {
+        "linear": "I'll search Linear to help with your request.",
+        "slack": "I'll read Slack to help with your request.",
+        "github": "I'll check GitHub to help with your request.",
+        "notion": "I'll look in Notion to help with your request.",
+    }
+    return templates.get(app_id, f"I'll look in {app_id.capitalize()} to help with your request.")
+
+
 class AgentService:
     """Main agent service for orchestrating conversations with Linear and Slack tools."""
     
@@ -203,6 +241,10 @@ class AgentService:
             max_iterations = 5
             write_action_executed = False
             
+            # Early summary tracking (for fast first message)
+            early_summary_sent = False
+            early_summary_text = None
+            
             for iteration in range(max_iterations):
                 
                 # Track if this iteration has a write action
@@ -220,6 +262,19 @@ class AgentService:
                             tool_name = part.function_call.name
                             args = dict(part.function_call.args) if part.function_call.args else {}
                             print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
+                            
+                            # EARLY SUMMARY: Emit immediately on first tool call
+                            # This happens BEFORE tool execution for fast UI response
+                            if not early_summary_sent:
+                                app_id = map_tool_to_app(tool_name)
+                                early_summary_text = make_early_summary(app_id)
+                                print(f"DEBUG: Emitting early summary for {app_id}: {early_summary_text}")
+                                yield {
+                                    "type": "early_summary",
+                                    "content": early_summary_text,
+                                    "app_id": app_id
+                                }
+                                early_summary_sent = True
                             
                             # INTERCEPTION LOGIC
                             # Check Linear
@@ -256,7 +311,8 @@ class AgentService:
                                     yield {
                                         "type": "proposal",
                                         "tool": tool_name,
-                                        "content": enriched_args
+                                        "content": enriched_args,
+                                        "summary_text": early_summary_text  # Reuse early summary as card header
                                     }
                                     # Do NOT yield a message - let the UI handle it
                                     # Stop execution here for this turn

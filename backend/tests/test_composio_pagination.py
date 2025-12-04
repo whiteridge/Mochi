@@ -4,9 +4,8 @@ from unittest.mock import MagicMock, patch
 from backend.services.composio_service import ComposioService
 
 def test_slack_pagination_logic():
-    # Patch the Composio class and GoogleProvider used in __init__
+    # Patch the Composio class used in __init__
     with patch("backend.services.composio_service.Composio") as MockComposioSDK, \
-         patch("backend.services.composio_service.GoogleProvider") as MockGoogleProvider, \
          patch("backend.services.composio_service.os.getenv", return_value="fake_key"):
         
         # Initialize the service

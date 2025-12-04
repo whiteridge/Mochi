@@ -43,6 +43,12 @@ public enum AgentStatus: Equatable, Identifiable {
     }
 }
 
+// Tool info structure for display
+struct ToolInfo {
+    let displayName: String
+    let iconName: String // SF Symbol name
+}
+
 @MainActor
 class AgentViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -84,6 +90,31 @@ class AgentViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let llmService = LLMService.shared
+    
+    // MARK: - Tool Display Info
+    
+    /// Maps tool name prefix to display info (name + icon)
+    private static let toolInfoMap: [String: ToolInfo] = [
+        "linear": ToolInfo(displayName: "Linear", iconName: "line.3.horizontal.circle"),
+        "slack": ToolInfo(displayName: "Slack", iconName: "number.square"),
+        "github": ToolInfo(displayName: "GitHub", iconName: "chevron.left.forwardslash.chevron.right"),
+        "notion": ToolInfo(displayName: "Notion", iconName: "doc.text"),
+        "google": ToolInfo(displayName: "Google", iconName: "globe"),
+    ]
+    
+    /// Active tool display name derived from proposal
+    var activeToolDisplayName: String {
+        guard let proposal = proposal else { return "Action" }
+        let prefix = proposal.tool.split(separator: "_").first.map(String.init) ?? ""
+        return Self.toolInfoMap[prefix.lowercased()]?.displayName ?? "Action"
+    }
+    
+    /// Active tool icon derived from proposal
+    var activeToolIconName: String {
+        guard let proposal = proposal else { return "sparkles" }
+        let prefix = proposal.tool.split(separator: "_").first.map(String.init) ?? ""
+        return Self.toolInfoMap[prefix.lowercased()]?.iconName ?? "sparkles"
+    }
     
     // MARK: - Actions
     
@@ -169,11 +200,10 @@ class AgentViewModel: ObservableObject {
             
             for try await event in stream {
                 switch event.type {
-                case .toolStatus:
-                    if let toolName = event.tool, let status = event.status {
-                        let appName = formatAppName(from: toolName)
-                        
-                        // Insert action summary message once at the start of tool run
+                case .earlySummary:
+                    // Handle early summary from backend with fast typewriter effect
+                    if let content = event.content?.value as? String,
+                       let appId = event.appId {
                         if !hasInsertedActionSummary {
                             hasInsertedActionSummary = true
                             isTypewriterActive = true
@@ -184,24 +214,51 @@ class AgentViewModel: ObservableObject {
                                 isThinking = false
                             }
                             
-                            let summaryText = "I'll search \(appName) to help with your request."
-                            
-                            // Typewriter effect: reveal word by word (fast)
-                            let words = summaryText.split(separator: " ").map(String.init)
+                            // Fast typewriter effect: reveal word by word
+                            let words = content.split(separator: " ").map(String.init)
                             typewriterText = ""
                             
                             for (index, word) in words.enumerated() {
-                                try? await Task.sleep(nanoseconds: 25_000_000) // 25ms per word (fast)
+                                // First word appears immediately, delay only for subsequent words
+                                if index > 0 {
+                                    try? await Task.sleep(nanoseconds: 25_000_000) // 25ms per word
+                                }
                                 typewriterText += (index > 0 ? " " : "") + word
                             }
                             
                             // Convert typewriter text to permanent message
-                            messages.append(ChatMessage(role: .assistant, content: summaryText, isActionSummary: true))
+                            messages.append(ChatMessage(
+                                role: .assistant,
+                                content: content,
+                                isActionSummary: true
+                            ))
                             typewriterText = ""
                             isTypewriterActive = false
                             
-                            // Short delay before status pill appears
-                            try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
+                            // Show status pill after typewriter completes
+                            let formattedAppName = appId.capitalized
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                currentStatus = .searching(appName: formattedAppName)
+                            }
+                        }
+                    }
+                    
+                case .toolStatus:
+                    // Tool status events - update the status pill if not already showing
+                    if let toolName = event.tool, let status = event.status {
+                        let appName = formatAppName(from: toolName)
+                        
+                        // If we haven't shown early summary yet (fallback), show a quick one
+                        if !hasInsertedActionSummary {
+                            hasInsertedActionSummary = true
+                            
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                currentStatus = nil
+                                isThinking = false
+                            }
+                            
+                            let summaryText = "I'll search \(appName) to help with your request."
+                            messages.append(ChatMessage(role: .assistant, content: summaryText, isActionSummary: true))
                         }
                         
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -222,7 +279,9 @@ class AgentViewModel: ObservableObject {
                                 }
                                 return copy
                             }
-                            proposal = ProposalData(tool: tool, args: content)
+                            var proposalData = ProposalData(tool: tool, args: content)
+                            proposalData.summaryText = event.summaryText  // Reuse early summary
+                            proposal = proposalData
                             isThinking = false
                             activeTool = nil
                             currentStatus = nil // Clear status on proposal

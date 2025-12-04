@@ -9,6 +9,7 @@ struct ViewHeightKey: PreferenceKey {
 }
 
 struct ChatHistoryView: View {
+    @ObservedObject var viewModel: AgentViewModel
     let messages: [ChatMessage]
     let currentStatus: AgentStatus?
     let proposal: ProposalData?
@@ -18,6 +19,8 @@ struct ChatHistoryView: View {
     let onCancelProposal: () -> Void
     let rotatingLightNamespace: Namespace.ID
     let animation: Namespace.ID
+    
+    @Namespace private var statusPillAnimation
     
     // Helper to determine if a message should be visible when proposal is active
     private func shouldShowMessage(_ message: ChatMessage) -> Bool {
@@ -64,12 +67,27 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    if let status = currentStatus {
+                    // Status Pill OR Tool Badge (mutually exclusive)
+                    if proposal != nil {
+                        // Tool Badge when proposal is active
                         HStack {
-                            StatusPillView(text: status.labelText)
+                            ToolBadgeView(
+                                iconName: viewModel.activeToolIconName,
+                                displayName: viewModel.activeToolDisplayName
+                            )
+                            .matchedGeometryEffect(id: "statusPill", in: statusPillAnimation)
                             Spacer()
                         }
-                        .padding(.leading, 4) // Align with chat bubbles
+                        .padding(.leading, 4)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    } else if let status = currentStatus {
+                        // Status Pill during processing
+                        HStack {
+                            StatusPillView(text: status.labelText)
+                                .matchedGeometryEffect(id: "statusPill", in: statusPillAnimation)
+                            Spacer()
+                        }
+                        .padding(.leading, 4)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     

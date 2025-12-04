@@ -51,6 +51,7 @@ enum StreamEventType: String, Codable {
     case toolStatus = "tool_status"
     case message
     case proposal
+    case earlySummary = "early_summary"  // Early summary before tool execution
 }
 
 struct StreamEvent: Decodable {
@@ -63,9 +64,15 @@ struct StreamEvent: Decodable {
     let content: AnyCodable? // Changed to AnyCodable to handle both String and Dict
     let actionPerformed: String?
     
+    // Early summary / proposal fields
+    let appId: String?        // For early_summary events
+    let summaryText: String?  // For proposal events (reuse of early summary)
+    
     enum CodingKeys: String, CodingKey {
         case type, tool, status, content
         case actionPerformed = "action_performed"
+        case appId = "app_id"
+        case summaryText = "summary_text"
     }
 }
 
@@ -101,6 +108,7 @@ struct AnyCodable: Decodable {
 struct ProposalData: Equatable {
     let tool: String
     let args: [String: Any]
+    var summaryText: String?  // Reused from early summary as card header
     
     // Computed properties for common Linear fields
     var title: String? {

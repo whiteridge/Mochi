@@ -101,6 +101,7 @@ fileprivate extension VoiceChatBubble {
         VStack(spacing: 0) {
             // 1. CHAT HISTORY (Flexible)
             ChatHistoryView(
+                viewModel: viewModel,
                 messages: viewModel.messages,
                 currentStatus: viewModel.currentStatus,
                 proposal: viewModel.proposal,
