@@ -1,79 +1,90 @@
 import SwiftUI
 
-/// A custom shape that creates a symmetrical bridge connector
-/// Capsule-like with rounded ends, slightly narrower in the middle for visual softness
-struct WaterDropletBridge: Shape {
+/// A custom shape that creates a fluid, inverted-radius "neck" connector
+/// Mimics a metaball/liquid connection between two elements
+struct WaterDropletBridge: View {
+    var width: CGFloat = 40
+    var height: CGFloat = 20
+    var color: Color = .black.opacity(0.85)
+    var borderGradient: LinearGradient? = nil
+    
+    var body: some View {
+        ZStack {
+            // The main fill - matching ConfirmationCard stack
+            BridgeShape()
+                .fill(.thickMaterial)
+            BridgeShape()
+                .fill(color)
+            
+            // The border strokes
+            if let gradient = borderGradient {
+                BridgeStroke()
+                    .stroke(gradient, lineWidth: 1)
+            }
+        }
+        .frame(width: width, height: height)
+    }
+}
+
+/// The closed shape for filling the bridge
+struct BridgeShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        
         let width = rect.width
         let height = rect.height
         
-        // Create a symmetrical capsule shape
-        // Slightly wider at top and bottom, gently tapering in middle
-        let cornerRadius = width / 2
-        let middlePinch: CGFloat = 0.15  // How much to pinch in the middle (0 = no pinch)
-        
-        // Top-left corner
-        path.move(to: CGPoint(x: cornerRadius, y: 0))
+        // Start top-left
+        path.move(to: CGPoint(x: 0, y: 0))
         
         // Top edge
-        path.addLine(to: CGPoint(x: width - cornerRadius, y: 0))
+        path.addLine(to: CGPoint(x: width, y: 0))
         
-        // Top-right curve
-        path.addArc(
-            center: CGPoint(x: width - cornerRadius, y: cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(-90),
-            endAngle: .degrees(0),
-            clockwise: false
-        )
-        
-        // Right side with gentle middle pinch
-        let midY = height / 2
-        let pinchAmount = width * middlePinch
-        path.addQuadCurve(
-            to: CGPoint(x: width, y: height - cornerRadius),
-            control: CGPoint(x: width - pinchAmount, y: midY)
-        )
-        
-        // Bottom-right curve
-        path.addArc(
-            center: CGPoint(x: width - cornerRadius, y: height - cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(0),
-            endAngle: .degrees(90),
-            clockwise: false
+        // Right side - concave curve (inward)
+        // Control point is inward to create the "neck" effect
+        path.addCurve(
+            to: CGPoint(x: width, y: height),
+            control1: CGPoint(x: width, y: height * 0.3),
+            control2: CGPoint(x: width * 0.6, y: height * 0.7)
         )
         
         // Bottom edge
-        path.addLine(to: CGPoint(x: cornerRadius, y: height))
+        path.addLine(to: CGPoint(x: 0, y: height))
         
-        // Bottom-left curve
-        path.addArc(
-            center: CGPoint(x: cornerRadius, y: height - cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(90),
-            endAngle: .degrees(180),
-            clockwise: false
-        )
-        
-        // Left side with gentle middle pinch
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: cornerRadius),
-            control: CGPoint(x: pinchAmount, y: midY)
-        )
-        
-        // Top-left curve
-        path.addArc(
-            center: CGPoint(x: cornerRadius, y: cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(180),
-            endAngle: .degrees(270),
-            clockwise: false
+        // Left side - concave curve (inward)
+        path.addCurve(
+            to: CGPoint(x: 0, y: 0),
+            control1: CGPoint(x: width * 0.4, y: height * 0.7),
+            control2: CGPoint(x: 0, y: height * 0.3)
         )
         
         path.closeSubpath()
+        return path
+    }
+}
+
+/// The open shape for stroking the sides of the bridge
+struct BridgeStroke: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.width
+        let height = rect.height
+        
+        // Right side
+        path.move(to: CGPoint(x: width, y: 0))
+        path.addCurve(
+            to: CGPoint(x: width, y: height),
+            control1: CGPoint(x: width, y: height * 0.3),
+            control2: CGPoint(x: width * 0.6, y: height * 0.7)
+        )
+        
+        // Left side
+        path.move(to: CGPoint(x: 0, y: height))
+        path.addCurve(
+            to: CGPoint(x: 0, y: 0),
+            control1: CGPoint(x: width * 0.4, y: height * 0.7),
+            control2: CGPoint(x: 0, y: height * 0.3)
+        )
+        
         return path
     }
 }

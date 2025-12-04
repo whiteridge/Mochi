@@ -78,25 +78,32 @@ struct ChatHistoryView: View {
                                     appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
                                     isCompact: proposal != nil
                                 )
+                                .overlay(alignment: .bottom) {
+                                    if proposal != nil {
+                                        WaterDropletBridge(
+                                            width: 32,
+                                            height: 24,
+                                            color: Color.black.opacity(0.85),
+                                            borderGradient: LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.25),
+                                                    Color.white.opacity(0.05)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .offset(y: 20) // Push down to connect
+                                        .transition(.opacity)
+                                    }
+                                }
+                                .zIndex(2) // Pill + Bridge on top
+                                
                                 Spacer()
                             }
-                            .zIndex(2)
                             
                             // Bridge + Card only appear when proposal exists
                             if let proposal = proposal {
-                                // Bridge connector - blends with pill and card
-                                ZStack {
-                                    WaterDropletBridge()
-                                        .fill(.thickMaterial)
-                                    WaterDropletBridge()
-                                        .fill(Color.black.opacity(0.85))
-                                }
-                                .frame(width: 16, height: 14)
-                                .padding(.leading, 22)
-                                .offset(y: -5)
-                                .zIndex(1)
-                                .transition(.opacity)
-                                
                                 // Confirmation Card
                                 ConfirmationCardView(
                                     proposal: proposal,
@@ -104,8 +111,8 @@ struct ChatHistoryView: View {
                                     onCancel: onCancelProposal,
                                     rotatingLightNamespace: rotatingLightNamespace
                                 )
-                                .offset(y: -10)
-                                .zIndex(0)
+                                .padding(.top, 14) // Space for the bridge
+                                .zIndex(1)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
                         }
