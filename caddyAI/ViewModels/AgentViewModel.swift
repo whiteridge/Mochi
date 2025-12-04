@@ -41,6 +41,16 @@ public enum AgentStatus: Equatable, Identifiable {
             return "Searching \(appName)..."
         }
     }
+    
+    /// App name for icon display (nil for non-app-specific statuses)
+    var appName: String? {
+        switch self {
+        case .searching(let name):
+            return name
+        default:
+            return nil
+        }
+    }
 }
 
 // Tool info structure for display

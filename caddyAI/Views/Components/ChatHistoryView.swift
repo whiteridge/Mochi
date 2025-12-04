@@ -67,39 +67,49 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    // Status Pill OR Tool Badge (mutually exclusive)
-                    if proposal != nil {
-                        // Tool Badge when proposal is active
-                        HStack {
-                            ToolBadgeView(
-                                iconName: viewModel.activeToolIconName,
-                                displayName: viewModel.activeToolDisplayName
-                            )
-                            .matchedGeometryEffect(id: "statusPill", in: statusPillAnimation)
-                            Spacer()
+                    // Single Status Pill - always present when status or proposal exists
+                    // Only changes isCompact state, pill itself doesn't move
+                    if currentStatus != nil || proposal != nil {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // The ONE pill - changes from "Searching Slack..." to "Slack" in place
+                            HStack {
+                                StatusPillView(
+                                    text: currentStatus?.labelText ?? "",
+                                    appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
+                                    isCompact: proposal != nil
+                                )
+                                Spacer()
+                            }
+                            .zIndex(2)
+                            
+                            // Bridge + Card only appear when proposal exists
+                            if let proposal = proposal {
+                                // Bridge connector - blends with pill and card
+                                ZStack {
+                                    WaterDropletBridge()
+                                        .fill(.thickMaterial)
+                                    WaterDropletBridge()
+                                        .fill(Color.black.opacity(0.85))
+                                }
+                                .frame(width: 16, height: 14)
+                                .padding(.leading, 22)
+                                .offset(y: -5)
+                                .zIndex(1)
+                                .transition(.opacity)
+                                
+                                // Confirmation Card
+                                ConfirmationCardView(
+                                    proposal: proposal,
+                                    onConfirm: onConfirmProposal,
+                                    onCancel: onCancelProposal,
+                                    rotatingLightNamespace: rotatingLightNamespace
+                                )
+                                .offset(y: -10)
+                                .zIndex(0)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
                         .padding(.leading, 4)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                    } else if let status = currentStatus {
-                        // Status Pill during processing
-                        HStack {
-                            StatusPillView(text: status.labelText)
-                                .matchedGeometryEffect(id: "statusPill", in: statusPillAnimation)
-                            Spacer()
-                        }
-                        .padding(.leading, 4)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                    
-                    if let proposal = proposal {
-                        ConfirmationCardView(
-                            proposal: proposal,
-                            onConfirm: onConfirmProposal,
-                            onCancel: onCancelProposal,
-                            rotatingLightNamespace: rotatingLightNamespace
-                        )
-                        .padding(.top, 8) // Reduced from 16
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")
