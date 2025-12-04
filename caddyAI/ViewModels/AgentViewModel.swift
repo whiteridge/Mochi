@@ -78,6 +78,8 @@ class AgentViewModel: ObservableObject {
     // MARK: - Private State
     
     private var hasInsertedActionSummary: Bool = false
+    @Published var typewriterText: String = "" // For progressive text reveal
+    private var isTypewriterActive: Bool = false
     
     // MARK: - Dependencies
     
@@ -100,9 +102,10 @@ class AgentViewModel: ObservableObject {
         userInput = ""
         
         // Update state
-        state = .processing // This will trigger the thinking animation if handled in View
-        isThinking = true
-        currentStatus = .thinking
+        state = .processing
+        // Don't show thinking status immediately - wait for tool events or response
+        isThinking = false
+        currentStatus = nil
         errorMessage = nil
         activeTool = nil
         proposal = nil // Clear any previous proposal
@@ -155,19 +158,41 @@ class AgentViewModel: ObservableObject {
                 switch event.type {
                 case .toolStatus:
                     if let toolName = event.tool, let status = event.status {
+                        let appName = formatAppName(from: toolName)
+                        
                         // Insert action summary message once at the start of tool run
                         if !hasInsertedActionSummary {
                             hasInsertedActionSummary = true
-                            let appName = formatAppName(from: toolName)
+                            isTypewriterActive = true
+                            
+                            // Clear any status so message area is clean
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                currentStatus = nil
+                                isThinking = false
+                            }
+                            
                             let summaryText = "I'll search \(appName) to help with your request."
+                            
+                            // Typewriter effect: reveal word by word
+                            let words = summaryText.split(separator: " ").map(String.init)
+                            typewriterText = ""
+                            
+                            for (index, word) in words.enumerated() {
+                                try? await Task.sleep(nanoseconds: 60_000_000) // 60ms per word
+                                typewriterText += (index > 0 ? " " : "") + word
+                            }
+                            
+                            // Convert typewriter text to permanent message
                             messages.append(ChatMessage(role: .assistant, content: summaryText, isActionSummary: true))
+                            typewriterText = ""
+                            isTypewriterActive = false
+                            
+                            // Longer delay before status pill appears (soft entrance)
+                            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
                         }
                         
-                        withAnimation {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             activeTool = ToolStatus(name: toolName, status: status)
-                            isThinking = false // Stop generic thinking, show tool status
-                            // Map tool status to searching state
-                            let appName = formatAppName(from: toolName)
                             currentStatus = .searching(appName: appName)
                         }
                     }

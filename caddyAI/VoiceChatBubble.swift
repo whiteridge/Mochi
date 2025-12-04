@@ -104,6 +104,7 @@ fileprivate extension VoiceChatBubble {
                 messages: viewModel.messages,
                 currentStatus: viewModel.currentStatus,
                 proposal: viewModel.proposal,
+                typewriterText: viewModel.typewriterText,
                 onConfirmProposal: { viewModel.confirmProposal() },
                 onCancelProposal: { viewModel.cancelProposal() },
                 rotatingLightNamespace: rotatingLightNamespace,

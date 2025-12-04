@@ -12,6 +12,7 @@ struct ChatHistoryView: View {
     let messages: [ChatMessage]
     let currentStatus: AgentStatus?
     let proposal: ProposalData?
+    let typewriterText: String // Progressive text reveal
     let onConfirmProposal: () -> Void
     let onCancelProposal: () -> Void
     let rotatingLightNamespace: Namespace.ID
@@ -27,7 +28,7 @@ struct ChatHistoryView: View {
                 VStack(spacing: 16) {
                     Spacer(minLength: 0)
                     
-                    if messages.isEmpty {
+                    if messages.isEmpty && typewriterText.isEmpty {
                         Text("How can I help?")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundStyle(.white.opacity(0.6))
@@ -40,7 +41,18 @@ struct ChatHistoryView: View {
                         }
                     }
                     
-
+                    // Typewriter text (progressive reveal)
+                    if !typewriterText.isEmpty {
+                        HStack {
+                            Text(typewriterText)
+                                .font(.system(size: 15, weight: .regular, design: .default))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .animation(.easeOut(duration: 0.1), value: typewriterText)
+                            Spacer()
+                        }
+                        .transition(.opacity)
+                    }
                     
                     if let status = currentStatus {
                         HStack {
@@ -48,7 +60,7 @@ struct ChatHistoryView: View {
                             Spacer()
                         }
                         .padding(.leading, 4) // Align with chat bubbles
-                        .transition(.opacity)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
                     if let proposal = proposal {
