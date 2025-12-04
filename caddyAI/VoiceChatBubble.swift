@@ -165,7 +165,7 @@ fileprivate extension VoiceChatBubble {
                     // Chat state: Dark glass window
                     ZStack {
                         VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                        Color.black.opacity(0.2) // Darken the glass
+                        Color.black.opacity(0.7) // Darken the glass
                     }
                     .transition(.opacity)
                 }
