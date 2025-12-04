@@ -19,37 +19,36 @@ struct ChatHistoryView: View {
     let rotatingLightNamespace: Namespace.ID
     let animation: Namespace.ID
     
-    // Computed property for visible messages - filters based on proposal state
-    private var visibleMessages: [ChatMessage] {
+    // Helper to determine if a message should be visible when proposal is active
+    private func shouldShowMessage(_ message: ChatMessage) -> Bool {
         if proposal != nil {
-            // Agentic mode: show ONLY the action summary bubble
-            return messages.filter { message in
-                !message.isHidden && message.isAttachedToProposal && message.isActionSummary
-            }
-        } else {
-            // Normal mode: show all non-hidden messages
-            return messages.filter { !$0.isHidden }
+            // In agentic mode: only show the action summary
+            return message.isAttachedToProposal && message.isActionSummary
         }
+        return true
     }
-    
-    // We need to know the available height to constrain the scroll view, 
-    // but the parent handles the frame height logic based on scrollContentHeight.
-    // The parent uses ViewHeightKey to get the content height.
     
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
-                    Spacer(minLength: 0)
+                    // Only use spacer to push content down when NOT in agentic mode
+                    if proposal == nil {
+                        Spacer(minLength: 0)
+                    }
                     
-                    // Show messages (filtered based on proposal state)
-                    ForEach(visibleMessages) { message in
+                    // Show all non-hidden messages, but apply visual transforms based on proposal state
+                    ForEach(messages.filter { !$0.isHidden }) { message in
+                        let isVisible = shouldShowMessage(message)
+                        
                         ChatBubbleRow(message: message)
                             .id(message.id)
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .top).combined(with: .opacity),
-                                removal: .move(edge: .top).combined(with: .opacity)
-                            ))
+                            // Push non-visible messages up and fade them out
+                            .offset(y: isVisible ? 0 : -100)
+                            .opacity(isVisible ? 1 : 0)
+                            // Clip height to 0 when hidden so they don't take space
+                            .frame(height: isVisible ? nil : 0, alignment: .top)
+                            .clipped()
                     }
                     
                     // Typewriter text (progressive reveal)
@@ -81,16 +80,16 @@ struct ChatHistoryView: View {
                             onCancel: onCancelProposal,
                             rotatingLightNamespace: rotatingLightNamespace
                         )
-                        .padding(.top, 16)
+                        .padding(.top, 8) // Reduced from 16
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 24)
+                .padding(.top, proposal != nil ? 0 : 24) // No top padding in agentic mode
                 .padding(.bottom, 20)
-                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: proposal != nil)
+                .animation(.easeInOut(duration: 0.5), value: proposal != nil)
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(key: ViewHeightKey.self, value: geo.size.height)
@@ -98,6 +97,7 @@ struct ChatHistoryView: View {
                 )
             }
             .scrollContentBackground(.hidden)
+            .clipped() // Ensure content is clipped at container bounds
             .onChange(of: proposal) { _, newValue in
                 if newValue != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
