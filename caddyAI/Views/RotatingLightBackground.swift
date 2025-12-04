@@ -9,6 +9,7 @@ struct RotatingLightBackground: View {
     var cornerRadius: CGFloat
     var shape: ShapeType
     var rotationSpeed: Double
+    var glowColor: Color = .white
     
     @State private var rotation: Double = 0
     
@@ -33,9 +34,9 @@ struct RotatingLightBackground: View {
                 AngularGradient(
                     gradient: Gradient(colors: [
                         .clear,
-                        .white.opacity(0.1),
-                        .white.opacity(0.4),
-                        .white.opacity(0.1),
+                        glowColor.opacity(0.1),
+                        glowColor.opacity(0.4),
+                        glowColor.opacity(0.1),
                         .clear
                     ]),
                     center: .center,
@@ -49,7 +50,7 @@ struct RotatingLightBackground: View {
                 
                 // Optional: Add a subtle overlay for more "glass" feel if needed
                 shape
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(glowColor.opacity(0.1), lineWidth: 1)
             }
         }
         .onAppear {

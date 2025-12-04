@@ -94,7 +94,8 @@ private extension ConfirmationCardView {
                     RotatingLightBackground(
                         cornerRadius: 24,
                         shape: RotatingLightBackground.ShapeType.capsule,
-                        rotationSpeed: 10.0
+                        rotationSpeed: 10.0,
+                        glowColor: .green
                     )
                     .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)
                 )

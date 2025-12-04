@@ -78,25 +78,20 @@ struct ChatHistoryView: View {
                                     appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
                                     isCompact: proposal != nil
                                 )
-                                .overlay(alignment: .bottom) {
-                                    if proposal != nil {
-                                        WaterDropletBridge(
-                                            width: 32,
-                                            height: 24,
-                                            color: Color.black.opacity(0.85),
-                                            borderGradient: LinearGradient(
-                                                colors: [
-                                                    Color.white.opacity(0.25),
-                                                    Color.white.opacity(0.05)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
+                                .background(
+                                    Group {
+                                        if proposal != nil {
+                                            RotatingLightBackground(
+                                                cornerRadius: 20,
+                                                shape: .capsule,
+                                                rotationSpeed: 5.0,
+                                                glowColor: .green
                                             )
-                                        )
-                                        .offset(y: 20) // Push down to connect
-                                        .transition(.opacity)
+                                            .padding(-1) // Slight bleed for the glow
+                                            .transition(.opacity)
+                                        }
                                     }
-                                }
+                                )
                                 .zIndex(2) // Pill + Bridge on top
                                 
                                 Spacer()
