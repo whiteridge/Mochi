@@ -75,6 +75,10 @@ class AgentViewModel: ObservableObject {
     @Published var isExecutingAction: Bool = false
     @Published var errorMessage: String?
     
+    // MARK: - Private State
+    
+    private var hasInsertedActionSummary: Bool = false
+    
     // MARK: - Dependencies
     
     private let llmService = LLMService.shared
@@ -102,6 +106,7 @@ class AgentViewModel: ObservableObject {
         errorMessage = nil
         activeTool = nil
         proposal = nil // Clear any previous proposal
+        hasInsertedActionSummary = false // Reset for new request
         
         Task {
             await sendMessageToBackend(text: trimmed)
@@ -150,6 +155,14 @@ class AgentViewModel: ObservableObject {
                 switch event.type {
                 case .toolStatus:
                     if let toolName = event.tool, let status = event.status {
+                        // Insert action summary message once at the start of tool run
+                        if !hasInsertedActionSummary {
+                            hasInsertedActionSummary = true
+                            let appName = formatAppName(from: toolName)
+                            let summaryText = "I'll search \(appName) to help with your request."
+                            messages.append(ChatMessage(role: .assistant, content: summaryText, isActionSummary: true))
+                        }
+                        
                         withAnimation {
                             activeTool = ToolStatus(name: toolName, status: status)
                             isThinking = false // Stop generic thinking, show tool status
