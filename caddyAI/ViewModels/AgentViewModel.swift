@@ -173,12 +173,12 @@ class AgentViewModel: ObservableObject {
                             
                             let summaryText = "I'll search \(appName) to help with your request."
                             
-                            // Typewriter effect: reveal word by word
+                            // Typewriter effect: reveal word by word (fast)
                             let words = summaryText.split(separator: " ").map(String.init)
                             typewriterText = ""
                             
                             for (index, word) in words.enumerated() {
-                                try? await Task.sleep(nanoseconds: 60_000_000) // 60ms per word
+                                try? await Task.sleep(nanoseconds: 25_000_000) // 25ms per word (fast)
                                 typewriterText += (index > 0 ? " " : "") + word
                             }
                             
@@ -187,8 +187,8 @@ class AgentViewModel: ObservableObject {
                             typewriterText = ""
                             isTypewriterActive = false
                             
-                            // Longer delay before status pill appears (soft entrance)
-                            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                            // Short delay before status pill appears
+                            try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
                         }
                         
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -215,8 +215,19 @@ class AgentViewModel: ObservableObject {
                         activeTool = nil // Clear tool status
                         currentStatus = nil // Clear status on message
                         
-                        // Add assistant response to UI
-                        messages.append(ChatMessage(role: .assistant, content: content.trimmingCharacters(in: .whitespacesAndNewlines)))
+                        // Progressive typewriter effect for assistant response
+                        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let words = trimmedContent.split(separator: " ").map(String.init)
+                        typewriterText = ""
+                        
+                        for (index, word) in words.enumerated() {
+                            try? await Task.sleep(nanoseconds: 20_000_000) // 20ms per word (fast)
+                            typewriterText += (index > 0 ? " " : "") + word
+                        }
+                        
+                        // Convert typewriter to permanent message
+                        messages.append(ChatMessage(role: .assistant, content: trimmedContent))
+                        typewriterText = ""
                         
                         // Determine next state
                         if event.actionPerformed != nil {
