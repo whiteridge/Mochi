@@ -25,6 +25,7 @@ struct ChatMessage: Identifiable, Equatable {
     let content: String
     var isHidden: Bool = false
     var isActionSummary: Bool = false
+    var isAttachedToProposal: Bool = false
 }
 
 enum ChatRole {

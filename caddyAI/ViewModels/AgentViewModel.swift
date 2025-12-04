@@ -128,18 +128,31 @@ class AgentViewModel: ObservableObject {
         let context = "I proposed to call \(p.tool) with arguments: \(p.args)"
         messages.append(ChatMessage(role: .assistant, content: context, isHidden: true))
         
+        // Clear proposal-related flags and proposal with animation
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            messages = messages.map { msg in
+                var copy = msg
+                copy.isAttachedToProposal = false
+                copy.isActionSummary = false
+                return copy
+            }
+            proposal = nil
+        }
+        
         // Send special confirmation token to backend
         // This prevents false positives (e.g., user saying "yes" in conversation)
         processInput(text: "__CONFIRMED__")
-        
-        withAnimation {
-            proposal = nil
-        }
     }
     
     func cancelProposal() {
-        withAnimation {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
             proposal = nil
+            // Clear proposal-related flags
+            messages = messages.map { msg in
+                var copy = msg
+                copy.isAttachedToProposal = false
+                return copy
+            }
             state = .chat // Return to chat state
         }
         messages.append(ChatMessage(role: .assistant, content: "Action cancelled."))
@@ -199,13 +212,20 @@ class AgentViewModel: ObservableObject {
                     
                 case .proposal:
                     if let tool = event.tool, let content = event.content?.value as? [String: Any] {
-                        withAnimation {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                            // Flag messages from current interaction as attached to proposal
+                            messages = messages.map { msg in
+                                var copy = msg
+                                // Mark user messages and action summary as attached
+                                if (msg.role == .user && !msg.isHidden) || msg.isActionSummary {
+                                    copy.isAttachedToProposal = true
+                                }
+                                return copy
+                            }
                             proposal = ProposalData(tool: tool, args: content)
                             isThinking = false
                             activeTool = nil
                             currentStatus = nil // Clear status on proposal
-                            // We stay in .processing or move to a specific .confirming state?
-                            // Let's keep it simple: if proposal is not nil, the View shows the card.
                         }
                     }
                     

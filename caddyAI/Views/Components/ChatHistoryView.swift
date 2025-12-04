@@ -19,6 +19,19 @@ struct ChatHistoryView: View {
     let rotatingLightNamespace: Namespace.ID
     let animation: Namespace.ID
     
+    // Computed property for visible messages - filters based on proposal state
+    private var visibleMessages: [ChatMessage] {
+        if proposal != nil {
+            // Agentic mode: show ONLY the action summary bubble
+            return messages.filter { message in
+                !message.isHidden && message.isAttachedToProposal && message.isActionSummary
+            }
+        } else {
+            // Normal mode: show all non-hidden messages
+            return messages.filter { !$0.isHidden }
+        }
+    }
+    
     // We need to know the available height to constrain the scroll view, 
     // but the parent handles the frame height logic based on scrollContentHeight.
     // The parent uses ViewHeightKey to get the content height.
@@ -29,10 +42,14 @@ struct ChatHistoryView: View {
                 VStack(spacing: 16) {
                     Spacer(minLength: 0)
                     
-                    // Show messages (no placeholder to avoid flash during transitions)
-                    ForEach(messages.filter { !$0.isHidden }) { message in
+                    // Show messages (filtered based on proposal state)
+                    ForEach(visibleMessages) { message in
                         ChatBubbleRow(message: message)
                             .id(message.id)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
                     }
                     
                     // Typewriter text (progressive reveal)
@@ -73,6 +90,7 @@ struct ChatHistoryView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
                 .padding(.bottom, 20)
+                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: proposal != nil)
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(key: ViewHeightKey.self, value: geo.size.height)
