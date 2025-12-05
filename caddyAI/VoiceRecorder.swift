@@ -213,17 +213,20 @@ final class VoiceRecorder: NSObject, ObservableObject {
 				}
 				
 				var error: NSError?
-				var providedInput = false
+                final class ConverterInputState {
+                    var provided = false
+                }
+                let inputState = ConverterInputState()
 				
 				let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-					if !providedInput {
-						providedInput = true
-						outStatus.pointee = .haveData
-						return buffer
-					} else {
+					if inputState.provided {
 						outStatus.pointee = .endOfStream
 						return nil
 					}
+					
+					inputState.provided = true
+					outStatus.pointee = .haveData
+					return buffer
 				}
 				
 				let status = converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)

@@ -98,6 +98,8 @@ class AgentViewModel: ObservableObject {
     // MARK: - Private State
     
     var hasInsertedActionSummary: Bool = false
+    /// Tracks seen proposal signatures to avoid duplicate cards across a request
+    var seenProposalSignatures: Set<String> = []
     @Published var typewriterText: String = "" // For progressive text reveal
     var isTypewriterActive: Bool = false
     
@@ -159,6 +161,7 @@ class AgentViewModel: ObservableObject {
             proposalQueue.removeAll()
             currentProposalIndex = 0
             appSteps.removeAll()
+            seenProposalSignatures.removeAll()
             hasInsertedActionSummary = false // Reset for new request
             
             await sendMessageToBackend(text: trimmed)
@@ -212,6 +215,7 @@ class AgentViewModel: ObservableObject {
         proposalQueue.removeAll()
         currentProposalIndex = 0
         appSteps.removeAll()
+        seenProposalSignatures.removeAll()
         cardTransitionDirection = .bottom
     }
     

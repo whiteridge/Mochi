@@ -44,11 +44,46 @@ extension AgentViewModel {
                 }
             }
         } catch {
-            await MainActor.run {
-                isExecutingAction = false
-                errorMessage = error.localizedDescription
-            }
+            await handleSendError(error: error, proposal: proposal)
         }
+    }
+    
+    @MainActor
+    private func handleSendError(error: Error, proposal: ProposalData) {
+        let statusCode: Int?
+        if case let LLMError.serverError(code) = error {
+            statusCode = code
+        } else {
+            statusCode = nil
+        }
+        
+        let currentAppId: String?
+        if let proposedAppId = proposal.appId {
+            currentAppId = proposedAppId
+        } else if let stepAppId = appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId {
+            currentAppId = stepAppId
+        } else {
+            currentAppId = nil
+        }
+        
+        if let appId = currentAppId {
+            markAppStepAsError(appId: appId)
+        }
+        
+        // Clear pending proposals to avoid repeated prompts on error
+        self.proposal = nil
+        proposalQueue.removeAll()
+        currentProposalIndex = 0
+        
+        isExecutingAction = false
+        activeTool = nil
+        currentStatus = nil
+        if let code = statusCode, (code == 429 || code == 503) {
+            errorMessage = "Service temporarily unavailable (status \(code)). Please try again."
+        } else {
+            errorMessage = error.localizedDescription
+        }
+        state = .chat
     }
     
     /// Handle stream events (extracted for reuse)
@@ -56,38 +91,18 @@ extension AgentViewModel {
         await MainActor.run {
             switch event.type {
             case .proposal:
-                // Backend found another write action - show new proposal card
                 if let tool = event.tool, let content = event.content?.value as? [String: Any] {
-                    var proposalData = ProposalData(tool: tool, args: content)
-                    proposalData.summaryText = event.summaryText
-                    proposalData.appId = event.appId
-                    proposalData.proposalIndex = event.proposalIndex ?? 0
-                    proposalData.totalProposals = event.totalProposals ?? 1
-                    
-                    // Slide current card left, new card comes from right
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                        cardTransitionDirection = .trailing
-                        proposal = proposalData
-                        
-                        // Mark this app as active
-                        if let appId = event.appId,
-                           let index = appSteps.firstIndex(where: { $0.appId == appId }) {
-                            appSteps[index].state = .active
-                        }
-                    }
+                    handleProposalEvent(event: event, tool: tool, content: content)
                 }
                 
             case .message:
-                // Final response after all actions - clear the card and show message
                 if let content = event.content?.value as? String {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                        // Clear the proposal card
                         proposal = nil
                         proposalQueue.removeAll()
                         currentProposalIndex = 0
                         currentStatus = nil
                         activeTool = nil
-                        appSteps.removeAll()
                         
                         // Clear proposal-related message flags
                         messages = messages.map { msg in
@@ -98,6 +113,33 @@ extension AgentViewModel {
                         }
                     }
                     messages.append(ChatMessage(role: .assistant, content: content))
+                    
+                    // Completion handling when backend omits actionPerformed
+                    let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
+                    isExecutingAction = false
+                    
+                    if shouldShowSuccess {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            for idx in appSteps.indices {
+                                appSteps[idx].state = .done
+                            }
+                        }
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 800_000_000)
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                appSteps.removeAll()
+                            }
+                        }
+                        state = .success
+                    } else {
+                        // Clear lingering app steps if nothing is queued
+                        if proposalQueue.isEmpty {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                appSteps.removeAll()
+                            }
+                        }
+                        state = .chat
+                    }
                 }
                 
             default:
@@ -159,6 +201,12 @@ extension AgentViewModel {
                 case .toolStatus:
                     // Tool status events - update the status pill and track apps
                     if let toolName = event.tool, let status = event.status {
+                        let lowerToolName = toolName.lowercased()
+                        // Ignore pseudo-tools like "action" that should not render pills
+                        if lowerToolName.contains("action") {
+                            continue
+                        }
+                        
                         let appName = formatAppName(from: toolName)
                         let appId = event.appId ?? appName.lowercased()
                         
@@ -190,6 +238,10 @@ extension AgentViewModel {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                     switch status {
                                     case "searching":
+                                        // Keep other apps dim/waiting until their turn
+                                        for idx in appSteps.indices where appSteps[idx].appId != appId && appSteps[idx].state != .done {
+                                            appSteps[idx].state = .waiting
+                                        }
                                         appSteps[index].state = .searching
                                         activeTool = ToolStatus(name: toolName, status: status)
                                         currentStatus = .searching(appName: appName)
@@ -217,75 +269,7 @@ extension AgentViewModel {
                     
                 case .proposal:
                     if let tool = event.tool, let content = event.content?.value as? [String: Any] {
-                        // Track the currently visible card before switching
-                        let previousAppId = proposal?.appId
-                        
-                        await MainActor.run {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                                // Flag messages from current interaction as attached to proposal
-                                messages = messages.map { msg in
-                                    var copy = msg
-                                    // Mark user messages and action summary as attached
-                                    if (msg.role == .user && !msg.isHidden) || msg.isActionSummary {
-                                        copy.isAttachedToProposal = true
-                                    }
-                                    return copy
-                                }
-                                var proposalData = ProposalData(tool: tool, args: content)
-                                proposalData.summaryText = event.summaryText
-                                proposalData.appId = event.appId
-                                proposalData.proposalIndex = event.proposalIndex ?? 0
-                                proposalData.totalProposals = event.totalProposals ?? 1
-                                
-                                // Build proposal queue from remaining proposals
-                                proposalQueue = [proposalData]
-                                if let remaining = event.remainingProposals {
-                                    for rp in remaining {
-                                        if let rpTool = rp["tool"]?.value as? String,
-                                           let rpAppId = rp["app_id"]?.value as? String {
-                                            var rpArgs: [String: Any] = [:]
-                                            if let argsDict = rp["args"]?.value as? [String: Any] {
-                                                rpArgs = argsDict
-                                            }
-                                            var rpData = ProposalData(tool: rpTool, args: rpArgs)
-                                            rpData.appId = rpAppId
-                                            rpData.proposalIndex = proposalQueue.count
-                                            rpData.totalProposals = event.totalProposals ?? 1
-                                            proposalQueue.append(rpData)
-                                        }
-                                    }
-                                }
-                                
-                                currentProposalIndex = proposalData.proposalIndex
-                                proposal = proposalData
-                                isThinking = false
-                                activeTool = nil
-                                
-                                // Mark previous app as done when advancing to the next proposal
-                                if let prev = previousAppId,
-                                   prev != event.appId,
-                                   let idx = appSteps.firstIndex(where: { $0.appId == prev }) {
-                                    appSteps[idx].state = .done
-                                }
-                                
-                                // Mark only the proposal's app as active; earlier apps collapse to done
-                                for index in appSteps.indices {
-                                    if appSteps[index].appId == event.appId {
-                                        appSteps[index].state = .active
-                                    } else if let stepIndex = appSteps[index].proposalIndex,
-                                              stepIndex < proposalData.proposalIndex {
-                                        appSteps[index].state = .done
-                                    } else {
-                                        appSteps[index].state = .waiting
-                                    }
-                                }
-
-                                // Keep currentStatus showing the app name for single-pill mode
-                                if let appId = event.appId {
-                                    currentStatus = .searching(appName: appId.capitalized)
-                                }
-                            }
-                        }
+                        handleProposalEvent(event: event, tool: tool, content: content)
                     }
                     
                 case .multiAppStatus:
@@ -325,12 +309,22 @@ extension AgentViewModel {
                         await typewriterDisplay(words: words, delay: 20_000_000)
                         
                         await MainActor.run {
+                            let shouldShowSuccess = event.actionPerformed != nil || (proposalQueue.isEmpty && !appSteps.isEmpty)
+                            
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                                proposal = nil
+                                proposalQueue.removeAll()
+                                currentProposalIndex = 0
+                                currentStatus = nil
+                                activeTool = nil
+                            }
+                            
                             // Convert typewriter to permanent message
                             messages.append(ChatMessage(role: .assistant, content: trimmedContent))
                             typewriterText = ""
                             
                             // Determine next state
-                            if event.actionPerformed != nil {
+                            if shouldShowSuccess {
                                 print("DEBUG: Action Performed received. Switching to success state.")
                                 isExecutingAction = false // Action complete
                                 
@@ -366,12 +360,143 @@ extension AgentViewModel {
             
         } catch {
             await MainActor.run {
+                let statusCode: Int? = {
+                    if case let LLMError.serverError(code) = error {
+                        return code
+                    }
+                    return nil
+                }()
+                
+                let currentAppId = proposal?.appId ?? appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
+                if let appId = currentAppId {
+                    markAppStepAsError(appId: appId)
+                }
+                
+                proposal = nil
+                proposalQueue.removeAll()
+                currentProposalIndex = 0
+                
                 isThinking = false
                 currentStatus = nil
                 isExecutingAction = false // Reset on error
                 activeTool = nil
-                errorMessage = error.localizedDescription
+                if let code = statusCode, (code == 429 || code == 503) {
+                    errorMessage = "Service temporarily unavailable (status \(code)). Please try again."
+                } else {
+                    errorMessage = error.localizedDescription
+                }
                 state = .chat // Fallback to chat on error so user can retry
+            }
+        }
+    }
+    
+    // MARK: - Proposal Helpers
+    private func resolvedAppId(for tool: String, eventAppId: String?) -> String {
+        return eventAppId ?? formatAppName(from: tool).lowercased()
+    }
+    
+    private func normalizedArgsForSignature(_ args: [String: Any]) -> String {
+        if JSONSerialization.isValidJSONObject(args),
+           let data = try? JSONSerialization.data(withJSONObject: args, options: [.sortedKeys]),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        return "\(args)"
+    }
+    
+    private func proposalSignature(tool: String, appId: String, args: [String: Any]) -> String {
+        let argsString = normalizedArgsForSignature(args)
+        return "\(tool.lowercased())|\(appId)|\(argsString)"
+    }
+    
+    private func markAppStepAsError(appId: String) {
+        if let idx = appSteps.firstIndex(where: { $0.appId == appId }) {
+            appSteps[idx].state = .error
+        }
+    }
+    
+    @MainActor
+    private func handleProposalEvent(event: StreamEvent, tool: String, content: [String: Any]) {
+        let appId = resolvedAppId(for: tool, eventAppId: event.appId)
+        let signature = proposalSignature(tool: tool, appId: appId, args: content)
+        if seenProposalSignatures.contains(signature) {
+            return
+        }
+        seenProposalSignatures.insert(signature)
+        var queuedSignatures: Set<String> = [signature]
+        
+        let previousAppId = proposal?.appId
+        
+        // Flag messages from current interaction as attached to proposal
+        messages = messages.map { msg in
+            var copy = msg
+            if (msg.role == .user && !msg.isHidden) || msg.isActionSummary {
+                copy.isAttachedToProposal = true
+            }
+            return copy
+        }
+        
+        var proposalData = ProposalData(tool: tool, args: content)
+        proposalData.summaryText = event.summaryText
+        proposalData.appId = appId
+        proposalData.proposalIndex = event.proposalIndex ?? 0
+        proposalData.totalProposals = event.totalProposals ?? 1
+        
+        // Build proposal queue with dedupe
+        proposalQueue = [proposalData]
+        if let remaining = event.remainingProposals {
+            for rp in remaining {
+                guard let rpTool = rp["tool"]?.value as? String else { continue }
+                let rpAppId = rp["app_id"]?.value as? String ?? resolvedAppId(for: rpTool, eventAppId: nil)
+                let rpArgs = rp["args"]?.value as? [String: Any] ?? [:]
+                let rpSignature = proposalSignature(tool: rpTool, appId: rpAppId, args: rpArgs)
+                guard !queuedSignatures.contains(rpSignature) else { continue }
+                queuedSignatures.insert(rpSignature)
+                
+                var rpData = ProposalData(tool: rpTool, args: rpArgs)
+                rpData.appId = rpAppId
+                rpData.proposalIndex = proposalQueue.count
+                rpData.totalProposals = event.totalProposals ?? 1
+                proposalQueue.append(rpData)
+            }
+        }
+        
+        currentProposalIndex = proposalData.proposalIndex
+        
+        // Ensure app step exists
+        if !appSteps.contains(where: { $0.appId == appId }) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                appSteps.append(AppStep(appId: appId, state: .waiting, proposalIndex: proposalData.proposalIndex))
+            }
+        }
+        
+        // Mark prior app done before activating the next card
+        if let prev = previousAppId,
+           prev != appId,
+           let idx = appSteps.firstIndex(where: { $0.appId == prev }) {
+            appSteps[idx].state = .done
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            cardTransitionDirection = previousAppId == nil ? .bottom : .trailing
+            proposal = proposalData
+            isThinking = false
+            activeTool = nil
+            
+            for index in appSteps.indices {
+                if appSteps[index].appId == appId {
+                    appSteps[index].state = .active
+                    appSteps[index].proposalIndex = proposalData.proposalIndex
+                } else if let stepIndex = appSteps[index].proposalIndex,
+                          stepIndex < proposalData.proposalIndex {
+                    appSteps[index].state = .done
+                } else if appSteps[index].state != .done {
+                    appSteps[index].state = .waiting
+                }
+            }
+            
+            if let appIdValue = proposalData.appId {
+                currentStatus = .searching(appName: appIdValue.capitalized)
             }
         }
     }

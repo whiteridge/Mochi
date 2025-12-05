@@ -162,11 +162,11 @@ private extension ConfirmationCardView {
             let size = proxy.size
             let anchor = anchorPoint(for: size)
             let gradientColors = [
-                Color(red: 0.03, green: 0.18, blue: 0.07),
-                Color(red: 0.08, green: 0.32, blue: 0.12),
-                Color(red: 0.22, green: 0.7, blue: 0.35),
-                Color(red: 0.08, green: 0.32, blue: 0.12),
-                Color(red: 0.03, green: 0.18, blue: 0.07)
+                Color.green.opacity(0.02),
+                Color.green.opacity(0.14),
+                Color.green.opacity(0.28),
+                Color.green.opacity(0.14),
+                Color.green.opacity(0.02)
             ]
             
             let gradient = LinearGradient(
@@ -175,15 +175,15 @@ private extension ConfirmationCardView {
                 endPoint: .trailing
             )
             
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            Ellipse()
                 .fill(gradient)
-                .opacity(showButtonGlow ? (isFinalAction ? 0.52 : 0.44) : 0)
-                .scaleEffect(showButtonGlow ? buttonGlowScale : 0.05, anchor: anchor)
+                .opacity(showButtonGlow ? (isFinalAction ? 0.34 : 0.28) : 0)
+                .scaleEffect(showButtonGlow ? buttonGlowScale : 0.12, anchor: anchor)
                 .rotationEffect(.degrees(glowRotation))
-                .blur(radius: 32)
-                .frame(width: size.width + 160, height: size.height + 160)
-                .animation(.easeOut(duration: 0.55), value: showButtonGlow)
-                .animation(.easeOut(duration: 0.55), value: buttonGlowScale)
+                .blur(radius: 46)
+                .frame(width: size.width * 1.25, height: size.height * 1.35)
+                .animation(.easeOut(duration: 0.65), value: showButtonGlow)
+                .animation(.easeOut(duration: 0.65), value: buttonGlowScale)
                 .animation(.linear(duration: 4.0).repeatForever(autoreverses: false), value: glowRotation)
                 .position(x: size.width / 2, y: size.height / 2)
         }
@@ -366,11 +366,11 @@ private extension ConfirmationCardView {
     }
     
     func startButtonGlow() {
-        buttonGlowScale = 0.05
+        buttonGlowScale = 0.1
         glowRotation = 0
-        withAnimation(.easeOut(duration: 0.55)) {
+        withAnimation(.easeOut(duration: 0.65)) {
             showButtonGlow = true
-            buttonGlowScale = 1.08
+            buttonGlowScale = 1.2
         }
         withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
             glowRotation = 360
