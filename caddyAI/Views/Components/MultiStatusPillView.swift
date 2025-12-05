@@ -61,6 +61,17 @@ struct AppPillView: View {
         state == .searching
     }
     
+    private var borderColor: Color {
+        switch state {
+        case .error:
+            return .red.opacity(0.9)
+        case .active, .searching:
+            return .white.opacity(0.2)
+        default:
+            return .white.opacity(0.1)
+        }
+    }
+    
     var body: some View {
         HStack(spacing: showText ? 10 : 0) {
             // Circular icon
@@ -130,7 +141,7 @@ struct AppPillView: View {
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                .stroke(borderColor, lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         // Dim non-active, non-done pills

@@ -111,7 +111,9 @@ struct ChatHistoryView: View {
                                     proposal: proposal,
                                     onConfirm: onConfirmProposal,
                                     onCancel: onCancelProposal,
-                                    rotatingLightNamespace: rotatingLightNamespace
+                                    rotatingLightNamespace: rotatingLightNamespace,
+                                    isExecuting: viewModel.isExecutingAction,
+                                    isFinalAction: viewModel.proposalQueue.count - viewModel.currentProposalIndex <= 1
                                 )
                                 .id("\(proposal.appId ?? proposal.tool)-\(proposal.proposalIndex)")  // Force view recreation on proposal change
                                 .padding(.top, 14)

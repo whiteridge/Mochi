@@ -108,6 +108,7 @@ enum AppStepState: String, Codable {
     case active     // Has proposal pending confirmation
     case done       // Confirmed and executed
     case waiting    // Pending, not yet reached
+    case error      // Read/action failed
 }
 
 /// Represents a single app in a multi-step workflow

@@ -5,6 +5,8 @@ struct ConfirmationCardView: View {
     let onConfirm: () -> Void
     let onCancel: () -> Void
     var rotatingLightNamespace: Namespace.ID
+    let isExecuting: Bool
+    let isFinalAction: Bool
     
     @State private var rotation: Double = 0
     
@@ -43,6 +45,7 @@ struct ConfirmationCardView: View {
         .padding(22)
         .background(cardBackground)
         .overlay(cardBorder)
+        .overlay(executionGlow)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.black.opacity(0.45), radius: 20, x: 0, y: 14)
     }
@@ -125,6 +128,22 @@ private extension ConfirmationCardView {
                 ),
                 lineWidth: 1
             )
+    }
+    
+    var executionGlow: some View {
+        Group {
+            if isExecuting && isFinalAction {
+                RotatingLightBackground(
+                    cornerRadius: 28,
+                    shape: .roundedRect,
+                    rotationSpeed: 6.0,
+                    glowColor: .green
+                )
+                .padding(-4)
+                .opacity(0.75)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
     }
 }
 

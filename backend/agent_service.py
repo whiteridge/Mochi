@@ -283,6 +283,14 @@ class AgentService:
             # Track pending actions to control sequencing (one read at a time)
             pending_read_actions: List[tuple] = []
             pending_write_actions: List[tuple] = []
+            # Track last app that emitted a searching status (for cleanup)
+            last_searching_app_id: Optional[str] = None
+            # Track apps that have already completed a confirmed write to avoid re-proposing
+            completed_write_apps: set[str] = set()
+            # Track whether reads have completed (done/error) to gate next app
+            app_read_status: Dict[str, str] = {}
+            # Track apps currently executing a confirmed write (keeps pill expanded)
+            app_write_executing: set[str] = set()
             # Track executed/queued writes to prevent duplicate proposals across iterations/confirmations
             executed_write_keys = set()
             
@@ -341,6 +349,8 @@ class AgentService:
                 # Record this write as already executed to avoid re-proposing it
                 executed_key = (tool_name, json.dumps(tool_args, sort_keys=True))
                 executed_write_keys.add(executed_key)
+                completed_write_apps.add(app_id)
+                app_write_executing.add(app_id)
                 
                 # Emit early summary for feedback
                 early_summary_text = make_early_summary(app_id)
@@ -367,6 +377,7 @@ class AgentService:
                     
                     write_action_executed = True
                     action_performed = f"{app_id.capitalize()} action executed"
+                    app_write_executing.discard(app_id)
                     
                     # Feed result back to Gemini to continue the conversation
                     function_response = types.Part.from_function_response(
@@ -432,12 +443,28 @@ class AgentService:
                                 if executed_key in executed_write_keys:
                                     print(f"DEBUG: Skipping duplicate write proposal for {tool_name}")
                                     continue
+                                # Skip writes for apps that already completed a confirmed write
+                                if app_id in completed_write_apps:
+                                    print(f"DEBUG: Skipping write for completed app {app_id}")
+                                    continue
+                                # Gate Slack writes until Linear read AND write are complete
+                                if app_id == "slack":
+                                    linear_state = app_read_status.get("linear")
+                                    if linear_state not in ("done", "error") or ("linear" in app_write_executing):
+                                        print("DEBUG: Gating Slack write until Linear read+write complete")
+                                        continue
                                 # Always queue writes for confirmation - we use confirmed_tool for execution
                                 print(f"DEBUG: Queueing {tool_name} for confirmation")
                                 write_actions_found.append((tool_name, args, app_id, is_linear_write, is_slack_write))
                                 executed_write_keys.add(executed_key)
                             else:
                                 # Read action - queue for execution (process one per iteration for sequential pills)
+                                # Gate Slack read until Linear read+write complete or not involved
+                                if app_id == "slack":
+                                    linear_state = app_read_status.get("linear")
+                                    if (linear_state not in ("done", "error") or ("linear" in app_write_executing)) and "linear" in involved_apps:
+                                        print("DEBUG: Gating Slack read until Linear read+write complete")
+                                        continue
                                 read_actions_to_execute.append((tool_name, args, part, app_id))
                 
                 # Log if no function call was found
@@ -464,6 +491,7 @@ class AgentService:
                         "app_id": app_id,
                         "involved_apps": involved_apps
                     }
+                    last_searching_app_id = app_id
                     
                     print(f"DEBUG: Executing READ: {tool_name}", flush=True)
                     
@@ -477,13 +505,16 @@ class AgentService:
                         
                         if hasattr(result, 'data'):
                             result_data = result.data
+                            result_success = getattr(result, "successful", True)
                         else:
                             result_data = result
+                            result_success = bool(getattr(result, "successful", True))
                         
                         function_response = types.Part.from_function_response(
                             name=tool_name,
                             response={"result": str(result_data)}
                         )
+                        status_after_read = "done" if result_success else "error"
                         
                     except Exception as exec_error:
                         print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
@@ -491,10 +522,20 @@ class AgentService:
                             name=tool_name,
                             response={"error": str(exec_error)}
                         )
+                        status_after_read = "error"
                     
                     # Send single read result back; remaining reads will run in later iterations
                     response = chat.send_message([function_response])
                     
+                    # Emit completion/error status to allow UI transitions and next app
+                    app_read_status[app_id] = status_after_read
+                    yield {
+                        "type": "tool_status",
+                        "tool": tool_name,
+                        "status": status_after_read,
+                        "app_id": app_id,
+                        "involved_apps": involved_apps
+                    }
                     continue
                 
                 # If we have write actions queued and no more reads pending, emit proposals
@@ -519,6 +560,15 @@ class AgentService:
                     pending_write_actions = []
                     break
                 elif not found_function_call:
+                    # If no new function call and nothing pending, send a cleanup status for last app
+                    if last_searching_app_id:
+                        yield {
+                            "type": "tool_status",
+                            "tool": "noop",
+                            "status": "done",
+                            "app_id": last_searching_app_id,
+                            "involved_apps": involved_apps
+                        }
                     print("DEBUG: No function call in response, breaking loop")
                     break
                 elif not read_actions_to_execute and not pending_write_actions and not pending_read_actions:

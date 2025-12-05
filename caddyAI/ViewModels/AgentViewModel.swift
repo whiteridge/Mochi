@@ -380,12 +380,19 @@ class AgentViewModel: ObservableObject {
                                     activeTool = ToolStatus(name: toolName, status: status)
                                     currentStatus = .searching(appName: appName)
                                 case "done":
-                                    appSteps[index].state = .done
-                                    // Clear active status if this app just finished
+                                    // Keep text+icon (waiting) until the write completes; do not collapse yet
+                                    appSteps[index].state = .waiting
                                     if currentStatus == .searching(appName: appName) {
                                         currentStatus = nil
                                     }
                                     activeTool = nil
+                                case "error":
+                                    appSteps[index].state = .error
+                                    if currentStatus == .searching(appName: appName) {
+                                        currentStatus = nil
+                                    }
+                                    activeTool = nil
+                                    errorMessage = "Encountered an error with \(appName)."
                                 default:
                                     break
                                 }
@@ -435,16 +442,15 @@ class AgentViewModel: ObservableObject {
                             isThinking = false
                             activeTool = nil
                             
-                            // Mark first app as active, others as waiting (for glow effect)
+                            // Mark only the proposal's app as active; others waiting
                             for index in appSteps.indices {
                                 if appSteps[index].appId == event.appId {
                                     appSteps[index].state = .active
                                 } else {
-                                    // Mark other apps as waiting (they'll show after first is confirmed)
                                     appSteps[index].state = .waiting
                                 }
                             }
-                            
+
                             // Keep currentStatus showing the app name for single-pill mode
                             if let appId = event.appId {
                                 currentStatus = .searching(appName: appId.capitalized)
@@ -498,10 +504,31 @@ class AgentViewModel: ObservableObject {
                         if event.actionPerformed != nil {
                             print("DEBUG: Action Performed received. Switching to success state.")
                             isExecutingAction = false // Action complete
+                            
+                            // Mark all app pills as done, then fade them out after a short delay
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                for idx in appSteps.indices {
+                                    appSteps[idx].state = .done
+                                }
+                            }
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    appSteps.removeAll()
+                                }
+                            }
+                            
                             state = .success
                         } else {
                             isExecutingAction = false // No action performed, reset flag
                             state = .chat
+                            
+                            // If there are no proposals queued, clear any lingering app pills
+                            if proposalQueue.isEmpty {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    appSteps.removeAll()
+                                }
+                            }
                         }
                     }
                 }
