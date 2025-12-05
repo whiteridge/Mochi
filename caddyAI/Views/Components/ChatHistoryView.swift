@@ -123,7 +123,7 @@ struct ChatHistoryView: View {
                                     insertion: viewModel.cardTransitionDirection == .bottom 
                                         ? .move(edge: .bottom).combined(with: .opacity)
                                         : .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                    removal: .move(edge: .trailing).combined(with: .opacity)
                                 ))
                             }
                         }

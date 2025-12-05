@@ -28,6 +28,16 @@ final class SettingsViewModel: ObservableObject {
 	@Published var linearTeamKey: String = ""
 	@Published var apiKey: String = ""
 	@Published var apiBaseURL: String = ""
+	@Published var slackWorkspaces: [SlackWorkspace] = []
+	@Published var slackChannels: [SlackChannel] = []
+	@Published var linearTeams: [LinearTeam] = []
+	@Published var linearProjects: [LinearProject] = []
+	@Published var apiTestMessage: String?
+	@Published var apiTestSuccess: Bool?
+	@Published var slackTestMessage: String?
+	@Published var slackTestSuccess: Bool?
+	@Published var linearTestMessage: String?
+	@Published var linearTestSuccess: Bool?
 	@Published var accentOptions: [AccentColorOption] = [
 		AccentColorOption(id: "blue", name: "Blue", color: Color(red: 0.27, green: 0.54, blue: 0.98), hex: "#4688FA"),
 		AccentColorOption(id: "green", name: "Green", color: Color(red: 0.25, green: 0.74, blue: 0.40), hex: "#3FBF66"),
@@ -41,6 +51,10 @@ final class SettingsViewModel: ObservableObject {
 	init(preferences: PreferencesStore, integrationService: IntegrationService) {
 		self.preferences = preferences
 		self.integrationService = integrationService
+		self.slackWorkspaces = integrationService.slackWorkspaces
+		self.slackChannels = integrationService.slackChannels
+		self.linearTeams = integrationService.linearTeams
+		self.linearProjects = integrationService.linearProjects
 	}
 	
 	func loadPersistedValues() {
@@ -82,10 +96,66 @@ final class SettingsViewModel: ObservableObject {
 	func disconnectSlack() { integrationService.disconnectSlack() }
 	func disconnectLinear() { integrationService.disconnectLinear() }
 	
+	func testAPI() {
+		guard !apiKey.isEmpty else {
+			apiTestSuccess = false
+			apiTestMessage = "Add an API key before testing."
+			return
+		}
+		apiTestSuccess = true
+		apiTestMessage = "Key saved. Test request simulated locally."
+		preferences.hasCompletedSetup = true
+	}
+	
+	func testSlack() {
+		if integrationService.slackState.isConnected {
+			slackTestSuccess = true
+			slackTestMessage = "Slack token present. Ready to send."
+		} else {
+			slackTestSuccess = false
+			slackTestMessage = "Connect Slack first, then test."
+		}
+	}
+	
+	func testLinear() {
+		if integrationService.linearState.isConnected {
+			linearTestSuccess = true
+			linearTestMessage = "Linear token present. Ready to create issues."
+		} else {
+			linearTestSuccess = false
+			linearTestMessage = "Connect Linear first, then test."
+		}
+	}
+	
 	func resetAll() {
 		preferences.reset()
 		integrationService.reset()
 		loadPersistedValues()
+	}
+	
+	// MARK: - Slack selection
+	func fetchSlackMetadata() {
+		integrationService.fetchSlackMetadata()
+		slackWorkspaces = integrationService.slackWorkspaces
+		slackChannels = integrationService.slackChannels
+	}
+	
+	// MARK: - Linear selection
+	func fetchLinearMetadata() {
+		integrationService.fetchLinearMetadata()
+		linearTeams = integrationService.linearTeams
+		linearProjects = integrationService.linearProjects
+	}
+	
+	// Helpers for filtered lists
+	func slackChannelsFiltered(for workspaceId: String) -> [SlackChannel] {
+		guard !workspaceId.isEmpty else { return [] }
+		return slackChannels.filter { $0.workspaceId == workspaceId }
+	}
+	
+	func linearProjectsFiltered(for teamId: String) -> [LinearProject] {
+		guard !teamId.isEmpty else { return [] }
+		return linearProjects.filter { $0.teamId == teamId }
 	}
 }
 

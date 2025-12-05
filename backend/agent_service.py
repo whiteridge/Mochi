@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -378,6 +378,7 @@ class AgentService:
                     write_action_executed = True
                     action_performed = f"{app_id.capitalize()} action executed"
                     app_write_executing.discard(app_id)
+                    app_read_status[app_id] = "done"
                     
                     # Feed result back to Gemini to continue the conversation
                     function_response = types.Part.from_function_response(
@@ -388,6 +389,8 @@ class AgentService:
                     
                 except Exception as exec_error:
                     print(f"DEBUG: ❌ Confirmed tool execution error: {exec_error}", flush=True)
+                    app_write_executing.discard(app_id)
+                    app_read_status[app_id] = "error"
                     yield {
                         "type": "message",
                         "content": f"Error executing {app_id.capitalize()} action: {str(exec_error)}",

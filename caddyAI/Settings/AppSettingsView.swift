@@ -17,7 +17,6 @@ struct AppSettingsView: View {
 			}
 			.listStyle(.sidebar)
 			.frame(minWidth: 200)
-			.toolbar { ToolbarItem(placement: .automatic) { Text("Settings") } }
 		} detail: {
 			switch viewModel.selectedSection {
 			case .general:
@@ -32,6 +31,12 @@ struct AppSettingsView: View {
 		}
 		.tint(preferences.accentColor)
 		.navigationTitle("Settings")
+		.toolbar {
+			// Suppress the default sidebar toggle/primary toolbar controls for a simpler window
+			ToolbarItem(placement: .navigation) { EmptyView() }
+			ToolbarItem(placement: .primaryAction) { EmptyView() }
+		}
+		.navigationSplitViewStyle(.balanced)
 		.onAppear { viewModel.loadPersistedValues() }
 	}
 }
@@ -131,6 +136,10 @@ private struct APISettingsView: View {
 	var body: some View {
 		Form {
 			Section("LLM / Agent API") {
+				Text("Paste your provider API key. If self-hosted, add the Base URL. We keep keys locally in Keychain.")
+					.font(.footnote)
+					.foregroundStyle(.secondary)
+				
 				TextField("API key", text: $viewModel.apiKey)
 					.textFieldStyle(.roundedBorder)
 				TextField("Base URL (optional)", text: $viewModel.apiBaseURL)
@@ -146,6 +155,17 @@ private struct APISettingsView: View {
 						Text(saveMessage)
 							.font(.caption)
 							.foregroundStyle(.secondary)
+					}
+				}
+				
+				HStack(spacing: 12) {
+					Button("Test connection") {
+						viewModel.testAPI()
+					}
+					.buttonStyle(.bordered)
+					
+					if let status = viewModel.apiTestMessage {
+						StatusLabel(text: status, success: viewModel.apiTestSuccess ?? false)
 					}
 				}
 			}
@@ -168,6 +188,7 @@ private struct APISettingsView: View {
 private struct IntegrationsSettingsView: View {
 	@EnvironmentObject private var integrationService: IntegrationService
 	@EnvironmentObject private var viewModel: SettingsViewModel
+	@EnvironmentObject private var preferences: PreferencesStore
 	
 	var body: some View {
 		ScrollView {
@@ -187,6 +208,16 @@ private struct IntegrationsSettingsView: View {
 					SecureField("Bot/User token (xoxb-…)", text: $viewModel.slackToken)
 						.textFieldStyle(.roundedBorder)
 						.textContentType(.password)
+					Text("Tip: Create a Slack app → OAuth & Permissions → Bot token scopes, then copy the xoxb token.")
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+					HStack(spacing: 12) {
+						Button("Test Slack") { viewModel.testSlack() }
+							.buttonStyle(.bordered)
+						if let status = viewModel.slackTestMessage {
+							StatusLabel(text: status, success: viewModel.slackTestSuccess ?? false)
+						}
+					}
 				}
 				
 				IntegrationCard(
@@ -200,6 +231,16 @@ private struct IntegrationsSettingsView: View {
 						.textFieldStyle(.roundedBorder)
 					TextField("Team key", text: $viewModel.linearTeamKey)
 						.textFieldStyle(.roundedBorder)
+					Text("Tip: In Linear, go to Settings → API to generate a personal API key. Team key is the team URL slug.")
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+					HStack(spacing: 12) {
+						Button("Test Linear") { viewModel.testLinear() }
+							.buttonStyle(.bordered)
+						if let status = viewModel.linearTestMessage {
+							StatusLabel(text: status, success: viewModel.linearTestSuccess ?? false)
+						}
+					}
 				}
 			}
 			.padding(24)
@@ -338,6 +379,22 @@ private struct StatusBadge: View {
 		case .connected: .green
 		case .disconnected: .gray
 		case .error: .orange
+		}
+	}
+}
+
+private struct StatusLabel: View {
+	let text: String
+	let success: Bool
+	
+	var body: some View {
+		HStack(spacing: 6) {
+			Circle()
+				.fill(success ? Color.green : Color.orange)
+				.frame(width: 8, height: 8)
+			Text(text)
+				.font(.caption)
+				.foregroundStyle(.secondary)
 		}
 	}
 }

@@ -39,9 +39,36 @@ enum IntegrationState: Equatable {
 	var isConnected: Bool { if case .connected = self { return true } else { return false } }
 }
 
+struct SlackWorkspace: Identifiable, Hashable {
+	let id: String
+	let name: String
+}
+
+struct SlackChannel: Identifiable, Hashable {
+	let id: String
+	let name: String
+	let workspaceId: String
+}
+
+struct LinearTeam: Identifiable, Hashable {
+	let id: String
+	let name: String
+	let key: String
+}
+
+struct LinearProject: Identifiable, Hashable {
+	let id: String
+	let name: String
+	let teamId: String
+}
+
 final class IntegrationService: ObservableObject {
 	@Published private(set) var slackState: IntegrationState = .disconnected
 	@Published private(set) var linearState: IntegrationState = .disconnected
+	@Published private(set) var slackWorkspaces: [SlackWorkspace] = []
+	@Published private(set) var slackChannels: [SlackChannel] = []
+	@Published private(set) var linearTeams: [LinearTeam] = []
+	@Published private(set) var linearProjects: [LinearProject] = []
 	
 	private let keychain: KeychainStore
 	private let slackTokenKey = "slack.token"
@@ -92,6 +119,17 @@ final class IntegrationService: ObservableObject {
 		keychain.removeAll()
 		slackState = .disconnected
 		linearState = .disconnected
+	}
+	
+	// MARK: - Metadata placeholders (empty until real API wired)
+	func fetchSlackMetadata() {
+		slackWorkspaces = []
+		slackChannels = []
+	}
+	
+	func fetchLinearMetadata() {
+		linearTeams = []
+		linearProjects = []
 	}
 }
 

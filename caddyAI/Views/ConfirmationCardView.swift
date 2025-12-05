@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct ConfirmationCardView: View {
     let proposal: ProposalData
@@ -9,6 +10,11 @@ struct ConfirmationCardView: View {
     let isFinalAction: Bool
     
     @State private var rotation: Double = 0
+    @State private var buttonFrame: CGRect = .zero
+    @State private var cardSize: CGSize = .zero
+    @State private var showButtonGlow: Bool = false
+    @State private var buttonGlowScale: CGFloat = 0.05
+    @State private var glowRotation: Double = 0
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -43,11 +49,26 @@ struct ConfirmationCardView: View {
             actionButton
         }
         .padding(22)
+        .background(cardSizeReader)
         .background(cardBackground)
+        .overlay(glowOverlay)
         .overlay(cardBorder)
-        .overlay(executionGlow)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.black.opacity(0.45), radius: 20, x: 0, y: 14)
+        .coordinateSpace(name: "cardSpace")
+        .onPreferenceChange(ConfirmButtonFrameKey.self) { value in
+            buttonFrame = value
+        }
+        .onChange(of: isExecuting) { _, newValue in
+            if newValue {
+                startButtonGlow()
+            } else {
+                endButtonGlow()
+            }
+        }
+        .onChange(of: proposal.proposalIndex) { _, _ in
+            endButtonGlow()
+        }
     }
 }
 
@@ -102,6 +123,12 @@ private extension ConfirmationCardView {
                     )
                     .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)
                 )
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: ConfirmButtonFrameKey.self, value: geo.frame(in: .named("cardSpace")))
+                    }
+                )
         }
         .buttonStyle(.plain)
     }
@@ -130,20 +157,37 @@ private extension ConfirmationCardView {
             )
     }
     
-    var executionGlow: some View {
-        Group {
-            if isExecuting && isFinalAction {
-                RotatingLightBackground(
-                    cornerRadius: 28,
-                    shape: .roundedRect,
-                    rotationSpeed: 6.0,
-                    glowColor: .green
-                )
-                .padding(-4)
-                .opacity(0.75)
-                .transition(.scale.combined(with: .opacity))
-            }
+    var glowOverlay: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let anchor = anchorPoint(for: size)
+            let gradientColors = [
+                Color(red: 0.03, green: 0.18, blue: 0.07),
+                Color(red: 0.08, green: 0.32, blue: 0.12),
+                Color(red: 0.22, green: 0.7, blue: 0.35),
+                Color(red: 0.08, green: 0.32, blue: 0.12),
+                Color(red: 0.03, green: 0.18, blue: 0.07)
+            ]
+            
+            let gradient = LinearGradient(
+                colors: gradientColors,
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(gradient)
+                .opacity(showButtonGlow ? (isFinalAction ? 0.52 : 0.44) : 0)
+                .scaleEffect(showButtonGlow ? buttonGlowScale : 0.05, anchor: anchor)
+                .rotationEffect(.degrees(glowRotation))
+                .blur(radius: 32)
+                .frame(width: size.width + 160, height: size.height + 160)
+                .animation(.easeOut(duration: 0.55), value: showButtonGlow)
+                .animation(.easeOut(duration: 0.55), value: buttonGlowScale)
+                .animation(.linear(duration: 4.0).repeatForever(autoreverses: false), value: glowRotation)
+                .position(x: size.width / 2, y: size.height / 2)
         }
+        .allowsHitTesting(false)
     }
 }
 
@@ -303,5 +347,46 @@ private extension Optional where Wrapped == String {
         case .none:
             return nil
         }
+    }
+}
+
+// MARK: - Private Helpers
+
+private extension ConfirmationCardView {
+    var cardSizeReader: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    cardSize = proxy.size
+                }
+                .onChange(of: proxy.size) { _, newValue in
+                    cardSize = newValue
+                }
+        }
+    }
+    
+    func startButtonGlow() {
+        buttonGlowScale = 0.05
+        glowRotation = 0
+        withAnimation(.easeOut(duration: 0.55)) {
+            showButtonGlow = true
+            buttonGlowScale = 1.08
+        }
+        withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+            glowRotation = 360
+        }
+    }
+    
+    func endButtonGlow() {
+        withAnimation(.easeOut(duration: 0.35)) {
+            showButtonGlow = false
+        }
+        glowRotation = 0
+    }
+    
+    func anchorPoint(for size: CGSize) -> UnitPoint {
+        let x = Double(min(max(buttonFrame.midX / max(size.width, 1), 0), 1))
+        let y = Double(min(max(buttonFrame.midY / max(size.height, 1), 0), 1))
+        return UnitPoint(x: x, y: y)
     }
 }

@@ -156,6 +156,9 @@ class AgentViewModel: ObservableObject {
             errorMessage = nil
             activeTool = nil
             proposal = nil // Clear any previous proposal
+            proposalQueue.removeAll()
+            currentProposalIndex = 0
+            appSteps.removeAll()
             hasInsertedActionSummary = false // Reset for new request
             
             await sendMessageToBackend(text: trimmed)
@@ -171,12 +174,6 @@ class AgentViewModel: ObservableObject {
         // Inject hidden context so the model knows what it proposed
         let context = "I proposed to call \(p.tool) with arguments: \(p.args)"
         messages.append(ChatMessage(role: .assistant, content: context, isHidden: true))
-        
-        // Mark current app step as done
-        if let appId = p.appId,
-           let index = appSteps.firstIndex(where: { $0.appId == appId }) {
-            appSteps[index].state = .done
-        }
         
         // Execute the action and WAIT for backend response before transitioning
         // The card stays visible until we get a new proposal or completion
@@ -226,6 +223,22 @@ class AgentViewModel: ObservableObject {
             await MainActor.run {
                 withAnimation(.easeOut(duration: 0.3)) {
                     isExecutingAction = false
+                }
+                
+                // Fallback: if all proposals are processed and we still have app steps, mark completion
+                if proposal == nil && proposalQueue.isEmpty && !appSteps.isEmpty {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        for idx in appSteps.indices {
+                            appSteps[idx].state = .done
+                        }
+                    }
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 800_000_000)
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            appSteps.removeAll()
+                        }
+                    }
+                    state = .success
                 }
             }
         } catch {
@@ -402,6 +415,9 @@ class AgentViewModel: ObservableObject {
                     
                 case .proposal:
                     if let tool = event.tool, let content = event.content?.value as? [String: Any] {
+                    // Track the currently visible card before switching
+                    let previousAppId = proposal?.appId
+                    
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
                             // Flag messages from current interaction as attached to proposal
                             messages = messages.map { msg in
@@ -437,15 +453,25 @@ class AgentViewModel: ObservableObject {
                                 }
                             }
                             
-                            currentProposalIndex = 0
+                            currentProposalIndex = proposalData.proposalIndex
                             proposal = proposalData
                             isThinking = false
                             activeTool = nil
                             
-                            // Mark only the proposal's app as active; others waiting
+                            // Mark previous app as done when advancing to the next proposal
+                            if let prev = previousAppId,
+                               prev != event.appId,
+                               let idx = appSteps.firstIndex(where: { $0.appId == prev }) {
+                                appSteps[idx].state = .done
+                            }
+                            
+                            // Mark only the proposal's app as active; earlier apps collapse to done
                             for index in appSteps.indices {
                                 if appSteps[index].appId == event.appId {
                                     appSteps[index].state = .active
+                                } else if let stepIndex = appSteps[index].proposalIndex,
+                                          stepIndex < proposalData.proposalIndex {
+                                    appSteps[index].state = .done
                                 } else {
                                     appSteps[index].state = .waiting
                                 }
