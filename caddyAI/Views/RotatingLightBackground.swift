@@ -34,9 +34,9 @@ struct RotatingLightBackground: View {
                 AngularGradient(
                     gradient: Gradient(colors: [
                         .clear,
-                        glowColor.opacity(0.1),
-                        glowColor.opacity(0.4),
-                        glowColor.opacity(0.1),
+                        glowColor.opacity(0.25),
+                        glowColor.opacity(0.85),
+                        glowColor.opacity(0.25),
                         .clear
                     ]),
                     center: .center,
@@ -44,13 +44,17 @@ struct RotatingLightBackground: View {
                 )
                 .mask(
                     shape
-                        .strokeBorder(lineWidth: 2)
+                        .strokeBorder(lineWidth: 3)
                 )
-                .blur(radius: 2)
+                .blur(radius: 6)
+            
+                shape
+                    .stroke(glowColor.opacity(0.25), lineWidth: 2)
+                    .blur(radius: 10)
                 
                 // Optional: Add a subtle overlay for more "glass" feel if needed
                 shape
-                    .stroke(glowColor.opacity(0.1), lineWidth: 1)
+                    .stroke(glowColor.opacity(0.2), lineWidth: 1)
             }
         }
         .onAppear {
