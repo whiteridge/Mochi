@@ -213,16 +213,11 @@ final class VoiceRecorder: NSObject, ObservableObject {
 				}
 				
 				var error: NSError?
-				let providedInput = UnsafeMutablePointer<Bool>.allocate(capacity: 1)
-				providedInput.initialize(to: false)
-				defer {
-					providedInput.deinitialize(count: 1)
-					providedInput.deallocate()
-				}
+				var providedInput = false
 				
 				let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-					if !providedInput.pointee {
-						providedInput.pointee = true
+					if !providedInput {
+						providedInput = true
 						outStatus.pointee = .haveData
 						return buffer
 					} else {
