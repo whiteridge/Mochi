@@ -28,7 +28,7 @@ actor LLMService {
     
     private init() {}
     
-    func sendMessage(text: String, history: [Message] = []) -> AsyncThrowingStream<StreamEvent, Error> {
+    func sendMessage(text: String, history: [Message] = [], confirmedTool: ConfirmedToolData? = nil) -> AsyncThrowingStream<StreamEvent, Error> {
         return AsyncThrowingStream { continuation in
             Task {
                 guard let url = URL(string: baseURL) else {
@@ -39,7 +39,7 @@ actor LLMService {
                 var fullMessages = history
                 fullMessages.append(Message(role: "user", content: text))
                 
-                let requestPayload = ChatRequest(messages: fullMessages, userId: userId)
+                let requestPayload = ChatRequest(messages: fullMessages, userId: userId, confirmedTool: confirmedTool)
                 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"

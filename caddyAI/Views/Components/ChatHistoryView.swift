@@ -67,48 +67,62 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    // Single Status Pill - always present when status or proposal exists
-                    // Only changes isCompact state, pill itself doesn't move
-                    if currentStatus != nil || proposal != nil {
+                    // Status Pills - use multi-pill view when multiple apps involved
+                    if currentStatus != nil || proposal != nil || !viewModel.appSteps.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
-                            // The ONE pill - changes from "Searching Slack..." to "Slack" in place
                             HStack {
-                                StatusPillView(
-                                    text: currentStatus?.labelText ?? "",
-                                    appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
-                                    isCompact: proposal != nil
-                                )
-                                .background(
-                                    Group {
-                                        if proposal != nil {
-                                            RotatingLightBackground(
-                                                cornerRadius: 20,
-                                                shape: .capsule,
-                                                rotationSpeed: 5.0,
-                                                glowColor: .green
-                                            )
-                                            .padding(-1) // Slight bleed for the glow
-                                            .transition(.opacity)
+                                // Use MultiStatusPillView when multiple apps are tracked
+                                if viewModel.appSteps.count > 1 {
+                                    MultiStatusPillView(
+                                        appSteps: viewModel.appSteps,
+                                        activeAppId: proposal?.appId ?? currentStatus?.appName?.lowercased()
+                                    )
+                                    .zIndex(2)
+                                } else {
+                                    // Single app - use existing StatusPillView
+                                    StatusPillView(
+                                        text: currentStatus?.labelText ?? "",
+                                        appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
+                                        isCompact: proposal != nil
+                                    )
+                                    .background(
+                                        Group {
+                                            if proposal != nil {
+                                                RotatingLightBackground(
+                                                    cornerRadius: 20,
+                                                    shape: .capsule,
+                                                    rotationSpeed: 5.0,
+                                                    glowColor: .green
+                                                )
+                                                .padding(-1)
+                                                .transition(.opacity)
+                                            }
                                         }
-                                    }
-                                )
-                                .zIndex(2) // Pill + Bridge on top
+                                    )
+                                    .zIndex(2)
+                                }
                                 
                                 Spacer()
                             }
                             
-                            // Bridge + Card only appear when proposal exists
+                            // Confirmation Card with directional transitions
                             if let proposal = proposal {
-                                // Confirmation Card
                                 ConfirmationCardView(
                                     proposal: proposal,
                                     onConfirm: onConfirmProposal,
                                     onCancel: onCancelProposal,
                                     rotatingLightNamespace: rotatingLightNamespace
                                 )
-                                .padding(.top, 14) // Space for the bridge
+                                .id("\(proposal.appId ?? proposal.tool)-\(proposal.proposalIndex)")  // Force view recreation on proposal change
+                                .padding(.top, 14)
                                 .zIndex(1)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                                // Asymmetric transition: slide out left, slide in from right
+                                .transition(.asymmetric(
+                                    insertion: viewModel.cardTransitionDirection == .bottom 
+                                        ? .move(edge: .bottom).combined(with: .opacity)
+                                        : .move(edge: .trailing).combined(with: .opacity),
+                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                ))
                             }
                         }
                         .padding(.leading, 4)
