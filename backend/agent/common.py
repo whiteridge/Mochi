@@ -1,10 +1,13 @@
 """Shared helpers for agent orchestration."""
 
-from typing import List
+from typing import List, Optional
 
 
-def map_tool_to_app(tool_name: str) -> str:
+def map_tool_to_app(tool_name: Optional[str]) -> str:
     """Map a tool name to its app identifier."""
+    if not tool_name:
+        return "unknown"
+
     name_upper = tool_name.upper()
     if name_upper.startswith("LINEAR_"):
         return "linear"

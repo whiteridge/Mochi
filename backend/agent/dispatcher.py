@@ -103,6 +103,15 @@ class AgentDispatcher:
             if confirmed_tool:
                 tool_name = confirmed_tool.get("tool")
                 tool_args = confirmed_tool.get("args", {})
+
+                if not tool_name:
+                    yield {
+                        "type": "message",
+                        "content": "Unable to execute confirmed action: missing tool identifier.",
+                        "action_performed": None,
+                    }
+                    return
+
                 app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
 
                 print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
