@@ -128,6 +128,30 @@ def test_slack_write_action_interception(mock_agent_service):
     # Verify: Should NOT execute tool
     service.composio_service.execute_tool.assert_not_called()
 
+
+def test_slack_write_not_blocked_without_linear(mock_agent_service):
+    """Slack-only write should not be gated by Linear when Linear is absent."""
+    service, mock_chat = mock_agent_service
+
+    user_input = "Send hello to the Slack general channel"
+    user_id = "test_user"
+
+    # Mock Gemini response: Call SLACK_SEND_MESSAGE (Slack-only scenario)
+    tool_call = MockFunctionCall("SLACK_SEND_MESSAGE", {"channel": "C123", "text": "Hello"})
+    mock_response = MockResponse([MockCandidate(MockContent([MockPart(function_call=tool_call)]))])
+    mock_chat.send_message.return_value = mock_response
+
+    # Slack write; Linear not involved
+    service.slack_service.is_write_action.return_value = True
+    service.linear_service.is_write_action.return_value = False
+
+    events = list(service.run_agent(user_input, user_id))
+
+    proposal_events = [e for e in events if e.get("type") == "proposal"]
+    assert len(proposal_events) == 1, f"Expected proposal for Slack write, got events: {events}"
+    assert proposal_events[0]["tool"] == "SLACK_SEND_MESSAGE"
+    service.composio_service.execute_tool.assert_not_called()
+
 def test_slack_write_action_confirmed(mock_agent_service):
     service, mock_chat = mock_agent_service
     
@@ -145,7 +169,12 @@ def test_slack_write_action_confirmed(mock_agent_service):
     service.linear_service.is_write_action.return_value = False
     
     # Run agent
-    generator = service.run_agent(user_input, user_id)
+    confirmed_tool = {
+        "tool": "SLACK_SEND_MESSAGE",
+        "args": {"channel": "C123", "text": "Hello"},
+        "app_id": "slack",
+    }
+    generator = service.run_agent(user_input, user_id, confirmed_tool=confirmed_tool)
     
     # Collect events
     events = list(generator)
