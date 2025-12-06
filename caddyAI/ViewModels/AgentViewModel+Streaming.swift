@@ -141,6 +141,9 @@ extension AgentViewModel {
                     // Handle early summary from backend with fast typewriter effect
                     if let content = event.content?.value as? String,
                        let appId = event.appId {
+                        let lowered = appId.lowercased()
+                        // Skip pseudo action ids
+                        if lowered.contains("action") { continue }
                         if !hasInsertedActionSummary {
                             hasInsertedActionSummary = true
                             isTypewriterActive = true
@@ -183,6 +186,7 @@ extension AgentViewModel {
                         
                         let appName = formatAppName(from: toolName)
                         let appId = event.appId ?? appName.lowercased()
+                        if appId.lowercased().contains("action") { continue }
                         
                         if !hasInsertedActionSummary && status == "searching" {
                             hasInsertedActionSummary = true

@@ -385,9 +385,9 @@ private extension ConfirmationCardView {
     }
     
     func anchorPoint(for size: CGSize) -> UnitPoint {
-        // If we don't yet have a measured button frame, fall back to center
+        // If we don't yet have a measured button frame, fall back near the button's corner
         guard buttonFrame != .zero else {
-            return .center
+            return .bottomLeading
         }
         let x = Double(min(max(buttonFrame.midX / max(size.width, 1), 0), 1))
         let y = Double(min(max(buttonFrame.midY / max(size.height, 1), 0), 1))
