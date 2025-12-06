@@ -98,7 +98,7 @@ class AgentViewModel: ObservableObject {
     // MARK: - Private State
     
     var hasInsertedActionSummary: Bool = false
-    /// Tracks seen proposal signatures to avoid duplicate cards across a request
+    /// Tracks seen proposal signatures to avoid duplicate cards in a request
     var seenProposalSignatures: Set<String> = []
     @Published var typewriterText: String = "" // For progressive text reveal
     var isTypewriterActive: Bool = false

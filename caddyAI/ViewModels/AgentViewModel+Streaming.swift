@@ -10,6 +10,15 @@ extension AgentViewModel {
             appId: proposal.appId ?? proposal.tool.split(separator: "_").first.map(String.init)?.lowercased() ?? "unknown"
         )
         
+        // Remove this proposal from the queue so remaining steps (e.g., Slack) still show
+        await MainActor.run {
+            proposalQueue.removeAll { item in
+                let sameApp = proposal.appId == nil || item.appId == proposal.appId
+                return sameApp && item.tool == proposal.tool
+            }
+            currentProposalIndex = proposalQueue.isEmpty ? 0 : min(currentProposalIndex, proposalQueue.count - 1)
+        }
+        
         do {
             let historyForRequest = messages.dropLast().map { msg in
                 Message(role: msg.role == .user ? "user" : "assistant", content: msg.content)
@@ -34,6 +43,11 @@ extension AgentViewModel {
                             appSteps[idx].state = .done
                         }
                     }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                        self.proposal = nil
+                        currentStatus = nil
+                        activeTool = nil
+                    }
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 800_000_000)
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -44,46 +58,10 @@ extension AgentViewModel {
                 }
             }
         } catch {
-            await handleSendError(error: error, proposal: proposal)
+            await MainActor.run {
+                handleSendError(error: error, proposal: proposal)
+            }
         }
-    }
-    
-    @MainActor
-    private func handleSendError(error: Error, proposal: ProposalData) {
-        let statusCode: Int?
-        if case let LLMError.serverError(code) = error {
-            statusCode = code
-        } else {
-            statusCode = nil
-        }
-        
-        let currentAppId: String?
-        if let proposedAppId = proposal.appId {
-            currentAppId = proposedAppId
-        } else if let stepAppId = appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId {
-            currentAppId = stepAppId
-        } else {
-            currentAppId = nil
-        }
-        
-        if let appId = currentAppId {
-            markAppStepAsError(appId: appId)
-        }
-        
-        // Clear pending proposals to avoid repeated prompts on error
-        self.proposal = nil
-        proposalQueue.removeAll()
-        currentProposalIndex = 0
-        
-        isExecutingAction = false
-        activeTool = nil
-        currentStatus = nil
-        if let code = statusCode, (code == 429 || code == 503) {
-            errorMessage = "Service temporarily unavailable (status \(code)). Please try again."
-        } else {
-            errorMessage = error.localizedDescription
-        }
-        state = .chat
     }
     
     /// Handle stream events (extracted for reuse)
@@ -114,7 +92,6 @@ extension AgentViewModel {
                     }
                     messages.append(ChatMessage(role: .assistant, content: content))
                     
-                    // Completion handling when backend omits actionPerformed
                     let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
                     isExecutingAction = false
                     
@@ -132,7 +109,6 @@ extension AgentViewModel {
                         }
                         state = .success
                     } else {
-                        // Clear lingering app steps if nothing is queued
                         if proposalQueue.isEmpty {
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 appSteps.removeAll()
@@ -150,6 +126,7 @@ extension AgentViewModel {
     
     /// Primary streaming logic for new user input
     func sendMessageToBackend(text: String) async {
+        var didReceiveEvent = false
         do {
             let historyForRequest = messages.dropLast().map { msg in
                 Message(role: msg.role == .user ? "user" : "assistant", content: msg.content)
@@ -158,6 +135,7 @@ extension AgentViewModel {
             let stream = await llmService.sendMessage(text: text, history: historyForRequest)
             
             for try await event in stream {
+                didReceiveEvent = true
                 switch event.type {
                 case .earlySummary:
                     // Handle early summary from backend with fast typewriter effect
@@ -199,18 +177,13 @@ extension AgentViewModel {
                     }
                     
                 case .toolStatus:
-                    // Tool status events - update the status pill and track apps
                     if let toolName = event.tool, let status = event.status {
-                        let lowerToolName = toolName.lowercased()
-                        // Ignore pseudo-tools like "action" that should not render pills
-                        if lowerToolName.contains("action") {
-                            continue
-                        }
+                        let lowerTool = toolName.lowercased()
+                        if lowerTool.contains("action") { continue }
                         
                         let appName = formatAppName(from: toolName)
                         let appId = event.appId ?? appName.lowercased()
                         
-                        // If we haven't shown early summary yet (fallback), show a quick one
                         if !hasInsertedActionSummary && status == "searching" {
                             hasInsertedActionSummary = true
                             
@@ -225,7 +198,6 @@ extension AgentViewModel {
                             }
                         }
                         
-                        // Ensure app step exists
                         await MainActor.run {
                             if !appSteps.contains(where: { $0.appId == appId }) {
                                 let newStep = AppStep(appId: appId, state: .waiting, proposalIndex: appSteps.count)
@@ -246,7 +218,6 @@ extension AgentViewModel {
                                         activeTool = ToolStatus(name: toolName, status: status)
                                         currentStatus = .searching(appName: appName)
                                     case "done":
-                                        // Keep text+icon (waiting) until the write completes; do not collapse yet
                                         appSteps[index].state = .waiting
                                         if currentStatus == .searching(appName: appName) {
                                             currentStatus = nil
@@ -309,33 +280,20 @@ extension AgentViewModel {
                         await typewriterDisplay(words: words, delay: 20_000_000)
                         
                         await MainActor.run {
-                            let shouldShowSuccess = event.actionPerformed != nil || (proposalQueue.isEmpty && !appSteps.isEmpty)
-                            
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                                proposal = nil
-                                proposalQueue.removeAll()
-                                currentProposalIndex = 0
-                                currentStatus = nil
-                                activeTool = nil
-                            }
-                            
-                            // Convert typewriter to permanent message
                             messages.append(ChatMessage(role: .assistant, content: trimmedContent))
                             typewriterText = ""
                             
-                            // Determine next state
+                            let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
+                            isExecutingAction = false
+                            
                             if shouldShowSuccess {
-                                print("DEBUG: Action Performed received. Switching to success state.")
-                                isExecutingAction = false // Action complete
-                                
-                                // Mark all app pills as done, then fade them out after a short delay
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                     for idx in appSteps.indices {
                                         appSteps[idx].state = .done
                                     }
                                 }
                                 Task { @MainActor in
-                                    try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+                                    try? await Task.sleep(nanoseconds: 800_000_000)
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         appSteps.removeAll()
                                     }
@@ -343,49 +301,42 @@ extension AgentViewModel {
                                 
                                 state = .success
                             } else {
-                                isExecutingAction = false // No action performed, reset flag
-                                state = .chat
-                                
-                                // If there are no proposals queued, clear any lingering app pills
                                 if proposalQueue.isEmpty {
                                     withAnimation(.easeInOut(duration: 0.25)) {
                                         appSteps.removeAll()
                                     }
                                 }
+                                state = .chat
                             }
                         }
                     }
                 }
             }
             
+            // Fallback: if stream ends without yielding proposals/messages, clear waiting UI
+            if !didReceiveEvent || (proposalQueue.isEmpty && proposal == nil) {
+                await MainActor.run {
+                    currentStatus = nil
+                    activeTool = nil
+                    isThinking = false
+                    isExecutingAction = false
+                    if !appSteps.isEmpty {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            for idx in appSteps.indices {
+                                appSteps[idx].state = .done
+                            }
+                        }
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            appSteps.removeAll()
+                        }
+                    }
+                    state = .chat
+                }
+            }
+            
         } catch {
             await MainActor.run {
-                let statusCode: Int? = {
-                    if case let LLMError.serverError(code) = error {
-                        return code
-                    }
-                    return nil
-                }()
-                
-                let currentAppId = proposal?.appId ?? appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
-                if let appId = currentAppId {
-                    markAppStepAsError(appId: appId)
-                }
-                
-                proposal = nil
-                proposalQueue.removeAll()
-                currentProposalIndex = 0
-                
-                isThinking = false
-                currentStatus = nil
-                isExecutingAction = false // Reset on error
-                activeTool = nil
-                if let code = statusCode, (code == 429 || code == 503) {
-                    errorMessage = "Service temporarily unavailable (status \(code)). Please try again."
-                } else {
-                    errorMessage = error.localizedDescription
-                }
-                state = .chat // Fallback to chat on error so user can retry
+                handleSendError(error: error, proposal: proposal)
             }
         }
     }
@@ -413,6 +364,36 @@ extension AgentViewModel {
         if let idx = appSteps.firstIndex(where: { $0.appId == appId }) {
             appSteps[idx].state = .error
         }
+    }
+    
+    @MainActor
+    private func handleSendError(error: Error, proposal: ProposalData?) {
+        let statusCode: Int?
+        if case let LLMError.serverError(code) = error {
+            statusCode = code
+        } else {
+            statusCode = nil
+        }
+        
+        let currentAppId = proposal?.appId ?? appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
+        if let appId = currentAppId {
+            markAppStepAsError(appId: appId)
+        }
+        
+        self.proposal = nil
+        proposalQueue.removeAll()
+        currentProposalIndex = 0
+        
+        isThinking = false
+        currentStatus = nil
+        isExecutingAction = false // Reset on error
+        activeTool = nil
+        if let code = statusCode, (code == 429 || code == 503) {
+            errorMessage = "Service temporarily unavailable (status \(code)). Please try again."
+        } else {
+            errorMessage = error.localizedDescription
+        }
+        state = .chat // Fallback to chat on error so user can retry
     }
     
     @MainActor
