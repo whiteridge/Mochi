@@ -1,6 +1,6 @@
 # Plan: Secure Credential Storage & Initial Setup
 
-## Phase 1: Keychain Infrastructure
+## Phase 1: Keychain Infrastructure [checkpoint: fdaf838]
 Establish the secure storage layer using macOS Keychain Services.
 
 - [x] Task: Create Keychain Service Wrapper [c66f3ea]
@@ -13,7 +13,7 @@ Establish the secure storage layer using macOS Keychain Services.
     - [ ] Subtask: Implement `CredentialManager` with published properties for SwiftUI binding.
     - [ ] Subtask: Verify tests pass.
 
-- [~] Task: Conductor - User Manual Verification 'Keychain Infrastructure' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Keychain Infrastructure' (Protocol in workflow.md) [fdaf838]
 
 ## Phase 2: Settings UI
 Build the user interface for managing credentials within the app's preferences.
