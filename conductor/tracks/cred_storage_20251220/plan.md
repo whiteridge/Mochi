@@ -13,7 +13,7 @@ Establish the secure storage layer using macOS Keychain Services.
     - [ ] Subtask: Implement `CredentialManager` with published properties for SwiftUI binding.
     - [ ] Subtask: Verify tests pass.
 
-- [ ] Task: Conductor - User Manual Verification 'Keychain Infrastructure' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Keychain Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Settings UI
 Build the user interface for managing credentials within the app's preferences.
