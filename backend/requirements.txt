@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+google-genai
+composio-core
+composio-google
+python-dotenv
+pydantic
+pytest
+pytest-asyncio
+httpx

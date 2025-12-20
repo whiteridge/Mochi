@@ -1,0 +1,171 @@
+# Xcode
+## User settings
+xcuserdata/
+
+## Derived data
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+Packages
+Package.pins
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Simulator
+Application Support/iphone/
+
+# Local Config
+config.json
+secrets.swift
+
+# OS X
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backend
+backend/.env
+backend/venv
+
+#Cursor
+.cursor
+
+
+# ========================
+# 🍎 macOS & Xcode
+# ========================
+## User settings (User-specific window layouts, breakpoints, etc.)
+xcuserdata/
+*.isuser
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+## Derived data & Build results
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.pkg
+*.dSYM.zip
+*.dSYM
+
+## Swift Package Manager
+# Note: generally Package.resolved SHOULD be committed for reproducibility, 
+# but .build must always be ignored.
+.build/
+.swiftpm/
+
+## Xcode Project junk
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+*.xcodeproj/xcuserdata/
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# ========================
+# 🐍 Python & Backend
+# ========================
+## Byte-compiled / Optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+## Virtual Environments (Covers common names)
+backend/venv
+backend/.venv
+venv/
+.venv/
+env/
+ENV/
+
+## Distribution / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+## Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+## Type Checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ========================
+# 🔒 Secrets & Environment
+# ========================
+# NEVER commit API keys or secrets
+.env
+backend/.env
+.env.local
+config.json
+secrets.swift
+Secrets.plist
+
+# ========================
+# ⚙️ Editor & System
+# ========================
+## macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+## VS Code
+.vscode/
+# Exception: If you want to share settings but hide local history
+# .vscode/*
+# !.vscode/settings.json
+# !.vscode/tasks.json
+# !.vscode/launch.json
+# !.vscode/extensions.json
+
+## JetBrains / AppCode
+.idea/
+*.iws
+*.iml
+*.ipr
+
+## Vim / Emacs
+*.swp
+*.swo
+*~
+
+## Cursor AI
+# Ignore general cursor data, but keep rules shared
+.cursor/
+!.cursor/rules/
