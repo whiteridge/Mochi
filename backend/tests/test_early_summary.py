@@ -6,7 +6,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 # Test early summary helpers
-from backend.agent.common import map_tool_to_app, make_early_summary
+from backend.agent_service import map_tool_to_app, make_early_summary
 
 
 class TestMapToolToApp:

@@ -103,15 +103,6 @@ class AgentDispatcher:
             if confirmed_tool:
                 tool_name = confirmed_tool.get("tool")
                 tool_args = confirmed_tool.get("args", {})
-
-                if not tool_name:
-                    yield {
-                        "type": "message",
-                        "content": "Unable to execute confirmed action: missing tool identifier.",
-                        "action_performed": None,
-                    }
-                    return
-
                 app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
 
                 print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
@@ -223,17 +214,12 @@ class AgentDispatcher:
                                 if app_id in completed_write_apps:
                                     print(f"DEBUG: Skipping write for completed app {app_id}")
                                     continue
-                                # Gate Slack writes only when Linear is actually involved and unfinished
+                                # Gate Slack writes until Linear read AND write are complete
                                 if app_id == "slack":
-                                    linear_involved = (
-                                        "linear" in app_read_status
-                                        or "linear" in app_write_executing
-                                    )
-                                    if linear_involved:
-                                        linear_state = app_read_status.get("linear")
-                                        if linear_state not in ("done", "error") or ("linear" in app_write_executing):
-                                            print("DEBUG: Gating Slack write until Linear read+write complete")
-                                            continue
+                                    linear_state = app_read_status.get("linear")
+                                    if linear_state not in ("done", "error") or ("linear" in app_write_executing):
+                                        print("DEBUG: Gating Slack write until Linear read+write complete")
+                                        continue
                                 # Always queue writes for confirmation - we use confirmed_tool for execution
                                 print(f"DEBUG: Queueing {tool_name} for confirmation")
                                 write_actions_found.append((tool_name, args, app_id, is_linear_write, is_slack_write))
@@ -243,11 +229,10 @@ class AgentDispatcher:
                                 # Gate Slack read until Linear read+write complete or not involved
                                 if app_id == "slack":
                                     linear_state = app_read_status.get("linear")
-                                    linear_involved = (
-                                        "linear" in app_read_status
-                                        or "linear" in app_write_executing
-                                    )
-                                    if linear_involved and (linear_state not in ("done", "error") or ("linear" in app_write_executing)):
+                                    if (
+                                        (linear_state not in ("done", "error") or ("linear" in app_write_executing))
+                                        and "linear" in involved_apps
+                                    ):
                                         print("DEBUG: Gating Slack read until Linear read+write complete")
                                         continue
                                 read_actions_to_execute.append((tool_name, args, part, app_id))

@@ -14,20 +14,16 @@ async def run_query(query_text: str, user_id: str = "test_user") -> List[Dict[st
     """
     Helper function to send a POST request to /api/chat and collect all events.
     """
-    async with httpx.AsyncClient(timeout=60.0, verify=False, trust_env=False) as client:
-        try:
-            response = await client.post(
-                f"{BASE_URL}/api/chat",
-                json={
-                    "messages": [
-                        {"role": "user", "content": query_text}
-                    ],
-                    "user_id": user_id
-                }
-            )
-        except httpx.TransportError as exc:
-            pytest.skip(f"HTTP transport unavailable: {exc}")
-
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            f"{BASE_URL}/api/chat",
+            json={
+                "messages": [
+                    {"role": "user", "content": query_text}
+                ],
+                "user_id": user_id
+            }
+        )
         response.raise_for_status()
         
         # Parse NDJSON stream
