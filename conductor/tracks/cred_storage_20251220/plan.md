@@ -18,14 +18,14 @@ Establish the secure storage layer using macOS Keychain Services.
 ## Phase 2: Settings UI
 Build the user interface for managing credentials within the app's preferences.
 
-- [ ] Task: Create Settings View Structure
-    - [ ] Subtask: Create `SettingsView.swift` with a tab structure (General, Integrations).
-    - [ ] Subtask: Implement `IntegrationSettingsView` for API key management.
+- [x] Task: Create Settings View Structure [d44a2cf]
+    - [x] Subtask: Create `SettingsView.swift` with a tab structure (General, Integrations).
+    - [x] Subtask: Implement `IntegrationSettingsView` for API key management.
 
-- [ ] Task: Connect UI to Data
-    - [ ] Subtask: Bind `IntegrationSettingsView` input fields to `CredentialManager`.
-    - [ ] Subtask: Add logic to mask keys and handle "Save/Update" actions.
-    - [ ] Subtask: Manual verification: Run app and test saving/reading keys via UI.
+- [x] Task: Connect UI to Data [d44a2cf]
+    - [x] Subtask: Bind `IntegrationSettingsView` input fields to `CredentialManager`.
+    - [x] Subtask: Add logic to mask keys and handle "Save/Update" actions.
+    - [x] Subtask: Manual verification: Run app and test saving/reading keys via UI.
 
 - [ ] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md)
 
