@@ -3,7 +3,7 @@
 ## Phase 1: Keychain Infrastructure
 Establish the secure storage layer using macOS Keychain Services.
 
-- [ ] Task: Create Keychain Service Wrapper
+- [x] Task: Create Keychain Service Wrapper [c66f3ea]
     - [ ] Subtask: Write unit tests for `KeychainService` (save, read, delete, update).
     - [ ] Subtask: Implement `KeychainService` using `Security.framework`.
     - [ ] Subtask: Verify tests pass.

@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Implement Secure Credential Storage and Initial Setup Flow
+## [~] Track: Implement Secure Credential Storage and Initial Setup Flow
 *Link: [./conductor/tracks/cred_storage_20251220/](./conductor/tracks/cred_storage_20251220/)*
