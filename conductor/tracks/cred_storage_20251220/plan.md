@@ -8,7 +8,7 @@ Establish the secure storage layer using macOS Keychain Services.
     - [ ] Subtask: Implement `KeychainService` using `Security.framework`.
     - [ ] Subtask: Verify tests pass.
 
-- [ ] Task: Create Credential Manager
+- [x] Task: Create Credential Manager [314a1db]
     - [ ] Subtask: Write tests for `CredentialManager` (abstraction over Keychain for specific keys like `openaiKey`, `linearKey`).
     - [ ] Subtask: Implement `CredentialManager` with published properties for SwiftUI binding.
     - [ ] Subtask: Verify tests pass.
