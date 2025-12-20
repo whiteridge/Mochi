@@ -47,10 +47,12 @@ final class SettingsViewModel: ObservableObject {
 	
 	private let preferences: PreferencesStore
 	private let integrationService: IntegrationService
+	private let credentialManager: CredentialManager
 	
-	init(preferences: PreferencesStore, integrationService: IntegrationService) {
+	init(preferences: PreferencesStore, integrationService: IntegrationService, credentialManager: CredentialManager = .shared) {
 		self.preferences = preferences
 		self.integrationService = integrationService
+		self.credentialManager = credentialManager
 		self.slackWorkspaces = integrationService.slackWorkspaces
 		self.slackChannels = integrationService.slackChannels
 		self.linearTeams = integrationService.linearTeams
@@ -58,15 +60,19 @@ final class SettingsViewModel: ObservableObject {
 	}
 	
 	func loadPersistedValues() {
-		apiKey = preferences.apiKey
+		credentialManager.loadCredentials()
+		apiKey = credentialManager.openaiKey
 		apiBaseURL = preferences.apiBaseURL
-		slackToken = ""
-		linearApiKey = ""
-		linearTeamKey = ""
+		slackToken = credentialManager.slackKey
+		linearApiKey = credentialManager.linearKey
+		linearTeamKey = "" // Not managed by CredentialManager yet? Spec only mentioned openai, linear, slack.
 	}
 	
 	func saveAPISettings() {
-		preferences.updateAPI(key: apiKey, baseURL: apiBaseURL)
+		credentialManager.openaiKey = apiKey
+		credentialManager.saveCredentials()
+		
+		preferences.updateAPI(key: "", baseURL: apiBaseURL) // Clear key from prefs if feasible, or just update base URL
 		preferences.hasCompletedSetup = true
 	}
 	
@@ -79,12 +85,18 @@ final class SettingsViewModel: ObservableObject {
 	}
 	
 	func connectSlack() {
+		credentialManager.slackKey = slackToken
+		credentialManager.saveCredentials()
+		
 		integrationService.connectSlack(token: slackToken)
 		slackToken = ""
 		if integrationService.slackState.isConnected { preferences.hasCompletedSetup = true }
 	}
 	
 	func connectLinear() {
+		credentialManager.linearKey = linearApiKey
+		credentialManager.saveCredentials()
+		
 		integrationService.connectLinear(apiKey: linearApiKey, teamKey: linearTeamKey)
 		if integrationService.linearState.isConnected {
 			linearApiKey = ""

@@ -10,7 +10,9 @@ final class SettingsEnvironment: ObservableObject {
 		let keychain = KeychainStore(service: "com.matteofari.caddyAI.settings")
 		let preferences = PreferencesStore()
 		let integrationService = IntegrationService(keychain: keychain)
-		let viewModel = SettingsViewModel(preferences: preferences, integrationService: integrationService)
+		let credentialManager = CredentialManager.shared
+		
+		let viewModel = SettingsViewModel(preferences: preferences, integrationService: integrationService, credentialManager: credentialManager)
 		
 		self.preferences = preferences
 		self.integrationService = integrationService
