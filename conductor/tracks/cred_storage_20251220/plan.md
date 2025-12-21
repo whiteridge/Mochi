@@ -27,7 +27,7 @@ Build the user interface for managing credentials within the app's preferences.
     - [x] Subtask: Add logic to mask keys and handle "Save/Update" actions.
     - [x] Subtask: Manual verification: Run app and test saving/reading keys via UI.
 
-- [ ] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md)
 
 ## Phase 3: Onboarding Flow
 Implement the first-run experience to guide users through setup.
