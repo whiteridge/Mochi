@@ -15,7 +15,7 @@ Establish the secure storage layer using macOS Keychain Services.
 
 - [x] Task: Conductor - User Manual Verification 'Keychain Infrastructure' (Protocol in workflow.md) [fdaf838]
 
-## Phase 2: Settings UI
+## Phase 2: Settings UI [checkpoint: 44366a1]
 Build the user interface for managing credentials within the app's preferences.
 
 - [x] Task: Create Settings View Structure [d44a2cf]
@@ -27,7 +27,7 @@ Build the user interface for managing credentials within the app's preferences.
     - [x] Subtask: Add logic to mask keys and handle "Save/Update" actions.
     - [x] Subtask: Manual verification: Run app and test saving/reading keys via UI.
 
-- [~] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md) [44366a1]
 
 ## Phase 3: Onboarding Flow
 Implement the first-run experience to guide users through setup.
