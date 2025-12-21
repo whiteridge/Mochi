@@ -130,9 +130,13 @@ final class IntegrationService: ObservableObject {
 	
 	private let keychain: KeychainStore
 	private let core: IntegrationCore
+	private let credentialManager: CredentialManager
+	private let backendBaseURL = "http://127.0.0.1:8000/api/v1/integrations"
+	private let userId = "caddyai-default"
 	
-	init(keychain: KeychainStore) {
+	init(keychain: KeychainStore, credentialManager: CredentialManager = .shared) {
 		self.keychain = keychain
+		self.credentialManager = credentialManager
 		self.core = IntegrationCore(keychain: keychain)
 		loadPersisted()
 	}
@@ -141,6 +145,44 @@ final class IntegrationService: ObservableObject {
 		let states = core.loadPersistedStates()
 		slackState = states.slack
 		linearState = states.linear
+	}
+	
+	func fetchComposioConnectURL(for appName: String) async throws -> URL {
+		var components = URLComponents(string: "\(backendBaseURL)/connect/\(appName.lowercased())")
+		components?.queryItems = [URLQueryItem(name: "user_id", value: userId)]
+		
+		guard let url = components?.url else { throw URLError(.badURL) }
+		
+		let (data, _) = try await URLSession.shared.data(from: url)
+		let response = try JSONDecoder().decode(ConnectURLResponse.self, from: data)
+		
+		guard let redirectURL = URL(string: response.url) else { throw URLError(.badURL) }
+		return redirectURL
+	}
+	
+	func refreshComposioStatus(for appName: String) {
+		Task {
+			var components = URLComponents(string: "\(backendBaseURL)/status/\(appName.lowercased())")
+			components?.queryItems = [URLQueryItem(name: "user_id", value: userId)]
+			
+			guard let url = components?.url else { return }
+			
+			do {
+				let (data, _) = try await URLSession.shared.data(from: url)
+				let response = try JSONDecoder().decode(StatusResponse.self, from: data)
+				
+				await MainActor.run {
+					let newState: IntegrationState = response.connected ? .connected(Date()) : .disconnected
+					if appName.lowercased() == "slack" {
+						self.slackState = newState
+					} else if appName.lowercased() == "linear" {
+						self.linearState = newState
+					}
+				}
+			} catch {
+				print("Error refreshing status for \(appName): \(error)")
+			}
+		}
 	}
 	
 	func connectSlack(token: String) {
@@ -176,4 +218,13 @@ final class IntegrationService: ObservableObject {
 		linearProjects = []
 	}
 }
+
+struct ConnectURLResponse: Codable {
+	let url: String
+}
+
+struct StatusResponse: Codable {
+	let connected: Bool
+}
+
 

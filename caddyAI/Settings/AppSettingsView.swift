@@ -203,21 +203,30 @@ private struct IntegrationsSettingsView: View {
 					description: "Connect Slack to post updates and receive alerts directly from caddyAI.",
 					state: integrationService.slackState,
 					connectAction: viewModel.connectSlack,
-					disconnectAction: viewModel.disconnectSlack
+					disconnectAction: viewModel.disconnectSlack,
+					composioAction: { viewModel.connectViaComposio(appName: "slack") },
+					refreshAction: { viewModel.refreshStatus(appName: "slack") }
 				) {
-					SecureField("Bot/User token (xoxb-…)", text: $viewModel.slackToken)
-						.textFieldStyle(.roundedBorder)
-						.textContentType(.password)
-					Text("Tip: Create a Slack app → OAuth & Permissions → Bot token scopes, then copy the xoxb token.")
-						.font(.footnote)
-						.foregroundStyle(.secondary)
-					HStack(spacing: 12) {
-						Button("Test Slack") { viewModel.testSlack() }
-							.buttonStyle(.bordered)
-						if let status = viewModel.slackTestMessage {
-							StatusLabel(text: status, success: viewModel.slackTestSuccess ?? false)
+					DisclosureGroup("Manual Setup (Legacy)") {
+						VStack(alignment: .leading, spacing: 12) {
+							SecureField("Bot/User token (xoxb-…)", text: $viewModel.slackToken)
+								.textFieldStyle(.roundedBorder)
+								.textContentType(.password)
+							Text("Tip: Create a Slack app → OAuth & Permissions → Bot token scopes, then copy the xoxb token.")
+								.font(.footnote)
+								.foregroundStyle(.secondary)
+							HStack(spacing: 12) {
+								Button("Test Slack") { viewModel.testSlack() }
+									.buttonStyle(.bordered)
+								if let status = viewModel.slackTestMessage {
+									StatusLabel(text: status, success: viewModel.slackTestSuccess ?? false)
+								}
+							}
 						}
+						.padding(.top, 8)
 					}
+					.font(.subheadline)
+					.foregroundStyle(.secondary)
 				}
 				
 				IntegrationCard(
@@ -225,22 +234,31 @@ private struct IntegrationsSettingsView: View {
 					description: "Sync with Linear to create issues and track status from the tray.",
 					state: integrationService.linearState,
 					connectAction: viewModel.connectLinear,
-					disconnectAction: viewModel.disconnectLinear
+					disconnectAction: viewModel.disconnectLinear,
+					composioAction: { viewModel.connectViaComposio(appName: "linear") },
+					refreshAction: { viewModel.refreshStatus(appName: "linear") }
 				) {
-					SecureField("API key", text: $viewModel.linearApiKey)
-						.textFieldStyle(.roundedBorder)
-					TextField("Team key", text: $viewModel.linearTeamKey)
-						.textFieldStyle(.roundedBorder)
-					Text("Tip: In Linear, go to Settings → API to generate a personal API key. Team key is the team URL slug.")
-						.font(.footnote)
-						.foregroundStyle(.secondary)
-					HStack(spacing: 12) {
-						Button("Test Linear") { viewModel.testLinear() }
-							.buttonStyle(.bordered)
-						if let status = viewModel.linearTestMessage {
-							StatusLabel(text: status, success: viewModel.linearTestSuccess ?? false)
+					DisclosureGroup("Manual Setup (Legacy)") {
+						VStack(alignment: .leading, spacing: 12) {
+							SecureField("API key", text: $viewModel.linearApiKey)
+								.textFieldStyle(.roundedBorder)
+							TextField("Team key", text: $viewModel.linearTeamKey)
+								.textFieldStyle(.roundedBorder)
+							Text("Tip: In Linear, go to Settings → API to generate a personal API key. Team key is the team URL slug.")
+								.font(.footnote)
+								.foregroundStyle(.secondary)
+							HStack(spacing: 12) {
+								Button("Test Linear") { viewModel.testLinear() }
+									.buttonStyle(.bordered)
+								if let status = viewModel.linearTestMessage {
+									StatusLabel(text: status, success: viewModel.linearTestSuccess ?? false)
+								}
+							}
 						}
+						.padding(.top, 8)
 					}
+					.font(.subheadline)
+					.foregroundStyle(.secondary)
 				}
 			}
 			.padding(24)
@@ -310,6 +328,8 @@ private struct IntegrationCard<Content: View>: View {
 	let state: IntegrationState
 	let connectAction: () -> Void
 	let disconnectAction: () -> Void
+	let composioAction: () -> Void
+	let refreshAction: () -> Void
 	@ViewBuilder let content: Content
 	
 	var body: some View {
@@ -318,7 +338,16 @@ private struct IntegrationCard<Content: View>: View {
 				Text(title)
 					.font(.headline)
 				Spacer()
-				StatusBadge(state: state)
+				HStack(spacing: 8) {
+					Button(action: refreshAction) {
+						Image(systemName: "arrow.clockwise")
+							.font(.caption)
+					}
+					.buttonStyle(.plain)
+					.help("Refresh connection status")
+					
+					StatusBadge(state: state)
+				}
 			}
 			
 			Text(description)
@@ -328,10 +357,22 @@ private struct IntegrationCard<Content: View>: View {
 			content
 			
 			HStack {
-				Button("Connect") {
-					connectAction()
+				Button {
+					composioAction()
+				} label: {
+					HStack {
+						Image(systemName: "sparkles")
+						Text("Connect with Composio")
+					}
 				}
 				.buttonStyle(.borderedProminent)
+				.disabled(state.isConnected)
+				
+				Button("Manual Connect") {
+					connectAction()
+				}
+				.buttonStyle(.bordered)
+				.disabled(state.isConnected)
 				
 				Button("Disconnect", role: .destructive) {
 					disconnectAction()

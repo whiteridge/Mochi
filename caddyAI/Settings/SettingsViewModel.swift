@@ -104,6 +104,27 @@ final class SettingsViewModel: ObservableObject {
 			preferences.hasCompletedSetup = true
 		}
 	}
+
+	func connectViaComposio(appName: String) {
+		Task {
+			do {
+				let url = try await integrationService.fetchComposioConnectURL(for: appName)
+				await MainActor.run {
+					NSWorkspace.shared.open(url)
+				}
+				
+				// Poll for status or just wait a bit and refresh
+				try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+				refreshStatus(appName: appName)
+			} catch {
+				print("Error connecting via Composio: \(error)")
+			}
+		}
+	}
+
+	func refreshStatus(appName: String) {
+		integrationService.refreshComposioStatus(for: appName)
+	}
 	
 	func disconnectSlack() { integrationService.disconnectSlack() }
 	func disconnectLinear() { integrationService.disconnectLinear() }
