@@ -29,8 +29,8 @@ Build the user interface for managing credentials within the app's preferences.
 
 - [x] Task: Conductor - User Manual Verification 'Settings UI' (Protocol in workflow.md) [44366a1]
 
-## Phase 3: Onboarding Flow
-Implement the first-run experience to guide users through setup.
+## Phase 3: Onboarding Flow [DEFERRED]
+*This phase is deferred in favor of the new Composio integration track which will provide a unified setup experience.*
 
 - [ ] Task: Create Onboarding Views
     - [ ] Subtask: Create `OnboardingContainerView` to manage the page flow.

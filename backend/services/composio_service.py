@@ -63,6 +63,57 @@ class ComposioService:
         self._cache[key] = {"value": value, "ts": time.time()}
         print(f"DEBUG: Cached result for {tool_name}")
     
+    def get_auth_url(self, app_name: str, user_id: str, callback_url: Optional[str] = None) -> str:
+        """
+        Initiate a connection flow and return the authorization URL.
+        
+        Args:
+            app_name: Name of the app to connect (e.g., 'slack', 'linear')
+            user_id: The user ID to link the connection to
+            callback_url: Optional URL to redirect to after successful auth
+            
+        Returns:
+            The authorization URL for the user to visit
+        """
+        # Map app names to auth_config_ids from the Composio environment
+        auth_configs = {
+            "slack": "ac_VbAOnHEy6Cts",
+            "linear": "ac_ibulkWqBOyKQ"
+        }
+        
+        config_id = auth_configs.get(app_name.lower())
+        if not config_id:
+            raise ValueError(f"No auth config found for app: {app_name}")
+            
+        request = self.composio.connected_accounts.initiate(
+            user_id=user_id,
+            auth_config_id=config_id,
+            callback_url=callback_url
+        )
+        
+        return request.redirectUrl
+
+    def get_connection_status(self, app_name: str, user_id: str) -> bool:
+        """
+        Check if a user has an active connection for the given app.
+        
+        Args:
+            app_name: Name of the app (e.g., 'slack', 'linear')
+            user_id: The user ID to check
+            
+        Returns:
+            True if connected, False otherwise
+        """
+        accounts = self.composio.connected_accounts.list(
+            user_id=user_id,
+            app_names=[app_name.lower()]
+        )
+        
+        for account in accounts.items:
+            if account.status == "ACTIVE":
+                return True
+        return False
+
     def fetch_tools(self, user_id: str, slugs: List[str]):
         """
         Fetch Composio tools for the given user and action slugs.

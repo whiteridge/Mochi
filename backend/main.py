@@ -63,6 +63,32 @@ async def chat_endpoint(request: ChatRequest):
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
+@app.get("/api/v1/integrations/connect/{app_name}")
+async def get_connect_url(app_name: str, user_id: str):
+    """Get the Composio authorization URL for the specified app."""
+    if not agent_service:
+        raise HTTPException(status_code=500, detail="Agent service not initialized")
+        
+    try:
+        # We can pass a callback_url if we want the user to be redirected back 
+        # to a web page or deep link. For now, we'll let Composio use its default.
+        url = agent_service.composio_service.get_auth_url(app_name, user_id)
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/v1/integrations/status/{app_name}")
+async def get_integration_status(app_name: str, user_id: str):
+    """Check if the user is connected to the specified app via Composio."""
+    if not agent_service:
+        raise HTTPException(status_code=500, detail="Agent service not initialized")
+        
+    try:
+        is_connected = agent_service.composio_service.get_connection_status(app_name, user_id)
+        return {"connected": is_connected}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
