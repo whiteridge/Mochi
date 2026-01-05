@@ -9,7 +9,9 @@ struct StatusPillView: View {
         var appName: String? {
             switch self {
             case .thinking: return "thinking"
-            case .searching(let app): return app
+            case .searching(let app): 
+                // "Action" is an internal ID, display as "Conductor" or generic
+                return app.lowercased() == "action" ? "Conductor" : app
             case .transcribing: return nil
             }
         }
@@ -25,7 +27,6 @@ struct StatusPillView: View {
     
     let status: Status
     var isCompact: Bool = false
-    @Namespace private var animation
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
@@ -52,6 +53,8 @@ struct StatusPillView: View {
             return "globe"
         case "thinking":
             return "brain"
+        case "conductor":
+            return "command"
         default:
             return "waveform"
         }
@@ -106,10 +109,11 @@ struct StatusPillView: View {
                 
                 // App name for searching
                 if case .searching(let app) = status, !isCompact {
-                    Text(" \(app)")
+                    // Use resolved app name
+                    Text(" \(status.appName ?? app)")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
-                        .id(app)
+                        .id(status.appName ?? app)
                         .transition(.asymmetric(
                             insertion: .move(edge: .top).combined(with: .opacity),
                             removal: .move(edge: .bottom).combined(with: .opacity)
@@ -121,7 +125,6 @@ struct StatusPillView: View {
                     BouncingDotsView()
                         .padding(.leading, 2)
                         .offset(y: 1)
-                        .transition(.opacity)
                 }
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: status)
@@ -140,7 +143,6 @@ struct StatusPillView: View {
     }
 }
 
-// Added back for backward compatibility if needed, though we'll update callers
 extension StatusPillView {
     init(text: String, appName: String?, isCompact: Bool = false) {
         let status: Status
@@ -151,7 +153,7 @@ extension StatusPillView {
         } else if let app = appName {
             status = .searching(app: app)
         } else {
-            status = .searching(app: text) // Fallback
+            status = .searching(app: text)
         }
         self.init(status: status, isCompact: isCompact)
     }
@@ -177,6 +179,10 @@ struct BouncingDotsView: View {
         }
         .onAppear {
             isAnimating = true
+        }
+        // Force animation restart if view reappears
+        .onChange(of: isAnimating) { _, newValue in
+            if !newValue { isAnimating = true }
         }
     }
 }
