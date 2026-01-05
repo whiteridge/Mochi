@@ -148,10 +148,13 @@ extension AgentViewModel {
                             hasInsertedActionSummary = true
                             isTypewriterActive = true
                             
-                            // Clear any status so message area is clean
+                            // DON'T clear status - smoothly transition from "Thinking" to "Searching {app}"
+                            // The StatusPillView will animate the text change
+                            let formattedAppName = appId.capitalized
                             await MainActor.run {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    currentStatus = nil
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    // Slide from "Thinking" to "Searching {app}" - pill stays visible
+                                    currentStatus = .searching(appName: formattedAppName)
                                     isThinking = false
                                 }
                             }
@@ -169,15 +172,20 @@ extension AgentViewModel {
                                 ))
                                 typewriterText = ""
                                 isTypewriterActive = false
-                                
-                                // Show status pill after typewriter completes
-                                let formattedAppName = appId.capitalized
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    currentStatus = .searching(appName: formattedAppName)
-                                }
                             }
                         }
                     }
+                    
+                case .thinking:
+                     if let content = event.content?.value as? String {
+                         await MainActor.run {
+                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                 // Clean up content if needed
+                                 let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                                 currentStatus = .thinking(text: text)
+                             }
+                         }
+                     }
                     
                 case .toolStatus:
                     if let toolName = event.tool, let status = event.status {
@@ -272,10 +280,19 @@ extension AgentViewModel {
                     
                 case .message:
                     if let content = event.content?.value as? String {
+                        // Check if this is a text-only response (no tool was called)
+                        let isTextOnlyResponse = appSteps.isEmpty && !hasInsertedActionSummary
+                        
                         await MainActor.run {
                             isThinking = false
                             activeTool = nil // Clear tool status
-                            currentStatus = nil // Clear status on message
+                            
+                            // For text-only responses, fade out the thinking pill smoothly
+                            if isTextOnlyResponse {
+                                withAnimation(.easeOut(duration: 0.35)) {
+                                    currentStatus = nil
+                                }
+                            }
                         }
                         
                         // Progressive typewriter effect for assistant response
@@ -286,6 +303,13 @@ extension AgentViewModel {
                         await MainActor.run {
                             messages.append(ChatMessage(role: .assistant, content: trimmedContent))
                             typewriterText = ""
+                            
+                            // Clear status after message is shown (for non-text-only responses)
+                            if !isTextOnlyResponse {
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    currentStatus = nil
+                                }
+                            }
                             
                             let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
                             isExecutingAction = false

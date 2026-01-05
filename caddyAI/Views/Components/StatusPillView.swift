@@ -23,6 +23,15 @@ struct StatusPillView: View {
             case .transcribing: return "Transcribing"
             }
         }
+        
+        /// Unique key for animating between states
+        var animationKey: String {
+            switch self {
+            case .thinking: return "thinking"
+            case .searching(let app): return "searching-\(app)"
+            case .transcribing: return "transcribing"
+            }
+        }
     }
     
     let status: Status
@@ -67,6 +76,15 @@ struct StatusPillView: View {
         }
         return status.displayPrefix
     }
+    
+    // The text that appears after the prefix (app name for searching)
+    private var suffixText: String? {
+        if isCompact { return nil }
+        if case .searching(let app) = status {
+            return " \(status.appName ?? app)"
+        }
+        return nil
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -89,46 +107,45 @@ struct StatusPillView: View {
                             .foregroundStyle(.white)
                     }
                 }
+                .transition(.scale.combined(with: .opacity))
                 .id(status.appName ?? "none") // Animate icon change
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: status.appName)
             
-            // Text area
-            HStack(spacing: 0) {
-                if !isCompact {
+            // Text area with smooth sliding transitions
+            if !isCompact {
+                HStack(spacing: 0) {
+                    // Prefix text (Thinking / Searching / Transcribing)
                     Text(displayText)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .id(displayText) // Trigger transition when text changes
+                        .id("prefix-\(displayText)") // Trigger transition when text changes
                         .transition(.asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal: .move(edge: .bottom).combined(with: .opacity)
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
                         ))
-                }
-                
-                // App name for searching
-                if case .searching(let app) = status, !isCompact {
-                    // Use resolved app name
-                    Text(" \(status.appName ?? app)")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .id(status.appName ?? app)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal: .move(edge: .bottom).combined(with: .opacity)
-                        ))
-                }
-                
-                // Bouncing dots
-                if !isCompact {
+                    
+                    // Suffix text (app name for searching) - slides in from right
+                    if let suffix = suffixText {
+                        Text(suffix)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .id("suffix-\(suffix)")
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
+                    }
+                    
+                    // Bouncing dots
                     BouncingDotsView()
                         .padding(.leading, 2)
                         .offset(y: 1)
                 }
+                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: status.animationKey)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: status)
-            .animation(.easeInOut(duration: 0.3), value: isCompact)
         }
         .padding(.leading, 5)
         .padding(.trailing, 14)
@@ -140,6 +157,7 @@ struct StatusPillView: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .animation(.easeInOut(duration: 0.3), value: isCompact)
     }
 }
 
