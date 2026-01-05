@@ -16,7 +16,7 @@ struct ToolStatus: Equatable {
 }
 
 public enum AgentStatus: Equatable, Identifiable {
-    case thinking
+    case thinking(text: String = "Thinking...")
     case transcribing
     case searching(appName: String)
 
@@ -33,8 +33,8 @@ public enum AgentStatus: Equatable, Identifiable {
 
     var labelText: String {
         switch self {
-        case .thinking:
-            return "Thinking..."
+        case .thinking(let text):
+            return text
         case .transcribing:
             return "Transcribing..."
         case .searching(let appName):
@@ -45,6 +45,8 @@ public enum AgentStatus: Equatable, Identifiable {
     /// App name for icon display (nil for non-app-specific statuses)
     var appName: String? {
         switch self {
+        case .thinking:
+            return "thinking"
         case .searching(let name):
             return name
         default:

@@ -28,7 +28,7 @@ class AgentDispatcher:
             print(f"DEBUG: Sending user input to Gemini: {user_input[:100]}...")
             response = chat.send_message(user_input)
 
-            # DEBUG: Log function calls in response
+            # DEBUG: Log function calls and thoughts in response
             if hasattr(response, "candidates") and response.candidates:
                 candidate = response.candidates[0]
                 if hasattr(candidate, "content") and candidate.content is not None:
@@ -36,6 +36,12 @@ class AgentDispatcher:
                         for part in candidate.content.parts:
                             if hasattr(part, "function_call") and part.function_call:
                                 print(f"DEBUG: Gemini calling tool: {part.function_call.name}", flush=True)
+                            if hasattr(part, "thought") and part.thought:
+                                print(f"DEBUG: Gemini Thought: {part.thought}", flush=True)
+                                yield {
+                                    "type": "thinking",
+                                    "content": part.thought,
+                                }
 
             action_performed = None
 

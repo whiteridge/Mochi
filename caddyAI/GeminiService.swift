@@ -55,10 +55,9 @@ class GeminiService: ObservableObject {
 			return
 		}
 		
-		// Initialize the model with gemini-2.5-flash-lite (cost-effective, good quota limits)
-		// Note: If you get a "Not Found" error due to regional rollout, fallback to "gemini-1.5-flash"
+		// Initialize the model with gemini-3-flash-preview
 		model = GenerativeModel(
-			name: "gemini-2.5-flash-lite",
+			name: "gemini-3-flash-preview",
 			apiKey: apiKey,
 			systemInstruction: ModelContent(role: "system", parts: systemInstruction)
 		)

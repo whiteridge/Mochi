@@ -79,8 +79,9 @@ struct ChatHistoryView: View {
                                         activeAppId: proposal?.appId ?? currentStatus?.appName?.lowercased()
                                     )
                                     .zIndex(2)
-                                } else {
+                                } else if currentStatus != nil || proposal != nil {
                                     // Single app - use existing StatusPillView
+                                    // Only show when we actually have a status or proposal
                                     let pillStatus: StatusPillView.Status = {
                                         if let status = currentStatus {
                                             switch status {
@@ -114,6 +115,11 @@ struct ChatHistoryView: View {
                                         }
                                     )
                                     .zIndex(2)
+                                    // Slide in from left (like input bubble), fade out when cleared
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .leading).combined(with: .opacity),
+                                        removal: .opacity
+                                    ))
                                 }
                                 
                                 Spacer()
@@ -142,7 +148,11 @@ struct ChatHistoryView: View {
                             }
                         }
                         .padding(.leading, 4)
-                        .transition(.opacity)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentStatus != nil)
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")

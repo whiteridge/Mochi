@@ -26,7 +26,7 @@ Enforce the 2/3 screen height limit and implement smart auto-scrolling.
 - [ ] Task: Conductor - User Manual Verification 'Chat UI Height Constraint' (Protocol in workflow.md)
 
 ## Phase 3: Verification & Polish
-- [ ] Task: Manual Verification of Animation and Height Cap
+- [~] Task: Manual Verification of Animation and Height Cap
     - [ ] Subtask: Verify smooth transition from Thinking to Searching.
     - [ ] Subtask: Verify window stops growing at 2/3 screen height.
     - [ ] Subtask: Verify auto-scroll follows generation and pauses on manual scroll.
