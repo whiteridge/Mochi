@@ -21,6 +21,7 @@ struct ChatHistoryView: View {
     let animation: Namespace.ID
     
     @Namespace private var statusPillAnimation
+    @State private var shouldAutoScroll = true
     
     // Helper to determine if a message should be visible when proposal is active
     private func shouldShowMessage(_ message: ChatMessage) -> Bool {
@@ -80,9 +81,20 @@ struct ChatHistoryView: View {
                                     .zIndex(2)
                                 } else {
                                     // Single app - use existing StatusPillView
+                                    let pillStatus: StatusPillView.Status = {
+                                        if let status = currentStatus {
+                                            switch status {
+                                            case .thinking: return .thinking
+                                            case .transcribing: return .transcribing
+                                            case .searching(let app): return .searching(app: app)
+                                            }
+                                        } else {
+                                            return .searching(app: viewModel.activeToolDisplayName)
+                                        }
+                                    }()
+                                    
                                     StatusPillView(
-                                        text: currentStatus?.labelText ?? "",
-                                        appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
+                                        status: pillStatus,
                                         isCompact: proposal != nil
                                     )
                                     .background(
@@ -144,6 +156,15 @@ struct ChatHistoryView: View {
             }
             .scrollContentBackground(.hidden)
             .clipped() // Ensure content is clipped at container bounds
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                // Detect if user is near the bottom to enable/disable auto-scroll
+                let distanceFromBottom = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
+                return distanceFromBottom < 50
+            } action: { _, isAtBottom in
+                if shouldAutoScroll != isAtBottom {
+                    shouldAutoScroll = isAtBottom
+                }
+            }
             .onChange(of: proposal) { _, newValue in
                 if newValue != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -154,12 +175,17 @@ struct ChatHistoryView: View {
                 }
             }
             .onChange(of: messages.count) { _, _ in
-                withAnimation {
+                if shouldAutoScroll {
+                    withAnimation {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: typewriterText) { _, _ in
+                if shouldAutoScroll && !typewriterText.isEmpty {
                     proxy.scrollTo("bottomAnchor", anchor: .bottom)
                 }
             }
         }
     }
 }
-
-

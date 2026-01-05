@@ -120,7 +120,7 @@ fileprivate extension VoiceChatBubble {
             .frame(
                 height: min(
                     max(scrollContentHeight, 0),
-                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.92) - inputContentHeight
+                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.66) - inputContentHeight
                 )
             )
             .layoutPriority(1)

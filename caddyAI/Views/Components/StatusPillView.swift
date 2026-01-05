@@ -1,14 +1,35 @@
 import SwiftUI
 
 struct StatusPillView: View {
-    let text: String
-    let appName: String?  // Optional app name for dynamic icon
-    var isCompact: Bool = false  // When true, shows just app name (no "Searching", no dots)
+    enum Status: Equatable {
+        case thinking
+        case searching(app: String)
+        case transcribing
+        
+        var appName: String? {
+            switch self {
+            case .thinking: return "thinking"
+            case .searching(let app): return app
+            case .transcribing: return nil
+            }
+        }
+        
+        var displayPrefix: String {
+            switch self {
+            case .thinking: return "Thinking"
+            case .searching: return "Searching"
+            case .transcribing: return "Transcribing"
+            }
+        }
+    }
+    
+    let status: Status
+    var isCompact: Bool = false
     @Namespace private var animation
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
-        guard let app = appName?.lowercased() else { return nil }
+        guard let app = status.appName?.lowercased() else { return nil }
         switch app {
         case "linear":
             return "linear-icon"
@@ -21,7 +42,7 @@ struct StatusPillView: View {
     
     // Fallback SF Symbol for apps without custom icons
     private var sfSymbolName: String {
-        guard let app = appName?.lowercased() else { return "waveform" }
+        guard let app = status.appName?.lowercased() else { return "waveform" }
         switch app {
         case "github":
             return "chevron.left.forwardslash.chevron.right"
@@ -29,6 +50,8 @@ struct StatusPillView: View {
             return "doc.text"
         case "google":
             return "globe"
+        case "thinking":
+            return "brain"
         default:
             return "waveform"
         }
@@ -36,10 +59,10 @@ struct StatusPillView: View {
     
     // Display text - just app name when compact, full text otherwise
     private var displayText: String {
-        if isCompact, let app = appName {
+        if isCompact, let app = status.appName {
             return app
         }
-        return text.replacingOccurrences(of: "...", with: "")
+        return status.displayPrefix
     }
 
     var body: some View {
@@ -56,36 +79,44 @@ struct StatusPillView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 20, height: 20)
-                            .clipShape(Circle()) // Clip to circle, hides square edges
+                            .clipShape(Circle())
                     } else {
                         Image(systemName: sfSymbolName)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white)
                     }
                 }
+                .id(status.appName ?? "none") // Animate icon change
             }
             
-            // Text area - "Searching" prefix animates separately from app name
+            // Text area
             HStack(spacing: 0) {
-                // "Searching " prefix - slides up and fades when compact
                 if !isCompact {
-                    Text("Searching ")
+                    Text(displayText)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .id(displayText) // Trigger transition when text changes
                         .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .opacity)
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
                         ))
                 }
                 
-                // App name - stays in place
-                if let app = appName {
-                    Text(app)
+                // App name for searching
+                if case .searching(let app) = status, !isCompact {
+                    Text(" \(app)")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
+                        .id(app)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
                 }
                 
-                // Bouncing dots - fade out when compact
+                // Bouncing dots
                 if !isCompact {
                     BouncingDotsView()
                         .padding(.leading, 2)
@@ -93,6 +124,7 @@ struct StatusPillView: View {
                         .transition(.opacity)
                 }
             }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: status)
             .animation(.easeInOut(duration: 0.3), value: isCompact)
         }
         .padding(.leading, 5)
@@ -105,6 +137,23 @@ struct StatusPillView: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+}
+
+// Added back for backward compatibility if needed, though we'll update callers
+extension StatusPillView {
+    init(text: String, appName: String?, isCompact: Bool = false) {
+        let status: Status
+        if text.lowercased().contains("thinking") || appName?.lowercased() == "thinking" {
+            status = .thinking
+        } else if text.lowercased().contains("transcribing") {
+            status = .transcribing
+        } else if let app = appName {
+            status = .searching(app: app)
+        } else {
+            status = .searching(app: text) // Fallback
+        }
+        self.init(status: status, isCompact: isCompact)
     }
 }
 

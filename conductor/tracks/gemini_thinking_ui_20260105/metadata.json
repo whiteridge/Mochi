@@ -1,0 +1,8 @@
+{
+  "track_id": "gemini_thinking_ui_20260105",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-05T12:00:00Z",
+  "updated_at": "2026-01-05T12:00:00Z",
+  "description": "Add a thinking pill status for Gemini 3 Flash Thinking and cap chat UI height to 2/3 of screen."
+}
