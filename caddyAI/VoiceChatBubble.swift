@@ -265,7 +265,7 @@ private extension VoiceChatBubble {
                 
                 await MainActor.run {
                     viewModel.errorMessage = nil
-                    viewModel.processInput(text: transcript)
+                    viewModel.processInputWithThinking(text: transcript)
                 }
             } catch {
                 logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
@@ -279,7 +279,7 @@ private extension VoiceChatBubble {
     }
 
     func sendManualMessage() {
-        viewModel.processInput(text: viewModel.userInput)
+        viewModel.processInputWithThinking(text: viewModel.userInput)
     }
 
     func resetConversation(animate: Bool = true) {
