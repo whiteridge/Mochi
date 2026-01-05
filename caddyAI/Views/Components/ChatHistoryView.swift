@@ -88,6 +88,8 @@ struct ChatHistoryView: View {
                                             case .transcribing: return .transcribing
                                             case .searching(let app): return .searching(app: app)
                                             }
+                                        } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
+                                            return .searching(app: activeStep.appId.capitalized)
                                         } else {
                                             return .searching(app: viewModel.activeToolDisplayName)
                                         }
@@ -140,6 +142,7 @@ struct ChatHistoryView: View {
                             }
                         }
                         .padding(.leading, 4)
+                        .transition(.opacity)
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")
