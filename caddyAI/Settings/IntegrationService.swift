@@ -1,7 +1,7 @@
 import Foundation
 
 enum IntegrationKind: String, CaseIterable, Identifiable {
-	case slack, linear
+	case slack, linear, notion
 	var id: String { rawValue }
 	var displayName: String { rawValue.capitalized }
 }
@@ -123,6 +123,7 @@ struct LinearProject: Identifiable, Hashable {
 final class IntegrationService: ObservableObject {
 	@Published private(set) var slackState: IntegrationState = .disconnected
 	@Published private(set) var linearState: IntegrationState = .disconnected
+	@Published private(set) var notionState: IntegrationState = .disconnected
 	@Published private(set) var slackWorkspaces: [SlackWorkspace] = []
 	@Published private(set) var slackChannels: [SlackChannel] = []
 	@Published private(set) var linearTeams: [LinearTeam] = []
@@ -145,6 +146,7 @@ final class IntegrationService: ObservableObject {
 		let states = core.loadPersistedStates()
 		slackState = states.slack
 		linearState = states.linear
+		notionState = .disconnected
 	}
 	
 	func fetchComposioConnectURL(for appName: String) async throws -> URL {
@@ -177,6 +179,8 @@ final class IntegrationService: ObservableObject {
 						self.slackState = newState
 					} else if appName.lowercased() == "linear" {
 						self.linearState = newState
+					} else if appName.lowercased() == "notion" {
+						self.notionState = newState
 					}
 				}
 			} catch {
@@ -205,6 +209,7 @@ final class IntegrationService: ObservableObject {
 		let states = core.resetAll()
 		slackState = states.slack
 		linearState = states.linear
+		notionState = .disconnected
 	}
 	
 	// MARK: - Metadata placeholders (empty until real API wired)
@@ -226,5 +231,4 @@ struct ConnectURLResponse: Codable {
 struct StatusResponse: Codable {
 	let connected: Bool
 }
-
 

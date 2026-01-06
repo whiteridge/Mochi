@@ -3,9 +3,14 @@
 from typing import List, Tuple
 
 
-def load_composio_tools(linear_service, slack_service, user_id: str) -> Tuple[List, List[str]]:
+def load_composio_tools(
+    linear_service,
+    slack_service,
+    notion_service,
+    user_id: str,
+) -> Tuple[List, List[str]]:
     """
-    Load Linear and Slack tools, collecting any errors.
+    Load Linear, Slack, and Notion tools, collecting any errors.
 
     Returns:
         (tools, errors)
@@ -31,6 +36,14 @@ def load_composio_tools(linear_service, slack_service, user_id: str) -> Tuple[Li
         print(f"DEBUG: Error fetching Slack tools: {exc}")
         errors.append(f"Slack: {str(exc)}")
 
-    return all_composio_tools, errors
+    try:
+        notion_tools = notion_service.load_tools(user_id=user_id)
+        if notion_tools:
+            all_composio_tools.extend(notion_tools)
+            print(f"DEBUG: Loaded {len(notion_tools)} Notion tools")
+    except Exception as exc:  # noqa: BLE001 - surfaced to caller via errors list
+        print(f"DEBUG: Error fetching Notion tools: {exc}")
+        errors.append(f"Notion: {str(exc)}")
 
+    return all_composio_tools, errors
 

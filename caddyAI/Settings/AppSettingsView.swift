@@ -260,6 +260,20 @@ private struct IntegrationsSettingsView: View {
 					.font(.subheadline)
 					.foregroundStyle(.secondary)
 				}
+
+				IntegrationCard(
+					title: "Notion",
+					description: "Connect Notion to search databases and draft pages from caddyAI.",
+					state: integrationService.notionState,
+					connectAction: nil,
+					disconnectAction: nil,
+					composioAction: { viewModel.connectViaComposio(appName: "notion") },
+					refreshAction: { viewModel.refreshStatus(appName: "notion") }
+				) {
+					Text("Notion uses Composio OAuth to grant access.")
+						.font(.subheadline)
+						.foregroundStyle(.secondary)
+				}
 			}
 			.padding(24)
 		}
@@ -326,8 +340,8 @@ private struct IntegrationCard<Content: View>: View {
 	let title: String
 	let description: String
 	let state: IntegrationState
-	let connectAction: () -> Void
-	let disconnectAction: () -> Void
+	let connectAction: (() -> Void)?
+	let disconnectAction: (() -> Void)?
 	let composioAction: () -> Void
 	let refreshAction: () -> Void
 	@ViewBuilder let content: Content
@@ -368,17 +382,21 @@ private struct IntegrationCard<Content: View>: View {
 				.buttonStyle(.borderedProminent)
 				.disabled(state.isConnected)
 				
-				Button("Manual Connect") {
-					connectAction()
+				if let connectAction {
+					Button("Manual Connect") {
+						connectAction()
+					}
+					.buttonStyle(.bordered)
+					.disabled(state.isConnected)
 				}
-				.buttonStyle(.bordered)
-				.disabled(state.isConnected)
 				
-				Button("Disconnect", role: .destructive) {
-					disconnectAction()
+				if let disconnectAction {
+					Button("Disconnect", role: .destructive) {
+						disconnectAction()
+					}
+					.buttonStyle(.bordered)
+					.disabled(!state.isConnected)
 				}
-				.buttonStyle(.bordered)
-				.disabled(!state.isConnected)
 				
 				Spacer()
 			}
@@ -439,4 +457,3 @@ private struct StatusLabel: View {
 		}
 	}
 }
-
