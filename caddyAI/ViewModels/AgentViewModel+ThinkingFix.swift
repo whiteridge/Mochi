@@ -23,6 +23,7 @@ extension AgentViewModel {
             // FIX: Show thinking status immediately for responsiveness
             isThinking = true
             currentStatus = .thinking()
+            showStatusPill = true  // Show the pill when processing starts
             
             errorMessage = nil
             activeTool = nil

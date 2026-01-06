@@ -85,6 +85,7 @@ class AgentViewModel: ObservableObject {
         }
     }
     @Published var currentStatus: AgentStatus? = nil
+    @Published var showStatusPill: Bool = false  // Controls pill visibility independently of currentStatus
     @Published var activeTool: ToolStatus?
     @Published var proposal: ProposalData? = nil
     @Published var proposalQueue: [ProposalData] = []  // Multi-app proposal queue
@@ -157,6 +158,7 @@ class AgentViewModel: ObservableObject {
             // Don't show thinking status immediately - wait for tool events or response
             isThinking = false
             currentStatus = nil
+            showStatusPill = false
             errorMessage = nil
             activeTool = nil
             proposal = nil // Clear any previous proposal
@@ -211,6 +213,7 @@ class AgentViewModel: ObservableObject {
         userInput = ""
         isThinking = false
         currentStatus = nil
+        showStatusPill = false
         isExecutingAction = false
         errorMessage = nil
         proposal = nil

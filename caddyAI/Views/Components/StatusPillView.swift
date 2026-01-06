@@ -24,12 +24,14 @@ struct StatusPillView: View {
             }
         }
         
-        /// Unique key for animating between states
-        var animationKey: String {
+        /// Full display text for the status
+        var fullDisplayText: String {
             switch self {
-            case .thinking: return "thinking"
-            case .searching(let app): return "searching-\(app)"
-            case .transcribing: return "transcribing"
+            case .thinking: return "Thinking"
+            case .searching(let app):
+                let displayApp = app.lowercased() == "action" ? "Conductor" : app
+                return "Searching \(displayApp)"
+            case .transcribing: return "Transcribing"
             }
         }
     }
@@ -69,25 +71,17 @@ struct StatusPillView: View {
         }
     }
     
-    // Display text - just app name when compact, full text otherwise
-    private var displayText: String {
-        if isCompact, let app = status.appName {
-            return app
-        }
-        return status.displayPrefix
-    }
-    
-    // The text that appears after the prefix (app name for searching)
-    private var suffixText: String? {
-        if isCompact { return nil }
-        if case .searching(let app) = status {
-            return " \(status.appName ?? app)"
+    // Compact mode shows just the app name (e.g., "Linear")
+    private var compactText: String? {
+        guard isCompact else { return nil }
+        if case .searching = status {
+            return status.appName?.capitalized
         }
         return nil
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: isCompact ? 8 : 10) {
             // Circular icon at left edge
             ZStack {
                 Circle()
@@ -107,48 +101,33 @@ struct StatusPillView: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .transition(.scale.combined(with: .opacity))
-                .id(status.appName ?? "none") // Animate icon change
+                .contentTransition(.symbolEffect(.replace))
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: status.appName)
             
-            // Text area with smooth sliding transitions
-            if !isCompact {
-                HStack(spacing: 0) {
-                    // Prefix text (Thinking / Searching / Transcribing)
-                    Text(displayText)
+            // Compact mode: show app name only
+            if isCompact {
+                if let compactName = compactText {
+                    Text(compactName)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .truncationMode(.tail)
-                        .id("prefix-\(displayText)") // Trigger transition when text changes
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        ))
-                    
-                    // Suffix text (app name for searching) - slides in from right
-                    if let suffix = suffixText {
-                        Text(suffix)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .id("suffix-\(suffix)")
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .trailing).combined(with: .opacity),
-                                removal: .move(edge: .leading).combined(with: .opacity)
-                            ))
-                    }
-                    
-                    // Bouncing dots
-                    BouncingDotsView()
-                        .padding(.leading, 2)
-                        .offset(y: 1)
                 }
-                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: status.animationKey)
+            } else {
+                // Full mode: show status text with smooth transitions + bouncing dots
+                Text(status.fullDisplayText)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
+                    // Slower animation - response 0.6 instead of 0.4
+                    .animation(.spring(response: 0.6, dampingFraction: 0.75), value: status.fullDisplayText)
+                
+                // Bouncing dots using TimelineView - always animates
+                ContinuousBouncingDotsView()
             }
         }
         .padding(.leading, 5)
-        .padding(.trailing, 14)
+        .padding(.trailing, isCompact ? 12 : 14)
         .padding(.vertical, 5)
         .background(GlassBackground(cornerRadius: 20))
         .clipShape(Capsule())
@@ -157,6 +136,7 @@ struct StatusPillView: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
         .animation(.easeInOut(duration: 0.3), value: isCompact)
     }
 }
@@ -177,30 +157,46 @@ extension StatusPillView {
     }
 }
 
-struct BouncingDotsView: View {
-    @State private var isAnimating = false
-    
+// MARK: - Continuous Bouncing Dots using TimelineView
+
+/// Bouncing dots that use TimelineView for continuous animation regardless of view updates
+struct ContinuousBouncingDotsView: View {
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3) { index in
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 3, height: 3)
-                    .offset(y: isAnimating ? -3 : 0)
-                    .animation(
-                        Animation.easeInOut(duration: 0.4)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.15),
-                        value: isAnimating
-                    )
+        TimelineView(.animation(minimumInterval: 0.016)) { timeline in
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { index in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    // Each dot has a phase offset
+                    let phase = time + Double(index) * 0.15
+                    // Oscillate between 0 and 1 with period of 0.8 seconds (0.4 up, 0.4 down)
+                    let normalizedPhase = phase.truncatingRemainder(dividingBy: 0.8) / 0.8
+                    // Convert to smooth sine wave bounce
+                    let bounce = sin(normalizedPhase * .pi)
+                    
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 3, height: 3)
+                        .offset(y: -3 * bounce)
+                }
             }
+            .offset(y: 1)
         }
-        .onAppear {
-            isAnimating = true
-        }
-        // Force animation restart if view reappears
-        .onChange(of: isAnimating) { _, newValue in
-            if !newValue { isAnimating = true }
-        }
+    }
+}
+
+// Legacy support
+struct BouncingDotsView: View, Equatable {
+    var body: some View {
+        ContinuousBouncingDotsView()
+    }
+    
+    static func == (lhs: BouncingDotsView, rhs: BouncingDotsView) -> Bool {
+        true
+    }
+}
+
+struct PersistentBouncingDotsView: View {
+    var body: some View {
+        ContinuousBouncingDotsView()
     }
 }

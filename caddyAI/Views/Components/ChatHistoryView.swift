@@ -68,8 +68,9 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    // Status Pills - use multi-pill view when multiple apps involved
-                    if currentStatus != nil || proposal != nil || !viewModel.appSteps.isEmpty {
+                    // Status Pills - use showStatusPill flag to control visibility independently
+                    // This keeps the pill mounted so text can animate smoothly
+                    if viewModel.showStatusPill || proposal != nil || viewModel.appSteps.count > 1 {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack {
                                 // Use MultiStatusPillView when multiple apps are tracked
@@ -79,9 +80,9 @@ struct ChatHistoryView: View {
                                         activeAppId: proposal?.appId ?? currentStatus?.appName?.lowercased()
                                     )
                                     .zIndex(2)
-                                } else if currentStatus != nil || proposal != nil {
-                                    // Single app - use existing StatusPillView
-                                    // Only show when we actually have a status or proposal
+                                } else {
+                                    // Single app - use StatusPillView
+                                    // Compute the status to display
                                     let pillStatus: StatusPillView.Status = {
                                         if let status = currentStatus {
                                             switch status {
@@ -92,7 +93,7 @@ struct ChatHistoryView: View {
                                         } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
                                             return .searching(app: activeStep.appId.capitalized)
                                         } else {
-                                            return .searching(app: viewModel.activeToolDisplayName)
+                                            return .thinking  // Default fallback
                                         }
                                     }()
                                     
@@ -100,6 +101,7 @@ struct ChatHistoryView: View {
                                         status: pillStatus,
                                         isCompact: proposal != nil
                                     )
+                                    // NO .id() - keep stable view identity for smooth animations
                                     .background(
                                         Group {
                                             if proposal != nil {
@@ -115,11 +117,6 @@ struct ChatHistoryView: View {
                                         }
                                     )
                                     .zIndex(2)
-                                    // Slide in from left (like input bubble), fade out when cleared
-                                    .transition(.asymmetric(
-                                        insertion: .move(edge: .leading).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
                                 }
                                 
                                 Spacer()
@@ -152,7 +149,6 @@ struct ChatHistoryView: View {
                             insertion: .move(edge: .leading).combined(with: .opacity),
                             removal: .opacity
                         ))
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: currentStatus != nil)
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")

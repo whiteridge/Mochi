@@ -45,7 +45,7 @@ extension AgentViewModel {
                     }
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
                         self.proposal = nil
-                        currentStatus = nil
+                        showStatusPill = false  // Hide pill when operation completes
                         activeTool = nil
                     }
                     Task { @MainActor in
@@ -79,7 +79,7 @@ extension AgentViewModel {
                         proposal = nil
                         proposalQueue.removeAll()
                         currentProposalIndex = 0
-                        currentStatus = nil
+                        showStatusPill = false  // Hide pill when operation completes
                         activeTool = nil
                         
                         // Clear proposal-related message flags
@@ -155,6 +155,7 @@ extension AgentViewModel {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                     // Slide from "Thinking" to "Searching {app}" - pill stays visible
                                     currentStatus = .searching(appName: formattedAppName)
+                                    showStatusPill = true  // Keep pill visible
                                     isThinking = false
                                 }
                             }
@@ -183,6 +184,7 @@ extension AgentViewModel {
                                  // Clean up content if needed
                                  let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
                                  currentStatus = .thinking(text: text)
+                                 showStatusPill = true  // Show pill when thinking starts
                              }
                          }
                      }
@@ -200,8 +202,10 @@ extension AgentViewModel {
                             hasInsertedActionSummary = true
                             
                             await MainActor.run {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    currentStatus = nil
+                                // DON'T clear status - smoothly transition from "Thinking" to "Searching {app}"
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    currentStatus = .searching(appName: appName)
+                                    showStatusPill = true  // Ensure pill stays visible
                                     isThinking = false
                                 }
                                 
@@ -229,17 +233,18 @@ extension AgentViewModel {
                                         appSteps[index].state = .searching
                                         activeTool = ToolStatus(name: toolName, status: status)
                                         currentStatus = .searching(appName: appName)
+                                        // Don't set showStatusPill = false, keep it visible
                                     case "done":
                                         appSteps[index].state = .waiting
+                                        // Don't clear currentStatus - keep pill visible, just update state
+                                        // Transition to thinking if we're waiting for next step
                                         if currentStatus == .searching(appName: appName) {
-                                            currentStatus = nil
+                                            currentStatus = .thinking(text: "Processing...")
                                         }
                                         activeTool = nil
                                     case "error":
                                         appSteps[index].state = .error
-                                        if currentStatus == .searching(appName: appName) {
-                                            currentStatus = nil
-                                        }
+                                        // Don't clear currentStatus immediately
                                         activeTool = nil
                                         errorMessage = "Encountered an error with \(appName)."
                                     default:
@@ -286,13 +291,6 @@ extension AgentViewModel {
                         await MainActor.run {
                             isThinking = false
                             activeTool = nil // Clear tool status
-                            
-                            // For text-only responses, fade out the thinking pill smoothly
-                            if isTextOnlyResponse {
-                                withAnimation(.easeOut(duration: 0.35)) {
-                                    currentStatus = nil
-                                }
-                            }
                         }
                         
                         // Progressive typewriter effect for assistant response
@@ -304,11 +302,9 @@ extension AgentViewModel {
                             messages.append(ChatMessage(role: .assistant, content: trimmedContent))
                             typewriterText = ""
                             
-                            // Clear status after message is shown (for non-text-only responses)
-                            if !isTextOnlyResponse {
-                                withAnimation(.easeOut(duration: 0.25)) {
-                                    currentStatus = nil
-                                }
+                            // Hide the pill when operation completes
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                showStatusPill = false
                             }
                             
                             let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
@@ -344,7 +340,9 @@ extension AgentViewModel {
             // Fallback: if stream ends without yielding proposals/messages, clear waiting UI
             if !didReceiveEvent || (proposalQueue.isEmpty && proposal == nil) {
                 await MainActor.run {
-                    currentStatus = nil
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        showStatusPill = false  // Hide pill
+                    }
                     activeTool = nil
                     isThinking = false
                     isExecutingAction = false
@@ -413,7 +411,7 @@ extension AgentViewModel {
         currentProposalIndex = 0
         
         isThinking = false
-        currentStatus = nil
+        showStatusPill = false  // Hide pill on error
         isExecutingAction = false // Reset on error
         activeTool = nil
         if let code = statusCode, (code == 429 || code == 503) {
