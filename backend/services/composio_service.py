@@ -109,17 +109,21 @@ class ComposioService:
             True if connected, False otherwise
         """
         app_slug = app_name.lower()
+        toolkit_slug_filters = [app_slug]
+        app_slug_upper = app_slug.upper()
+        if app_slug_upper != app_slug:
+            toolkit_slug_filters.append(app_slug_upper)
         try:
             accounts = self.composio.connected_accounts.list(
                 user_ids=[user_id],
-                toolkit_slugs=[app_slug],
+                toolkit_slugs=toolkit_slug_filters,
             )
         except TypeError as exc:
             if "unexpected keyword argument" not in str(exc):
                 raise
             accounts = self.composio.connected_accounts.list(
                 user_id=user_id,
-                app_names=[app_slug],
+                app_names=toolkit_slug_filters,
             )
 
         items: List[Any] = []
@@ -149,7 +153,11 @@ class ComposioService:
                 else:
                     toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
 
-            if toolkit_slug and toolkit_slug != app_slug:
+            normalized_toolkit_slug = None
+            if toolkit_slug is not None:
+                normalized_toolkit_slug = str(toolkit_slug).lower()
+
+            if normalized_toolkit_slug and normalized_toolkit_slug != app_slug:
                 continue
             return True
 
