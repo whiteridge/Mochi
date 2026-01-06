@@ -10,10 +10,11 @@ from .common import detect_apps_from_input, make_early_summary, map_tool_to_app
 class AgentDispatcher:
     """Handles the agent streaming loop (reads, writes, proposals)."""
 
-    def __init__(self, composio_service, linear_service, slack_service):
+    def __init__(self, composio_service, linear_service, slack_service, notion_service):
         self.composio_service = composio_service
         self.linear_service = linear_service
         self.slack_service = slack_service
+        self.notion_service = notion_service
 
     def run(
         self,
@@ -168,7 +169,7 @@ class AgentDispatcher:
                 # Track actions in this iteration
                 read_actions_to_execute = pending_read_actions  # (tool_name, args, part, app_id)
                 pending_read_actions = []
-                write_actions_found = []  # (tool_name, args, app_id, is_linear_write, is_slack_write)
+                write_actions_found = []  # (tool_name, args, app_id, is_linear_write, is_slack_write, is_notion_write)
                 found_function_call = False
 
                 # Check if the model wants to call a function
@@ -208,7 +209,8 @@ class AgentDispatcher:
                             # Check if this is a write action
                             is_linear_write = self.linear_service.is_write_action(tool_name, args)
                             is_slack_write = self.slack_service.is_write_action(tool_name, args)
-                            is_write = is_linear_write or is_slack_write
+                            is_notion_write = self.notion_service.is_write_action(tool_name, args)
+                            is_write = is_linear_write or is_slack_write or is_notion_write
                             executed_key = (tool_name, json.dumps(args, sort_keys=True))
 
                             if is_write:
@@ -228,7 +230,9 @@ class AgentDispatcher:
                                         continue
                                 # Always queue writes for confirmation - we use confirmed_tool for execution
                                 print(f"DEBUG: Queueing {tool_name} for confirmation")
-                                write_actions_found.append((tool_name, args, app_id, is_linear_write, is_slack_write))
+                                write_actions_found.append(
+                                    (tool_name, args, app_id, is_linear_write, is_slack_write, is_notion_write)
+                                )
                                 executed_write_keys.add(executed_key)
                             else:
                                 # Read action - queue for execution (process one per iteration for sequential pills)
@@ -318,13 +322,15 @@ class AgentDispatcher:
                 if pending_write_actions and not read_actions_to_execute and not pending_read_actions:
                     print(f"DEBUG: Emitting {len(pending_write_actions)} queued proposal(s)")
 
-                    for tool_name, args, app_id, is_linear_write, is_slack_write in pending_write_actions:
+                    for tool_name, args, app_id, is_linear_write, is_slack_write, is_notion_write in pending_write_actions:
                         # Enrich proposal with human-readable names
                         enriched_args = args
                         if is_linear_write:
                             enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
                         elif is_slack_write:
                             enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_notion_write:
+                            enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
 
                         proposal_queue.append(
                             {
@@ -398,5 +404,4 @@ class AgentDispatcher:
                 "content": f"An error occurred: {str(exc)}",
                 "action_performed": None,
             }
-
 

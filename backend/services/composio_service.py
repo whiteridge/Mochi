@@ -77,13 +77,17 @@ class ComposioService:
         """
         # Map app names to auth_config_ids from the Composio environment
         auth_configs = {
-            "slack": "ac_VbAOnHEy6Cts",
-            "linear": "ac_ibulkWqBOyKQ"
+            "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID", "ac_VbAOnHEy6Cts"),
+            "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID", "ac_ibulkWqBOyKQ"),
+            "notion": os.getenv("COMPOSIO_NOTION_AUTH_CONFIG_ID"),
         }
         
         config_id = auth_configs.get(app_name.lower())
         if not config_id:
-            raise ValueError(f"No auth config found for app: {app_name}")
+            extra_hint = ""
+            if app_name.lower() == "notion":
+                extra_hint = " Set COMPOSIO_NOTION_AUTH_CONFIG_ID if you're enabling Notion."
+            raise ValueError(f"No auth config found for app: {app_name}.{extra_hint}")
             
         request = self.composio.connected_accounts.initiate(
             user_id=user_id,
@@ -104,28 +108,83 @@ class ComposioService:
         Returns:
             True if connected, False otherwise
         """
-        accounts = self.composio.connected_accounts.list(
-            user_id=user_id,
-            app_names=[app_name.lower()]
-        )
-        
-        for account in accounts.items:
-            if account.status == "ACTIVE":
-                return True
+        app_slug = app_name.lower()
+        toolkit_slug_filters = [app_slug]
+        app_slug_upper = app_slug.upper()
+        if app_slug_upper != app_slug:
+            toolkit_slug_filters.append(app_slug_upper)
+        try:
+            accounts = self.composio.connected_accounts.list(
+                user_ids=[user_id],
+                toolkit_slugs=toolkit_slug_filters,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            accounts = self.composio.connected_accounts.list(
+                user_id=user_id,
+                app_names=toolkit_slug_filters,
+            )
+
+        items: List[Any] = []
+        if hasattr(accounts, "items"):
+            items = accounts.items or []
+        elif isinstance(accounts, dict):
+            items = accounts.get("items", [])
+        elif isinstance(accounts, list):
+            items = accounts
+
+        for account in items:
+            status = getattr(account, "status", None)
+            if status is None and isinstance(account, dict):
+                status = account.get("status")
+            if status != "ACTIVE":
+                continue
+
+            toolkit_slug = None
+            toolkit = getattr(account, "toolkit", None)
+            if isinstance(account, dict):
+                toolkit = account.get("toolkit", toolkit)
+                toolkit_slug = account.get("toolkit_slug") or account.get("toolkitSlug")
+
+            if toolkit:
+                if isinstance(toolkit, dict):
+                    toolkit_slug = toolkit.get("slug") or toolkit_slug
+                else:
+                    toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
+
+            normalized_toolkit_slug = None
+            if toolkit_slug is not None:
+                normalized_toolkit_slug = str(toolkit_slug).lower()
+
+            if normalized_toolkit_slug and normalized_toolkit_slug != app_slug:
+                continue
+            return True
+
         return False
 
-    def fetch_tools(self, user_id: str, slugs: List[str]):
+    def fetch_tools(
+        self,
+        user_id: str,
+        slugs: Optional[List[str]] = None,
+        toolkits: Optional[List[str]] = None,
+    ):
         """
         Fetch Composio tools for the given user and action slugs.
         
         Args:
             user_id: The user ID to fetch tools for
             slugs: List of action slugs to fetch
+            toolkits: List of toolkit slugs to fetch (e.g., ["NOTION"])
             
         Returns:
             List of tool objects from Composio
         """
-        return self.composio.tools.get(user_id=user_id, tools=slugs)
+        if slugs:
+            return self.composio.tools.get(user_id=user_id, tools=slugs)
+        if toolkits:
+            return self.composio.tools.get(user_id=user_id, toolkits=toolkits)
+        raise ValueError("Must provide slugs or toolkits to fetch tools.")
     
     def execute_action(
         self,
@@ -281,4 +340,3 @@ class ComposioService:
                 self._set_cached(slug, arguments, result)
 
         return result
-
