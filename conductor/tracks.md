@@ -11,3 +11,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ## [~] Track: Implement Seamless Integrations with Composio
 *Link: [./conductor/tracks/composio_integration_20251220/](./conductor/tracks/composio_integration_20251220/)*
+
+---
+
+## [~] Track: Gemini 3 Thinking Pill & Chat UI Height Cap
+*Link: [./conductor/tracks/gemini_thinking_ui_20260105/](./conductor/tracks/gemini_thinking_ui_20260105/)*

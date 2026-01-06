@@ -21,6 +21,7 @@ struct ChatHistoryView: View {
     let animation: Namespace.ID
     
     @Namespace private var statusPillAnimation
+    @State private var shouldAutoScroll = true
     
     // Helper to determine if a message should be visible when proposal is active
     private func shouldShowMessage(_ message: ChatMessage) -> Bool {
@@ -67,8 +68,9 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    // Status Pills - use multi-pill view when multiple apps involved
-                    if currentStatus != nil || proposal != nil || !viewModel.appSteps.isEmpty {
+                    // Status Pills - use showStatusPill flag to control visibility independently
+                    // This keeps the pill mounted so text can animate smoothly
+                    if viewModel.showStatusPill || proposal != nil || viewModel.appSteps.count > 1 {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack {
                                 // Use MultiStatusPillView when multiple apps are tracked
@@ -79,12 +81,27 @@ struct ChatHistoryView: View {
                                     )
                                     .zIndex(2)
                                 } else {
-                                    // Single app - use existing StatusPillView
+                                    // Single app - use StatusPillView
+                                    // Compute the status to display
+                                    let pillStatus: StatusPillView.Status = {
+                                        if let status = currentStatus {
+                                            switch status {
+                                            case .thinking: return .thinking
+                                            case .transcribing: return .transcribing
+                                            case .searching(let app): return .searching(app: app)
+                                            }
+                                        } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
+                                            return .searching(app: activeStep.appId.capitalized)
+                                        } else {
+                                            return .thinking  // Default fallback
+                                        }
+                                    }()
+                                    
                                     StatusPillView(
-                                        text: currentStatus?.labelText ?? "",
-                                        appName: currentStatus?.appName ?? viewModel.activeToolDisplayName,
+                                        status: pillStatus,
                                         isCompact: proposal != nil
                                     )
+                                    // NO .id() - keep stable view identity for smooth animations
                                     .background(
                                         Group {
                                             if proposal != nil {
@@ -128,6 +145,10 @@ struct ChatHistoryView: View {
                             }
                         }
                         .padding(.leading, 4)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")
@@ -144,6 +165,15 @@ struct ChatHistoryView: View {
             }
             .scrollContentBackground(.hidden)
             .clipped() // Ensure content is clipped at container bounds
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                // Detect if user is near the bottom to enable/disable auto-scroll
+                let distanceFromBottom = geo.contentSize.height - geo.contentOffset.y - geo.containerSize.height
+                return distanceFromBottom < 50
+            } action: { _, isAtBottom in
+                if shouldAutoScroll != isAtBottom {
+                    shouldAutoScroll = isAtBottom
+                }
+            }
             .onChange(of: proposal) { _, newValue in
                 if newValue != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -154,12 +184,17 @@ struct ChatHistoryView: View {
                 }
             }
             .onChange(of: messages.count) { _, _ in
-                withAnimation {
+                if shouldAutoScroll {
+                    withAnimation {
+                        proxy.scrollTo("bottomAnchor", anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: typewriterText) { _, _ in
+                if shouldAutoScroll && !typewriterText.isEmpty {
                     proxy.scrollTo("bottomAnchor", anchor: .bottom)
                 }
             }
         }
     }
 }
-
-

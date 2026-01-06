@@ -120,7 +120,7 @@ fileprivate extension VoiceChatBubble {
             .frame(
                 height: min(
                     max(scrollContentHeight, 0),
-                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.92) - inputContentHeight
+                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.66) - inputContentHeight
                 )
             )
             .layoutPriority(1)
@@ -257,7 +257,7 @@ private extension VoiceChatBubble {
                 await MainActor.run {
                     viewModel.state = .chat
                     // Don't show any status pill - it will appear when tools are invoked
-                    viewModel.currentStatus = nil
+                    viewModel.showStatusPill = false
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
@@ -265,13 +265,13 @@ private extension VoiceChatBubble {
                 
                 await MainActor.run {
                     viewModel.errorMessage = nil
-                    viewModel.processInput(text: transcript)
+                    viewModel.processInputWithThinking(text: transcript)
                 }
             } catch {
                 logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run {
                     viewModel.errorMessage = error.localizedDescription
-                    viewModel.currentStatus = nil
+                    viewModel.showStatusPill = false
                     viewModel.state = .idle
                 }
             }
@@ -279,7 +279,7 @@ private extension VoiceChatBubble {
     }
 
     func sendManualMessage() {
-        viewModel.processInput(text: viewModel.userInput)
+        viewModel.processInputWithThinking(text: viewModel.userInput)
     }
 
     func resetConversation(animate: Bool = true) {

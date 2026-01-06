@@ -100,6 +100,7 @@ enum StreamEventType: String, Codable {
     case proposal
     case earlySummary = "early_summary"  // Early summary before tool execution
     case multiAppStatus = "multi_app_status"  // Multi-app status update
+    case thinking
 }
 
 /// State of an app step in a multi-app workflow

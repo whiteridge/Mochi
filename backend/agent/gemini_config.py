@@ -109,9 +109,10 @@ def create_chat(client, gemini_tools, chat_history):
     config = types.GenerateContentConfig(
         tools=gemini_tools,
         system_instruction=SYSTEM_INSTRUCTION,
+        thinking_config=types.ThinkingConfig(include_thoughts=True),
     )
     return client.chats.create(
-        model="gemini-2.5-flash",
+        model="gemini-3-flash-preview",
         config=config,
         history=formatted_history,
     )

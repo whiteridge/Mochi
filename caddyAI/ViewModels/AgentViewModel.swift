@@ -16,7 +16,7 @@ struct ToolStatus: Equatable {
 }
 
 public enum AgentStatus: Equatable, Identifiable {
-    case thinking
+    case thinking(text: String = "Thinking...")
     case transcribing
     case searching(appName: String)
 
@@ -33,8 +33,8 @@ public enum AgentStatus: Equatable, Identifiable {
 
     var labelText: String {
         switch self {
-        case .thinking:
-            return "Thinking..."
+        case .thinking(let text):
+            return text
         case .transcribing:
             return "Transcribing..."
         case .searching(let appName):
@@ -45,6 +45,8 @@ public enum AgentStatus: Equatable, Identifiable {
     /// App name for icon display (nil for non-app-specific statuses)
     var appName: String? {
         switch self {
+        case .thinking:
+            return "thinking"
         case .searching(let name):
             return name
         default:
@@ -83,6 +85,7 @@ class AgentViewModel: ObservableObject {
         }
     }
     @Published var currentStatus: AgentStatus? = nil
+    @Published var showStatusPill: Bool = false  // Controls pill visibility independently of currentStatus
     @Published var activeTool: ToolStatus?
     @Published var proposal: ProposalData? = nil
     @Published var proposalQueue: [ProposalData] = []  // Multi-app proposal queue
@@ -155,6 +158,7 @@ class AgentViewModel: ObservableObject {
             // Don't show thinking status immediately - wait for tool events or response
             isThinking = false
             currentStatus = nil
+            showStatusPill = false
             errorMessage = nil
             activeTool = nil
             proposal = nil // Clear any previous proposal
@@ -209,6 +213,7 @@ class AgentViewModel: ObservableObject {
         userInput = ""
         isThinking = false
         currentStatus = nil
+        showStatusPill = false
         isExecutingAction = false
         errorMessage = nil
         proposal = nil
