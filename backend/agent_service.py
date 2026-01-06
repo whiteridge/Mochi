@@ -8,6 +8,7 @@ from agent.gemini_config import build_gemini_tools, create_chat
 from agent.tool_loader import load_composio_tools
 from services.composio_service import ComposioService
 from services.linear_service import LinearService
+from services.notion_service import NotionService
 from services.slack_service import SlackService
 
 load_dotenv()
@@ -27,6 +28,7 @@ class AgentService:
         self.composio_service = ComposioService()
         self.linear_service = LinearService(self.composio_service)
         self.slack_service = SlackService(self.composio_service)
+        self.notion_service = NotionService(self.composio_service)
 
     def run_agent(self, user_input: str, user_id: str, chat_history: List[Dict[str, str]] = [], confirmed_tool: Dict = None):
         """
@@ -49,6 +51,7 @@ class AgentService:
         all_composio_tools, errors = load_composio_tools(
             self.linear_service,
             self.slack_service,
+            self.notion_service,
             user_id,
         )
 
@@ -72,6 +75,7 @@ class AgentService:
             composio_service=self.composio_service,
             linear_service=self.linear_service,
             slack_service=self.slack_service,
+            notion_service=self.notion_service,
         )
         yield from dispatcher.run(
             chat=chat,
