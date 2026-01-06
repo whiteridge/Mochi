@@ -257,7 +257,7 @@ private extension VoiceChatBubble {
                 await MainActor.run {
                     viewModel.state = .chat
                     // Don't show any status pill - it will appear when tools are invoked
-                    viewModel.currentStatus = nil
+                    viewModel.showStatusPill = false
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
@@ -271,7 +271,7 @@ private extension VoiceChatBubble {
                 logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run {
                     viewModel.errorMessage = error.localizedDescription
-                    viewModel.currentStatus = nil
+                    viewModel.showStatusPill = false
                     viewModel.state = .idle
                 }
             }
