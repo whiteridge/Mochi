@@ -146,7 +146,7 @@ fileprivate extension VoiceChatBubble {
         
         VStack(spacing: 0) {
             if isSuccess {
-                SuccessPillView()
+                SuccessPillView(gradientNamespace: rotatingLightNamespace)
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
             } else {
                 expandedChatContent

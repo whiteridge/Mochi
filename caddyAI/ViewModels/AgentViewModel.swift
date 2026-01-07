@@ -201,6 +201,10 @@ class AgentViewModel: ObservableObject {
                 copy.isAttachedToProposal = false
                 return copy
             }
+            // Clear status pill and tool indicators
+            showStatusPill = false
+            activeTool = nil
+            currentStatus = nil
             state = .chat // Return to chat state
         }
         messages.append(ChatMessage(role: .assistant, content: "Action cancelled."))

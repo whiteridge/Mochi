@@ -220,10 +220,13 @@ class AgentDispatcher:
                                 if app_id in completed_write_apps:
                                     print(f"DEBUG: Skipping write for completed app {app_id}")
                                     continue
-                                # Gate Slack writes until Linear read AND write are complete
+                                # Gate Slack writes until Linear read AND write are complete (only if Linear is involved)
                                 if app_id == "slack":
                                     linear_state = app_read_status.get("linear")
-                                    if linear_state not in ("done", "error") or ("linear" in app_write_executing):
+                                    if (
+                                        (linear_state not in ("done", "error") or ("linear" in app_write_executing))
+                                        and "linear" in involved_apps
+                                    ):
                                         print("DEBUG: Gating Slack write until Linear read+write complete")
                                         continue
                                 # Always queue writes for confirmation - we use confirmed_tool for execution
