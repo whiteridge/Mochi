@@ -33,7 +33,8 @@ struct VoiceChatBubble: View {
             case .recording:
                 RecordingBubbleView(
                     stopRecording: stopRecording,
-                    animation: animation
+                    animation: animation,
+                    amplitude: voiceRecorder.normalizedAmplitude
                 )
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)

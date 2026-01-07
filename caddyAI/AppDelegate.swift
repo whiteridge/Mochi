@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	private var dismissObserver: NSObjectProtocol?
 	private var statusItemController: MenuBarStatusController?
 	private var settingsWindow: NSWindow?
+	private var quickSetupWindow: NSWindow?
 	private let settingsEnvironment = SettingsEnvironment()
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
@@ -38,6 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			queue: .main
 		) { [weak self] _ in
 			self?.panelController?.hide()
+		}
+		
+		// Show quick setup on first launch
+		if !settingsEnvironment.preferences.hasCompletedSetup {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+				self?.showQuickSetup()
+			}
 		}
 	}
 	
@@ -107,6 +115,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		window.makeKeyAndOrderFront(nil)
 		NSApp.activate(ignoringOtherApps: true)
 		print("[MenuBar] Settings window presented at frame: \(window.frame)")
+	}
+	
+	private func showQuickSetup() {
+		// Ensure we are in a regular activation policy so the window can appear
+		NSApp.setActivationPolicy(.regular)
+		NSApp.activate(ignoringOtherApps: true)
+		
+		// If window already exists, just show it
+		if let quickSetupWindow {
+			quickSetupWindow.makeKeyAndOrderFront(nil)
+			return
+		}
+		
+		let hosting = NSHostingController(
+			rootView: QuickSetupView(onComplete: { [weak self] in
+				self?.quickSetupWindow?.close()
+				self?.quickSetupWindow = nil
+			})
+			.environmentObject(settingsEnvironment.preferences)
+			.environmentObject(settingsEnvironment.integrationService)
+			.environmentObject(settingsEnvironment.viewModel)
+		)
+		
+		let width: CGFloat = 420
+		let height: CGFloat = 540
+		let rect: NSRect
+		if let screen = NSScreen.main {
+			let frame = screen.visibleFrame
+			rect = NSRect(
+				x: frame.midX - width / 2,
+				y: frame.midY - height / 2,
+				width: width,
+				height: height
+			)
+		} else {
+			rect = NSRect(x: 0, y: 0, width: width, height: height)
+		}
+		
+		let window = NSWindow(
+			contentRect: rect,
+			styleMask: [.titled, .closable],
+			backing: .buffered,
+			defer: false
+		)
+		window.title = "Quick Setup"
+		window.contentViewController = hosting
+		window.isReleasedWhenClosed = false
+		window.setFrame(rect, display: true)
+		window.center()
+		window.makeKeyAndOrderFront(nil)
+		quickSetupWindow = window
 	}
 }
 

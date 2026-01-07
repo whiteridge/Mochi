@@ -24,6 +24,7 @@ final class VoiceRecorder: NSObject, ObservableObject {
 	}
 
 	@Published private(set) var isRecording = false
+	@Published var normalizedAmplitude: CGFloat = 0.0
 
 	private let audioEngine = AVAudioEngine()
 	private var audioFile: AVAudioFile?
@@ -164,6 +165,7 @@ final class VoiceRecorder: NSObject, ObservableObject {
 		converter = nil
 		isRecording = false
 		frameCount = 0
+		normalizedAmplitude = 0.0
 		
 		// Validate that we actually captured audio
 		guard capturedFrames > 0 else {
@@ -188,6 +190,25 @@ final class VoiceRecorder: NSObject, ObservableObject {
 	private func handleIncomingBuffer(_ buffer: AVAudioPCMBuffer) {
 		guard let audioFile = audioFile,
 			  let recordingFormat = recordingFormat else { return }
+
+		// Calculate amplitude from buffer for visualization
+		if let channelData = buffer.floatChannelData {
+			let channelDataValue = channelData.pointee
+			let channelDataValueArray = stride(from: 0, to: Int(buffer.frameLength), by: buffer.stride)
+				.map { channelDataValue[$0] }
+			
+			// Calculate RMS (Root Mean Square) for amplitude
+			let rms = sqrt(channelDataValueArray.map { $0 * $0 }.reduce(0, +) / Float(buffer.frameLength))
+			
+			// Normalize to 0-1 range with higher gain for better sensitivity
+			let normalized = min(1.0, max(0.0, rms * 25.0))
+			
+			DispatchQueue.main.async { [weak self] in
+				guard let self = self else { return }
+				// Less aggressive smoothing for faster response
+				self.normalizedAmplitude = self.normalizedAmplitude * 0.6 + CGFloat(normalized) * 0.4
+			}
+		}
 
 		do {
 			// If formats match, write directly

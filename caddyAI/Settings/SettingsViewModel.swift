@@ -1,5 +1,33 @@
 import SwiftUI
 
+// #region agent log helper
+private func debugLog(location: String, message: String, data: [String: Any], hypothesisId: String) {
+    let logPath = "/Users/matteofari/Desktop/projects/caddyAI/.cursor/debug.log"
+    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+    var jsonData = data
+    jsonData["hypothesisId"] = hypothesisId
+    let entry: [String: Any] = [
+        "location": location,
+        "message": message,
+        "data": jsonData,
+        "timestamp": timestamp,
+        "sessionId": "debug-session"
+    ]
+    if let jsonString = try? JSONSerialization.data(withJSONObject: entry),
+       let line = String(data: jsonString, encoding: .utf8) {
+        let fileURL = URL(fileURLWithPath: logPath)
+        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let handle = try? FileHandle(forWritingTo: fileURL) {
+            handle.seekToEndOfFile()
+            handle.write((line + "\n").data(using: .utf8)!)
+            handle.closeFile()
+        } else {
+            try? (line + "\n").write(toFile: logPath, atomically: true, encoding: .utf8)
+        }
+    }
+}
+// #endregion
+
 enum SettingsSection: String, CaseIterable, Identifiable {
 	case general, api, integrations, onboarding
 	var id: String { rawValue }
@@ -106,17 +134,35 @@ final class SettingsViewModel: ObservableObject {
 	}
 
 	func connectViaComposio(appName: String) {
+		// #region agent log
+		debugLog(location: "SettingsViewModel:connectViaComposio:entry", message: "connectViaComposio called", data: ["appName": appName], hypothesisId: "B")
+		// #endregion
 		Task {
 			do {
+				// #region agent log
+				debugLog(location: "SettingsViewModel:connectViaComposio:beforeFetch", message: "About to fetch Composio URL", data: ["appName": appName], hypothesisId: "A")
+				// #endregion
 				let url = try await integrationService.fetchComposioConnectURL(for: appName)
+				// #region agent log
+				debugLog(location: "SettingsViewModel:connectViaComposio:afterFetch", message: "URL fetched successfully", data: ["appName": appName, "url": url.absoluteString], hypothesisId: "E")
+				// #endregion
 				await MainActor.run {
-					NSWorkspace.shared.open(url)
+					// #region agent log
+					debugLog(location: "SettingsViewModel:connectViaComposio:beforeOpen", message: "About to open URL in browser", data: ["url": url.absoluteString], hypothesisId: "C")
+					// #endregion
+					let opened = NSWorkspace.shared.open(url)
+					// #region agent log
+					debugLog(location: "SettingsViewModel:connectViaComposio:afterOpen", message: "Browser open result", data: ["opened": opened], hypothesisId: "C")
+					// #endregion
 				}
 				
 				// Poll for status or just wait a bit and refresh
 				try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
 				refreshStatus(appName: appName)
 			} catch {
+				// #region agent log
+				debugLog(location: "SettingsViewModel:connectViaComposio:error", message: "Error in connectViaComposio", data: ["error": String(describing: error)], hypothesisId: "B")
+				// #endregion
 				print("Error connecting via Composio: \(error)")
 			}
 		}
@@ -124,6 +170,51 @@ final class SettingsViewModel: ObservableObject {
 
 	func refreshStatus(appName: String) {
 		integrationService.refreshComposioStatus(for: appName)
+	}
+	
+	/// Polls the connection status for an app until connected or timeout
+	/// - Parameters:
+	///   - appName: The app name ("slack" or "linear")
+	///   - intervalSeconds: Polling interval in seconds (default 2)
+	///   - maxAttempts: Maximum number of polling attempts (default 30 = 60 seconds)
+	///   - onStatusChange: Called on each poll with current connection status
+	/// - Returns: True if connection was successful, false if timed out
+	@discardableResult
+	func pollConnectionStatus(
+		appName: String,
+		intervalSeconds: Double = 2.0,
+		maxAttempts: Int = 30,
+		onStatusChange: ((Bool) -> Void)? = nil
+	) async -> Bool {
+		for _ in 0..<maxAttempts {
+			try? await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
+			
+			// Refresh status from backend
+			integrationService.refreshComposioStatus(for: appName)
+			
+			// Small delay to let the state update propagate
+			try? await Task.sleep(nanoseconds: 300_000_000)
+			
+			let isConnected: Bool = await MainActor.run {
+				switch appName.lowercased() {
+				case "slack":
+					return integrationService.slackState.isConnected
+				case "linear":
+					return integrationService.linearState.isConnected
+				default:
+					return false
+				}
+			}
+			
+			await MainActor.run {
+				onStatusChange?(isConnected)
+			}
+			
+			if isConnected {
+				return true
+			}
+		}
+		return false
 	}
 	
 	func disconnectSlack() { integrationService.disconnectSlack() }

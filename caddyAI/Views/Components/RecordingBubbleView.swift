@@ -3,6 +3,7 @@ import SwiftUI
 struct RecordingBubbleView: View {
     let stopRecording: () -> Void
     let animation: Namespace.ID
+    var amplitude: CGFloat = 0.5
     
     var body: some View {
         HStack(spacing: 12) {
@@ -31,7 +32,7 @@ struct RecordingBubbleView: View {
                 )
                 .matchedGeometryEffect(id: "appIcon", in: animation)
             
-            AnimatedDotRow(count: 10)
+            AnimatedDotRow(count: 10, amplitude: amplitude)
                 .frame(width: 84, height: 28)
 
             // Right: Vibrant stop button
@@ -47,6 +48,7 @@ struct RecordingBubbleView: View {
 
 struct AnimatedDotRow: View {
     let count: Int
+    var amplitude: CGFloat = 0.5  // Default to mid-range for backwards compatibility
 
     var body: some View {
         GeometryReader { proxy in
@@ -64,7 +66,15 @@ struct AnimatedDotRow: View {
                         let distanceFromCenter = abs(relative - 0.5)
                         let envelope = 0.35 + (1 - distanceFromCenter * 2) * 0.65
                         let wave = (sin(phase + relative * .pi * 1.8) + 1) / 2
-                        let height = max(3, CGFloat(wave) * maxHeight * CGFloat(envelope))
+                        
+                        // Scale height based on amplitude with stronger visual response:
+                        // - amplitude 0: flat bars (minimum height)
+                        // - amplitude 1: full wave animation
+                        // Boost amplitude for more dramatic visual response
+                        let minHeight: CGFloat = 3
+                        let boostedAmplitude = min(1.0, amplitude * 1.5) // Boost by 50% for stronger response
+                        let baseHeight = minHeight + (CGFloat(wave) * maxHeight * CGFloat(envelope) - minHeight) * boostedAmplitude
+                        let height = max(minHeight, baseHeight)
 
                         Capsule()
                             .fill(
@@ -78,6 +88,7 @@ struct AnimatedDotRow: View {
                                 )
                             )
                             .frame(width: max(barWidth, 1), height: height)
+                            .animation(.linear(duration: 0.1), value: amplitude)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
