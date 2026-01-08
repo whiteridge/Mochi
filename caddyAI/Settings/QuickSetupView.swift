@@ -1,33 +1,5 @@
 import SwiftUI
 
-// #region agent log helper
-private func debugLog(location: String, message: String, data: [String: Any], hypothesisId: String) {
-    let logPath = "/Users/matteofari/Desktop/projects/caddyAI/.cursor/debug.log"
-    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-    var jsonData = data
-    jsonData["hypothesisId"] = hypothesisId
-    let entry: [String: Any] = [
-        "location": location,
-        "message": message,
-        "data": jsonData,
-        "timestamp": timestamp,
-        "sessionId": "debug-session"
-    ]
-    if let jsonString = try? JSONSerialization.data(withJSONObject: entry),
-       let line = String(data: jsonString, encoding: .utf8) {
-        let fileURL = URL(fileURLWithPath: logPath)
-        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let handle = try? FileHandle(forWritingTo: fileURL) {
-            handle.seekToEndOfFile()
-            handle.write((line + "\n").data(using: .utf8)!)
-            handle.closeFile()
-        } else {
-            try? (line + "\n").write(toFile: logPath, atomically: true, encoding: .utf8)
-        }
-    }
-}
-// #endregion
-
 struct QuickSetupView: View {
     @EnvironmentObject private var integrationService: IntegrationService
     @EnvironmentObject private var viewModel: SettingsViewModel
@@ -37,6 +9,8 @@ struct QuickSetupView: View {
     
     @State private var connectingSlack = false
     @State private var connectingLinear = false
+    @State private var slackError: String?
+    @State private var linearError: String?
     
     var body: some View {
         VStack(spacing: 32) {
@@ -75,7 +49,8 @@ struct QuickSetupView: View {
                     iconName: "slack-icon",
                     fallbackIcon: "bubble.left.and.bubble.right.fill",
                     isConnected: integrationService.slackState.isConnected,
-                    isLoading: connectingSlack
+                    isLoading: connectingSlack,
+                    errorMessage: slackError
                 ) {
                     connectSlack()
                 }
@@ -86,7 +61,8 @@ struct QuickSetupView: View {
                     iconName: "linear-icon",
                     fallbackIcon: "checklist",
                     isConnected: integrationService.linearState.isConnected,
-                    isLoading: connectingLinear
+                    isLoading: connectingLinear,
+                    errorMessage: linearError
                 ) {
                     connectLinear()
                 }
@@ -122,6 +98,11 @@ struct QuickSetupView: View {
         }
         .frame(width: 420, height: 540)
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // Refresh connection status when view appears
+            viewModel.refreshStatus(appName: "slack")
+            viewModel.refreshStatus(appName: "linear")
+        }
     }
     
     private var allConnected: Bool {
@@ -133,24 +114,38 @@ struct QuickSetupView: View {
     }
     
     private func connectSlack() {
-        // #region agent log
-        debugLog(location: "QuickSetupView:connectSlack", message: "Connect Slack button pressed", data: [:], hypothesisId: "D")
-        // #endregion
+        slackError = nil
         connectingSlack = true
-        viewModel.connectViaComposio(appName: "slack")
-        pollStatus(app: "slack") {
-            connectingSlack = false
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "slack")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.slackError = error
+                    self.connectingSlack = false
+                } else {
+                    self.pollStatus(app: "slack") {
+                        self.connectingSlack = false
+                    }
+                }
+            }
         }
     }
     
     private func connectLinear() {
-        // #region agent log
-        debugLog(location: "QuickSetupView:connectLinear", message: "Connect Linear button pressed", data: [:], hypothesisId: "D")
-        // #endregion
+        linearError = nil
         connectingLinear = true
-        viewModel.connectViaComposio(appName: "linear")
-        pollStatus(app: "linear") {
-            connectingLinear = false
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "linear")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.linearError = error
+                    self.connectingLinear = false
+                } else {
+                    self.pollStatus(app: "linear") {
+                        self.connectingLinear = false
+                    }
+                }
+            }
         }
     }
     
@@ -194,63 +189,80 @@ private struct IntegrationConnectCard: View {
     let fallbackIcon: String
     let isConnected: Bool
     let isLoading: Bool
+    let errorMessage: String?
     let action: () -> Void
     
     var body: some View {
-        HStack(spacing: 16) {
-            // App icon
-            Group {
-                if let nsImage = NSImage(named: iconName) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.gray.opacity(0.15))
-                        Image(systemName: fallbackIcon)
-                            .font(.system(size: 22))
-                            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                // App icon
+                Group {
+                    if let nsImage = NSImage(named: iconName) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.gray.opacity(0.15))
+                            Image(systemName: fallbackIcon)
+                                .font(.system(size: 22))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-            }
-            .frame(width: 48, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-            
-            if isConnected {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.green)
-                    Text("Connected")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                }
-            } else if isLoading {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Waiting...")
-                        .font(.caption)
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-            } else {
-                Button("Connect") {
-                    action()
+                
+                Spacer()
+                
+                if isConnected {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.green)
+                        Text("Connected")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                } else if isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Waiting...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button("Connect") {
+                        action()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+            }
+            
+            // Error message
+            if let errorMessage = errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 4)
             }
         }
         .padding(16)
@@ -260,10 +272,21 @@ private struct IntegrationConnectCard: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isConnected ? Color.green.opacity(0.4) : Color.gray.opacity(0.15), lineWidth: 1)
+                .stroke(borderColor, lineWidth: 1)
         }
         .animation(.easeInOut(duration: 0.2), value: isConnected)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
+        .animation(.easeInOut(duration: 0.2), value: errorMessage)
+    }
+    
+    private var borderColor: Color {
+        if isConnected {
+            return Color.green.opacity(0.4)
+        } else if errorMessage != nil {
+            return Color.orange.opacity(0.4)
+        } else {
+            return Color.gray.opacity(0.15)
+        }
     }
 }
 

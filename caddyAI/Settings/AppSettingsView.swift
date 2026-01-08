@@ -263,6 +263,11 @@ private struct IntegrationsSettingsView: View {
 			}
 			.padding(24)
 		}
+		.onAppear {
+			// Refresh Composio status when integrations view appears
+			viewModel.refreshStatus(appName: "slack")
+			viewModel.refreshStatus(appName: "linear")
+		}
 	}
 }
 

@@ -1,53 +1,17 @@
-# Xcode
-## User settings
-xcuserdata/
-
-## Derived data
-DerivedData/
-build/
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-## Playgrounds
-timeline.xctimeline
-playground.xcworkspace
-
-# Swift Package Manager
-.build/
-Packages
-Package.pins
-Package.resolved
-*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-
-# Simulator
-Application Support/iphone/
-
-# Local Config
-config.json
-secrets.swift
-
-# OS X
-.DS_Store
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Backend
-backend/.env
-backend/venv
-
-#Cursor
-.cursor
-
-
 # ========================
 # 🍎 macOS & Xcode
 # ========================
+## macOS System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+
 ## User settings (User-specific window layouts, breakpoints, etc.)
 xcuserdata/
 *.isuser
@@ -71,9 +35,11 @@ build/
 # but .build must always be ignored.
 .build/
 .swiftpm/
+Packages
+Package.pins
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 ## Xcode Project junk
-*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 *.xcodeproj/xcuserdata/
 *.xccheckout
 *.xcscmblueprint
@@ -82,6 +48,9 @@ build/
 timeline.xctimeline
 playground.xcworkspace
 
+## Simulator
+Application Support/iphone/
+
 # ========================
 # 🐍 Python & Backend
 # ========================
@@ -89,6 +58,9 @@ playground.xcworkspace
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
+*.pyd
 
 ## Virtual Environments (Covers common names)
 backend/venv
@@ -97,6 +69,8 @@ venv/
 .venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
 ## Distribution / Packaging
 .Python
@@ -112,46 +86,69 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 ## Testing & Coverage
 .coverage
 .coverage.*
 htmlcov/
-.pytest_cache/
 .tox/
 .nox/
+.pytest_cache/
+.hypothesis/
 *.log
+*.cover
+.hypothesis/
+.pytest_cache/
 
 ## Type Checking
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.pyre/
+.pytype/
+
+## Linting & Formatting
 .ruff_cache/
-.hypothesis/
+.flake8
+
+## Jupyter Notebook
+.ipynb_checkpoints
+
+## pyenv
+.python-version
+
+## pipenv
+Pipfile.lock
+
+## Poetry
+poetry.lock
 
 # ========================
 # 🔒 Secrets & Environment
 # ========================
 # NEVER commit API keys or secrets
 .env
+.env.*
+!.env.example
 backend/.env
-.env.local
+backend/.env.*
+!backend/.env.example
 config.json
 secrets.swift
 Secrets.plist
+*.key
+*.pem
+*.p12
 
 # ========================
 # ⚙️ Editor & System
 # ========================
-## macOS System Files
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
 ## VS Code
 .vscode/
 # Exception: If you want to share settings but hide local history
@@ -171,8 +168,45 @@ Secrets.plist
 *.swp
 *.swo
 *~
+.*.sw?
 
 ## Cursor AI
 # Ignore general cursor data, but keep rules shared
 .cursor/
 !.cursor/rules/
+
+## Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+## General
+*.bak
+*.tmp
+*.temp
+*~
+
+# ========================
+# 📦 Dependencies & Package Managers
+# ========================
+## Node (if you add any JS tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+## Python package files
+*.whl
+
+# ========================
+# 🧪 Testing & CI/CD
+# ========================
+## Test outputs
+test-results/
+coverage/
+*.coverage
+.pytest_cache/
+
+## CI/CD
+.github/workflows/*.local.yml

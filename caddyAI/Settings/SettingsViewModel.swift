@@ -1,33 +1,5 @@
 import SwiftUI
 
-// #region agent log helper
-private func debugLog(location: String, message: String, data: [String: Any], hypothesisId: String) {
-    let logPath = "/Users/matteofari/Desktop/projects/caddyAI/.cursor/debug.log"
-    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-    var jsonData = data
-    jsonData["hypothesisId"] = hypothesisId
-    let entry: [String: Any] = [
-        "location": location,
-        "message": message,
-        "data": jsonData,
-        "timestamp": timestamp,
-        "sessionId": "debug-session"
-    ]
-    if let jsonString = try? JSONSerialization.data(withJSONObject: entry),
-       let line = String(data: jsonString, encoding: .utf8) {
-        let fileURL = URL(fileURLWithPath: logPath)
-        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let handle = try? FileHandle(forWritingTo: fileURL) {
-            handle.seekToEndOfFile()
-            handle.write((line + "\n").data(using: .utf8)!)
-            handle.closeFile()
-        } else {
-            try? (line + "\n").write(toFile: logPath, atomically: true, encoding: .utf8)
-        }
-    }
-}
-// #endregion
-
 enum SettingsSection: String, CaseIterable, Identifiable {
 	case general, api, integrations, onboarding
 	var id: String { rawValue }
@@ -134,37 +106,33 @@ final class SettingsViewModel: ObservableObject {
 	}
 
 	func connectViaComposio(appName: String) {
-		// #region agent log
-		debugLog(location: "SettingsViewModel:connectViaComposio:entry", message: "connectViaComposio called", data: ["appName": appName], hypothesisId: "B")
-		// #endregion
 		Task {
-			do {
-				// #region agent log
-				debugLog(location: "SettingsViewModel:connectViaComposio:beforeFetch", message: "About to fetch Composio URL", data: ["appName": appName], hypothesisId: "A")
-				// #endregion
-				let url = try await integrationService.fetchComposioConnectURL(for: appName)
-				// #region agent log
-				debugLog(location: "SettingsViewModel:connectViaComposio:afterFetch", message: "URL fetched successfully", data: ["appName": appName, "url": url.absoluteString], hypothesisId: "E")
-				// #endregion
-				await MainActor.run {
-					// #region agent log
-					debugLog(location: "SettingsViewModel:connectViaComposio:beforeOpen", message: "About to open URL in browser", data: ["url": url.absoluteString], hypothesisId: "C")
-					// #endregion
-					let opened = NSWorkspace.shared.open(url)
-					// #region agent log
-					debugLog(location: "SettingsViewModel:connectViaComposio:afterOpen", message: "Browser open result", data: ["opened": opened], hypothesisId: "C")
-					// #endregion
-				}
-				
-				// Poll for status or just wait a bit and refresh
-				try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-				refreshStatus(appName: appName)
-			} catch {
-				// #region agent log
-				debugLog(location: "SettingsViewModel:connectViaComposio:error", message: "Error in connectViaComposio", data: ["error": String(describing: error)], hypothesisId: "B")
-				// #endregion
-				print("Error connecting via Composio: \(error)")
+			_ = await connectViaComposioAsync(appName: appName)
+		}
+	}
+	
+	/// Async version that returns an error message if failed, nil on success
+	func connectViaComposioAsync(appName: String) async -> String? {
+		do {
+			let url = try await integrationService.fetchComposioConnectURL(for: appName)
+			await MainActor.run {
+				NSWorkspace.shared.open(url)
 			}
+			
+			// Poll for status after OAuth completes
+			try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+			refreshStatus(appName: appName)
+			return nil // Success
+		} catch let error as IntegrationError {
+			print("Error connecting via Composio: \(error)")
+			return error.localizedDescription ?? "Connection failed"
+		} catch let error as NSError {
+			print("Error connecting via Composio: \(error)")
+			
+			if error.code == -1004 {
+				return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
+			}
+			return "Connection failed: \(error.localizedDescription)"
 		}
 	}
 
