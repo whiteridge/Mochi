@@ -1,8 +1,7 @@
 import AVFoundation
 import Foundation
 
-@MainActor
-final class VoiceRecorder: NSObject, ObservableObject {
+final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 	enum RecorderError: LocalizedError {
 		case microphoneUnavailable
 		case failedToCreateFile
@@ -23,261 +22,217 @@ final class VoiceRecorder: NSObject, ObservableObject {
 		}
 	}
 
-	@Published private(set) var isRecording = false
-	@Published var normalizedAmplitude: CGFloat = 0.0
+	@MainActor @Published private(set) var isRecording = false
+	@MainActor @Published var normalizedAmplitude: CGFloat = 0.0
 
-	private let audioEngine = AVAudioEngine()
-	private var audioFile: AVAudioFile?
+	private var audioRecorder: AVAudioRecorder?
 	private var outputURL: URL?
-	private var recordingFormat: AVAudioFormat?
-	private var converter: AVAudioConverter?
-	private var hasTapInstalled = false
+	private var meteringTimer: Timer?
+	private var isStartingRecording = false
 
+	@MainActor
 	func startRecording() async throws {
-		let inputNode = audioEngine.inputNode
+		// Prevent concurrent calls
+		guard !isStartingRecording else {
+			print("VoiceRecorder: Already starting recording, ignoring duplicate call")
+			return
+		}
+		isStartingRecording = true
+		defer { isStartingRecording = false }
 		
-		// 1. Get the NATIVE hardware format (Fixes the 16kHz vs 44.1kHz crash)
-		let hardwareFormat = inputNode.inputFormat(forBus: 0)
-		
-		// 2. Safety Check
-		guard hardwareFormat.sampleRate > 0 else {
-			print("Error: Invalid hardware sample rate (0).")
-            throw RecorderError.failedToStart(NSError(domain: "VoiceRecorder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid hardware sample rate (0)."]))
+		// If already recording, don't start again
+		guard !isRecording else {
+			print("VoiceRecorder: Already recording, ignoring start call")
+			return
 		}
 		
-		// 3. Cleanup & Tap
-		if hasTapInstalled {
-			inputNode.removeTap(onBus: 0)
-			hasTapInstalled = false
+		// Check microphone permission
+		let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+		print("VoiceRecorder: Microphone authorization status: \(micStatus.rawValue) (0=notDetermined, 1=restricted, 2=denied, 3=authorized)")
+		
+		if micStatus == .notDetermined {
+			print("VoiceRecorder: Requesting microphone permission...")
+			let granted = await AVCaptureDevice.requestAccess(for: .audio)
+			print("VoiceRecorder: Microphone permission granted: \(granted)")
+			guard granted else {
+				throw RecorderError.microphoneUnavailable
+			}
+		} else if micStatus != .authorized {
+			print("VoiceRecorder: Microphone not authorized!")
+			throw RecorderError.microphoneUnavailable
 		}
 		
-		// Setup output file and format (Preserving existing file logic)
-		// We convert to a standard Float32 format but keep the sample rate to minimize conversion artifacts
-		// or let the converter handle it if we want to enforce 16kHz later (Parakeet handles resampling).
-		// Here we stick to hardware rate for recording to file, or 1 channel.
-		guard let recordFormat = AVAudioFormat(
-			commonFormat: .pcmFormatFloat32,
-			sampleRate: hardwareFormat.sampleRate,
-			channels: 1,
-			interleaved: false
-		) else {
-			throw RecorderError.failedToCreateFile
+		// Stop any existing recorder
+		if let existingRecorder = audioRecorder {
+			print("VoiceRecorder: Stopping existing recorder")
+			existingRecorder.stop()
+			audioRecorder = nil
 		}
 		
+		// Create output URL
 		let url = FileManager.default.temporaryDirectory
 			.appendingPathComponent("voice-\(UUID().uuidString)")
-			.appendingPathExtension("caf")
-		
+			.appendingPathExtension("m4a")
 		outputURL = url
-		recordingFormat = recordFormat
 		
-		// Create converter if formats don't match
-		if hardwareFormat != recordFormat {
-			converter = AVAudioConverter(from: hardwareFormat, to: recordFormat)
-			if converter == nil {
-				throw RecorderError.failedToCreateFile
-			}
-		} else {
-			converter = nil
-		}
+		// Configure recording settings for high quality mono audio
+		// Using AAC format which is well-supported and produces smaller files
+		let settings: [String: Any] = [
+			AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+			AVSampleRateKey: 44100.0,
+			AVNumberOfChannelsKey: 1,
+			AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+		]
 		
-		// Create the audio file immediately with the recording format
+		print("VoiceRecorder: Creating recorder with settings: \(settings)")
+		
 		do {
-			audioFile = try AVAudioFile(forWriting: url, settings: recordFormat.settings)
+			let recorder = try AVAudioRecorder(url: url, settings: settings)
+			recorder.delegate = self
+			recorder.isMeteringEnabled = true
+			
+			// Prepare and start recording
+			guard recorder.prepareToRecord() else {
+				print("VoiceRecorder: prepareToRecord() returned false")
+				throw RecorderError.failedToStart(NSError(domain: "VoiceRecorder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare recorder"]))
+			}
+			
+			print("VoiceRecorder: Prepared to record, starting...")
+			
+			guard recorder.record() else {
+				print("VoiceRecorder: record() returned false")
+				throw RecorderError.failedToStart(NSError(domain: "VoiceRecorder", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to start recording"]))
+			}
+			
+			audioRecorder = recorder
+			isRecording = true
+			
+			// Start metering timer for amplitude visualization
+			startMeteringTimer()
+			
+			print("VoiceRecorder: Recording started successfully to \(url.lastPathComponent)")
+			
 		} catch {
-			throw RecorderError.failedToCreateFile
+			print("VoiceRecorder: Failed to create recorder: \(error)")
+			throw RecorderError.failedToStart(error)
 		}
-		
-		// 4. Install Tap using the EXACT hardware format
-		// Do not try to change sample rate here. It causes the crash.
-		inputNode.installTap(onBus: 0, bufferSize: 1024, format: hardwareFormat) { [weak self] buffer, time in
-			guard let self = self else { return }
-			self.handleIncomingBuffer(buffer)
-		}
-		hasTapInstalled = true
-		
-		// 5. Prepare and Start
-		if !audioEngine.isRunning {
-			audioEngine.prepare()
-			try audioEngine.start()
-		}
-		
-		isRecording = true
-		print("VoiceRecorder: Started successfully at \(hardwareFormat.sampleRate)Hz")
 	}
 
+	@MainActor
 	func stopRecording() async throws -> URL {
-		guard isRecording else {
+		print("VoiceRecorder: stopRecording called, isRecording=\(isRecording)")
+		
+		// Stop metering timer
+		stopMeteringTimer()
+		
+		guard let recorder = audioRecorder else {
+			print("VoiceRecorder: No recorder to stop")
 			if let url = outputURL {
 				outputURL = nil
-				return url
+				isRecording = false
+				normalizedAmplitude = 0.0
+				// Check if file exists and has content
+				if FileManager.default.fileExists(atPath: url.path) {
+					let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+					let size = (attrs?[.size] as? Int64) ?? 0
+					if size > 1000 { // More than just header
+						return url
+					}
+				}
+				throw RecorderError.noAudioCaptured
 			}
-			throw RecorderError.noAudioCaptured
-		}
-
-		// Stop engine FIRST to prevent new tap callbacks
-		audioEngine.stop()
-		print("VoiceRecorder: Audio engine stop requested")
-		
-		// Then remove tap
-		if hasTapInstalled {
-			audioEngine.inputNode.removeTap(onBus: 0)
-			hasTapInstalled = false
-			print("VoiceRecorder: Tap removed from input node")
-		} else {
-			print("VoiceRecorder: No tap installed at stopRecording time")
-		}
-		
-		// Reset the engine
-		audioEngine.reset()
-		print("VoiceRecorder: Audio engine reset")
-
-		// Ensure the file is fully written and closed
-		print("VoiceRecorder: Recorded \(frameCount) frames")
-		let capturedFrames = frameCount
-		
-		// Close the file handle explicitly by storing reference then niling
-		let fileToClose = audioFile
-		audioFile = nil
-		if let fileToClose {
-			print("VoiceRecorder: Closing audio file handle for \(fileToClose.url.lastPathComponent)")
-		} else {
-			print("VoiceRecorder: Audio file already nil before close")
-		}
-		// Allow time for any pending writes and file close
-		try? await Task.sleep(nanoseconds: 100_000_000) // 100ms for safety
-		
-		// Explicitly release the file reference
-		_ = fileToClose
-		
-		if let url = outputURL {
-			logFileMetadata(at: url, context: "post-close pre-guard")
-		}
-
-		guard let url = outputURL else {
-			isRecording = false
-			frameCount = 0
 			throw RecorderError.failedToCreateFile
 		}
 		
-		outputURL = nil
-		recordingFormat = nil
-		converter = nil
+		let duration = recorder.currentTime
+		print("VoiceRecorder: Recording duration: \(duration)s")
+		
+		recorder.stop()
+		audioRecorder = nil
 		isRecording = false
-		frameCount = 0
 		normalizedAmplitude = 0.0
 		
-		// Validate that we actually captured audio
-		guard capturedFrames > 0 else {
-			// Clean up the empty file
+		guard let url = outputURL else {
+			throw RecorderError.failedToCreateFile
+		}
+		outputURL = nil
+		
+		// Validate we captured audio
+		guard duration > 0.1 else { // At least 100ms
+			print("VoiceRecorder: Recording too short (\(duration)s)")
 			try? FileManager.default.removeItem(at: url)
 			throw RecorderError.noAudioCaptured
 		}
 		
-		// Additional safety: verify file exists and has size
-		let fileExists = FileManager.default.fileExists(atPath: url.path)
-		guard fileExists else {
-			throw RecorderError.failedToCreateFile
+		// Verify file exists and has size
+		let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+		let size = (attrs?[.size] as? Int64) ?? 0
+		print("VoiceRecorder: Recorded file size: \(size) bytes")
+		
+		guard size > 1000 else { // More than just header
+			try? FileManager.default.removeItem(at: url)
+			throw RecorderError.noAudioCaptured
 		}
 		
-		logFileMetadata(at: url, context: "pre-return")
-		
+		print("VoiceRecorder: Recording saved to \(url.lastPathComponent)")
 		return url
 	}
-
-	private var frameCount = 0
 	
-	private func handleIncomingBuffer(_ buffer: AVAudioPCMBuffer) {
-		guard let audioFile = audioFile,
-			  let recordingFormat = recordingFormat else { return }
-
-		// Calculate amplitude from buffer for visualization
-		if let channelData = buffer.floatChannelData {
-			let channelDataValue = channelData.pointee
-			let channelDataValueArray = stride(from: 0, to: Int(buffer.frameLength), by: buffer.stride)
-				.map { channelDataValue[$0] }
-			
-			// Calculate RMS (Root Mean Square) for amplitude
-			let rms = sqrt(channelDataValueArray.map { $0 * $0 }.reduce(0, +) / Float(buffer.frameLength))
-			
-			// Normalize to 0-1 range with higher gain for better sensitivity
-			let normalized = min(1.0, max(0.0, rms * 25.0))
-			
-			DispatchQueue.main.async { [weak self] in
-				guard let self = self else { return }
-				// Less aggressive smoothing for faster response
-				self.normalizedAmplitude = self.normalizedAmplitude * 0.6 + CGFloat(normalized) * 0.4
+	// MARK: - Metering
+	
+	private func startMeteringTimer() {
+		// Update metering on main thread at 30fps
+		meteringTimer = Timer.scheduledTimer(withTimeInterval: 1.0/30.0, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				self?.updateMetering()
 			}
 		}
-
-		do {
-			// If formats match, write directly
-			if converter == nil {
-				try audioFile.write(from: buffer)
-				frameCount += Int(buffer.frameLength)
-			} else {
-				// Convert from hardware format to recording format
-				guard let converter = converter else {
-					print("VoiceRecorder: Converter unexpectedly nil")
-					return
-				}
-				
-				let ratio = recordingFormat.sampleRate / buffer.format.sampleRate
-				let outputFrameCapacity = AVAudioFrameCount(ceil(Double(buffer.frameLength) * ratio))
-				
-				guard let outputBuffer = AVAudioPCMBuffer(
-					pcmFormat: recordingFormat,
-					frameCapacity: max(outputFrameCapacity, 1)
-				) else {
-					print("VoiceRecorder: Failed to create output buffer")
-					return
-				}
-				
-				var error: NSError?
-                final class ConverterInputState {
-                    var provided = false
-                }
-                let inputState = ConverterInputState()
-				
-				let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-					if inputState.provided {
-						outStatus.pointee = .endOfStream
-						return nil
-					}
-					
-					inputState.provided = true
-					outStatus.pointee = .haveData
-					return buffer
-				}
-				
-				let status = converter.convert(to: outputBuffer, error: &error, withInputFrom: inputBlock)
-				
-				if let error = error {
-					print("VoiceRecorder conversion error: \(error)")
-					return
-				}
-				
-				if status == .haveData && outputBuffer.frameLength > 0 {
-					try audioFile.write(from: outputBuffer)
-					frameCount += Int(outputBuffer.frameLength)
-				}
-			}
-		} catch {
-			print("VoiceRecorder write error: \(error)")
+	}
+	
+	private func stopMeteringTimer() {
+		meteringTimer?.invalidate()
+		meteringTimer = nil
+	}
+	
+	@MainActor
+	private func updateMetering() {
+		guard let recorder = audioRecorder, recorder.isRecording else {
+			normalizedAmplitude = 0.0
+			return
+		}
+		
+		recorder.updateMeters()
+		
+		// Get average power in decibels (range: -160 to 0)
+		let avgPower = recorder.averagePower(forChannel: 0)
+		
+		// Convert decibels to linear scale (0-1)
+		// -160 dB = silence, 0 dB = max
+		// We'll use a range of -50 to 0 for more visible response
+		let minDb: Float = -50.0
+		let maxDb: Float = 0.0
+		let clampedPower = max(minDb, min(maxDb, avgPower))
+		let normalized = (clampedPower - minDb) / (maxDb - minDb)
+		
+		// Apply smoothing
+		normalizedAmplitude = normalizedAmplitude * 0.6 + CGFloat(normalized) * 0.4
+	}
+	
+	// MARK: - AVAudioRecorderDelegate
+	
+	nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+		print("VoiceRecorder: audioRecorderDidFinishRecording, success=\(flag)")
+		Task { @MainActor in
+			self.isRecording = false
+			self.normalizedAmplitude = 0.0
+		}
+	}
+	
+	nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
+		print("VoiceRecorder: Encode error: \(error?.localizedDescription ?? "unknown")")
+		Task { @MainActor in
+			self.isRecording = false
+			self.normalizedAmplitude = 0.0
 		}
 	}
 }
-
-private extension VoiceRecorder {
-	func logFileMetadata(at url: URL, context: String) {
-		do {
-			let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-			let size = (attrs[.size] as? NSNumber)?.int64Value ?? -1
-			let modDate = attrs[.modificationDate] as? Date ?? .distantPast
-			print("VoiceRecorder: [\(context)] file=\(url.lastPathComponent) size=\(size) bytes modified=\(modDate)")
-		} catch {
-			print("VoiceRecorder: [\(context)] failed to fetch file metadata for \(url.lastPathComponent): \(error)")
-		}
-	}
-}
-

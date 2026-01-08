@@ -2,35 +2,39 @@ import SwiftUI
 
 struct RecordingBubbleView: View {
     let stopRecording: () -> Void
+    let cancelRecording: () -> Void
     let animation: Namespace.ID
     var amplitude: CGFloat = 0.5
     
     var body: some View {
         HStack(spacing: 12) {
-            // Left: Circular logo/icon with glass effect
-            Circle()
-                .fill(Color.white.opacity(0.08))
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.25),
-                                    Color.white.opacity(0.05)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Image(systemName: "waveform")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                )
-                .matchedGeometryEffect(id: "appIcon", in: animation)
+            // Left: Cancel button (X)
+            Button(action: cancelRecording) {
+                Circle()
+                    .fill(Color.white.opacity(0.12))
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.25),
+                                        Color.white.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    )
+            }
+            .buttonStyle(.plain)
+            .matchedGeometryEffect(id: "appIcon", in: animation)
             
             AnimatedDotRow(count: 10, amplitude: amplitude)
                 .frame(width: 84, height: 28)

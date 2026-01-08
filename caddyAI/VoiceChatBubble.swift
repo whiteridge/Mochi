@@ -1,6 +1,23 @@
 import SwiftUI
 import Combine
 import OSLog
+import Foundation
+
+// #region agent log
+private func debugLog(hypothesisId: String, location: String, message: String, data: [String: String] = [:]) {
+    let logPath = "/Users/matteofari/Desktop/projects/caddyAI/.cursor/debug.log"
+    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+    let dataJson = data.isEmpty ? "{}" : "{\(data.map { "\"\($0.key)\":\"\($0.value)\"" }.joined(separator: ","))}"
+    let logEntry = "{\"hypothesisId\":\"\(hypothesisId)\",\"location\":\"\(location)\",\"message\":\"\(message)\",\"data\":\(dataJson),\"timestamp\":\(timestamp)}\n"
+    if let handle = FileHandle(forWritingAtPath: logPath) {
+        handle.seekToEndOfFile()
+        handle.write(logEntry.data(using: .utf8)!)
+        handle.closeFile()
+    } else {
+        FileManager.default.createFile(atPath: logPath, contents: logEntry.data(using: .utf8), attributes: nil)
+    }
+}
+// #endregion
 
 struct ConfirmButtonFrameKey: PreferenceKey {
     static var defaultValue: CGRect = .zero
@@ -33,6 +50,7 @@ struct VoiceChatBubble: View {
             case .recording:
                 RecordingBubbleView(
                     stopRecording: stopRecording,
+                    cancelRecording: cancelVoiceSession,
                     animation: animation,
                     amplitude: voiceRecorder.normalizedAmplitude
                 )
@@ -60,6 +78,18 @@ struct VoiceChatBubble: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .voiceChatShouldStopSession)) { _ in
             cancelVoiceSession()
+        }
+        // Hold-to-talk: key pressed - start recording
+        .onReceive(NotificationCenter.default.publisher(for: .voiceKeyDidPress)) { _ in
+            handleHoldToTalkKeyPress()
+        }
+        // Hold-to-talk: key released - stop recording and process
+        .onReceive(NotificationCenter.default.publisher(for: .voiceKeyDidRelease)) { _ in
+            handleHoldToTalkKeyRelease()
+        }
+        // Toggle mode: toggle recording state
+        .onReceive(NotificationCenter.default.publisher(for: .voiceToggleRequested)) { _ in
+            handleToggleRequest()
         }
         .onChange(of: viewModel.state) { _, _ in
             NotificationCenter.default.post(name: .voiceChatLayoutNeedsUpdate, object: nil)
@@ -227,41 +257,122 @@ private extension VoiceChatBubble {
              _ = try? await voiceRecorder.stopRecording()
             await MainActor.run {
                 resetConversation(animate: false)
+                // Dismiss the panel
+                NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
             }
         }
     }
+    
+    // MARK: - Hold-to-Talk Handlers
+    
+    func handleHoldToTalkKeyPress() {
+        logger.debug("Hold-to-talk: Key pressed")
+        // If already recording or in chat, don't restart
+        guard viewModel.state == .idle || viewModel.state == .success else {
+            logger.debug("Hold-to-talk: Ignoring press, current state: \(String(describing: viewModel.state))")
+            return
+        }
+        resetConversation(animate: false)
+        startRecording()
+    }
+    
+    func handleHoldToTalkKeyRelease() {
+        logger.debug("Hold-to-talk: Key released")
+        // Only stop if we're actually recording
+        guard viewModel.state == .recording || voiceRecorder.isRecording else {
+            logger.debug("Hold-to-talk: Ignoring release, not recording")
+            return
+        }
+        stopRecording()
+    }
+    
+    // MARK: - Toggle Mode Handler
+    
+    func handleToggleRequest() {
+        logger.debug("Toggle: Requested")
+        // #region agent log
+        debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "toggle_request_entry", data: ["viewModelState": "\(viewModel.state)", "isRecording": "\(voiceRecorder.isRecording)"])
+        // #endregion
+        if viewModel.state == .recording || voiceRecorder.isRecording {
+            // Currently recording - stop
+            // #region agent log
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "stopping_recording", data: ["reason": "state_is_recording_or_voiceRecorder_isRecording"])
+            // #endregion
+            stopRecording()
+        } else if viewModel.state == .idle || viewModel.state == .success {
+            // Not recording - start
+            // #region agent log
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "starting_recording", data: ["reason": "state_is_idle_or_success"])
+            // #endregion
+            resetConversation(animate: false)
+            startRecording()
+        } else {
+            // #region agent log
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "toggle_ignored", data: ["reason": "state_is_chat_or_processing", "currentState": "\(viewModel.state)"])
+            // #endregion
+        }
+        // If in chat/processing state, ignore toggle
+    }
 
     func startRecording() {
+        // #region agent log
+        debugLog(hypothesisId: "D", location: "VoiceChatBubble.startRecording", message: "start_recording_called", data: ["currentState": "\(viewModel.state)", "isRecording": "\(voiceRecorder.isRecording)"])
+        // #endregion
+        
+        // IMMEDIATELY set state to recording to prevent duplicate calls
+        // This runs synchronously before any async work
+        guard viewModel.state != .recording else {
+            // #region agent log
+            debugLog(hypothesisId: "D", location: "VoiceChatBubble.startRecording", message: "already_recording_state_guard", data: ["currentState": "\(viewModel.state)"])
+            // #endregion
+            return
+        }
+        viewModel.state = .recording
+        viewID += 1
+        
         Task {
             do {
                 try await voiceRecorder.startRecording()
                 await MainActor.run {
                     viewModel.errorMessage = nil
-                    viewID += 1
-                    if viewModel.state != .chat {
-                        viewModel.state = .recording
-                    }
+                    // #region agent log
+                    debugLog(hypothesisId: "D", location: "VoiceChatBubble.startRecording", message: "recorder_started_success", data: ["currentState": "\(viewModel.state)"])
+                    // #endregion
                 }
             } catch {
+                // #region agent log
+                debugLog(hypothesisId: "D", location: "VoiceChatBubble.startRecording", message: "start_recording_error", data: ["error": "\(error.localizedDescription)"])
+                // #endregion
                 await MainActor.run {
                     viewModel.errorMessage = error.localizedDescription
+                    // Reset state on failure
+                    viewModel.state = .idle
                 }
             }
         }
     }
 
     func stopRecording() {
+        // #region agent log
+        debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "stop_recording_called", data: ["currentState": "\(viewModel.state)", "isRecording": "\(voiceRecorder.isRecording)"])
+        // #endregion
         viewModel.errorMessage = nil
 
         Task {
             do {
                 await MainActor.run {
+                    // #region agent log
+                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "setting_state_to_chat", data: ["previousState": "\(viewModel.state)"])
+                    // #endregion
                     viewModel.state = .chat
                     // Don't show any status pill - it will appear when tools are invoked
                     viewModel.showStatusPill = false
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
+                // #region agent log
+                debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "recording_stopped_got_url", data: ["url": "\(audioURL.lastPathComponent)"])
+                // #endregion
                 let transcript = try await transcriptionService.transcribeFile(at: audioURL)
                 
                 await MainActor.run {
@@ -270,9 +381,15 @@ private extension VoiceChatBubble {
                 }
             } catch {
                 logger.error("Recording/Transcription failed: \(error.localizedDescription, privacy: .public)")
+                // #region agent log
+                debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "recording_or_transcription_failed", data: ["error": "\(error.localizedDescription)"])
+                // #endregion
                 await MainActor.run {
                     viewModel.errorMessage = error.localizedDescription
                     viewModel.showStatusPill = false
+                    // #region agent log
+                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "setting_state_to_idle_after_error", data: ["previousState": "\(viewModel.state)"])
+                    // #endregion
                     viewModel.state = .idle
                 }
             }

@@ -1,22 +1,36 @@
 import SwiftUI
 
+enum SettingsSidebarItem: Identifiable {
+	case section(SettingsSection)
+	case separator
+	
+	var id: String {
+		switch self {
+		case .section(let section): return section.rawValue
+		case .separator: return "separator"
+		}
+	}
+	
+	static var allItems: [SettingsSidebarItem] {
+		[.section(.general), .section(.integrations), .separator, .section(.about)]
+	}
+}
+
 enum SettingsSection: String, CaseIterable, Identifiable {
-	case general, api, integrations, onboarding
+	case general, integrations, about
 	var id: String { rawValue }
 	var label: String {
 		switch self {
 		case .general: "General"
-		case .api: "API & Accounts"
 		case .integrations: "Integrations"
-		case .onboarding: "Setup"
+		case .about: "About"
 		}
 	}
 	var icon: String {
 		switch self {
 		case .general: "gearshape"
-		case .api: "key"
-		case .integrations: "rectangle.connected.to.line.below"
-		case .onboarding: "sparkles"
+		case .integrations: "link"
+		case .about: "info.circle"
 		}
 	}
 }
@@ -116,7 +130,7 @@ final class SettingsViewModel: ObservableObject {
 		do {
 			let url = try await integrationService.fetchComposioConnectURL(for: appName)
 			await MainActor.run {
-				NSWorkspace.shared.open(url)
+				_ = NSWorkspace.shared.open(url)
 			}
 			
 			// Poll for status after OAuth completes
@@ -125,7 +139,7 @@ final class SettingsViewModel: ObservableObject {
 			return nil // Success
 		} catch let error as IntegrationError {
 			print("Error connecting via Composio: \(error)")
-			return error.localizedDescription ?? "Connection failed"
+			return error.localizedDescription
 		} catch let error as NSError {
 			print("Error connecting via Composio: \(error)")
 			
