@@ -21,6 +21,7 @@ class AgentDispatcher:
         linear_service,
         slack_service,
         notion_service,
+        github_service,
         gmail_service,
         google_calendar_service,
     ):
@@ -28,6 +29,7 @@ class AgentDispatcher:
         self.linear_service = linear_service
         self.slack_service = slack_service
         self.notion_service = notion_service
+        self.github_service = github_service
         self.gmail_service = gmail_service
         self.google_calendar_service = google_calendar_service
 
@@ -190,7 +192,8 @@ class AgentDispatcher:
                 # Track actions in this iteration
                 read_actions_to_execute = pending_read_actions  # (tool_name, args, part, app_id)
                 pending_read_actions = []
-                write_actions_found = []  # (tool_name, args, app_id, is_linear_write, is_slack_write, is_notion_write, is_gmail_write, is_calendar_write)
+                # (tool, args, app_id, linear, slack, notion, github, gmail, calendar)
+                write_actions_found = []
                 found_function_call = False
 
                 # Check if the model wants to call a function
@@ -232,12 +235,14 @@ class AgentDispatcher:
                             is_linear_write = self.linear_service.is_write_action(tool_name, args)
                             is_slack_write = self.slack_service.is_write_action(tool_name, args)
                             is_notion_write = self.notion_service.is_write_action(tool_name, args)
+                            is_github_write = self.github_service.is_write_action(tool_name, args)
                             is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
                             is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
                             is_write = (
                                 is_linear_write
                                 or is_slack_write
                                 or is_notion_write
+                                or is_github_write
                                 or is_gmail_write
                                 or is_calendar_write
                             )
@@ -274,6 +279,7 @@ class AgentDispatcher:
                                         is_linear_write,
                                         is_slack_write,
                                         is_notion_write,
+                                        is_github_write,
                                         is_gmail_write,
                                         is_calendar_write,
                                     )
@@ -377,6 +383,7 @@ class AgentDispatcher:
                         is_linear_write,
                         is_slack_write,
                         is_notion_write,
+                        is_github_write,
                         is_gmail_write,
                         is_calendar_write,
                     ) in pending_write_actions:
@@ -388,6 +395,8 @@ class AgentDispatcher:
                             enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
                         elif is_notion_write:
                             enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_github_write:
+                            enriched_args = self.github_service.enrich_proposal(user_id, args, tool_name)
                         elif is_gmail_write:
                             enriched_args = self.gmail_service.enrich_proposal(user_id, args, tool_name)
                         elif is_calendar_write:
