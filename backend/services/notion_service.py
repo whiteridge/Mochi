@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List
 from .composio_service import ComposioService
+from .composio_tool_aliases import normalize_tool_slug
 
 
 class NotionService:
@@ -29,7 +30,8 @@ class NotionService:
         Returns:
             True if this is a write action, False otherwise
         """
-        tool_name_lower = tool_name.lower()
+        normalized_name = normalize_tool_slug(tool_name)
+        tool_name_lower = normalized_name.lower()
         write_prefixes = (
             "notion_create_",
             "notion_update_",
@@ -40,10 +42,10 @@ class NotionService:
             "notion_remove_",
         )
         if tool_name_lower.startswith(write_prefixes):
-            print(f"DEBUG: Detected NOTION WRITE action: {tool_name}")
+            print(f"DEBUG: Detected NOTION WRITE action: {normalized_name}")
             return True
 
-        print(f"DEBUG: Detected NOTION READ action: {tool_name}")
+        print(f"DEBUG: Detected NOTION READ action: {normalized_name}")
         return False
 
     def load_tools(self, user_id: str) -> List[Any]:

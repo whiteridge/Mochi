@@ -2,6 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 from composio.exceptions import EnumMetadataNotFound
+from .composio_tool_aliases import normalize_tool_slug
 from .composio_service import ComposioService
 
 
@@ -18,14 +19,15 @@ class SlackService:
         "SLACK_SEARCH_MESSAGES",
         "SLACK_SEARCH_ALL",
         "SLACK_FETCH_CONVERSATION_HISTORY",
-        "SLACK_ARCHIVE_CHANNEL",
         "SLACK_CREATE_CHANNEL",
         "SLACK_INVITE_USER_TO_CHANNEL",
-        "SLACK_KICK_USER_FROM_CHANNEL",
-        "SLACK_LEAVE_CHANNEL",
-        "SLACK_RENAME_CHANNEL",
-        "SLACK_SET_PURPOSE",
-        "SLACK_SET_TOPIC",
+        "SLACK_REMOVE_A_USER_FROM_A_CONVERSATION",
+        "SLACK_LEAVE_A_CONVERSATION",
+        "SLACK_ARCHIVE_A_SLACK_CONVERSATION",
+        "SLACK_RENAME_A_CONVERSATION",
+        "SLACK_SET_A_CONVERSATION_S_PURPOSE",
+        "SLACK_SET_THE_TOPIC_OF_A_CONVERSATION",
+        "SLACK_UPDATES_A_SLACK_MESSAGE",
     ]
     
     def __init__(self, composio_service: ComposioService):
@@ -48,28 +50,30 @@ class SlackService:
         Returns:
             True if this is a write action, False otherwise
         """
-        tool_name_lower = tool_name.lower()
+        normalized_name = normalize_tool_slug(tool_name)
+        tool_name_lower = normalized_name.lower()
         
         # Explicit list of write actions
-        write_actions = [
+        write_actions = {
             "slack_send_message",
             "slack_send_ephemeral_message",
             "slack_schedule_message",
-            "slack_archive_channel",
             "slack_create_channel",
             "slack_invite_user_to_channel",
-            "slack_kick_user_from_channel",
-            "slack_leave_channel",
-            "slack_rename_channel",
-            "slack_set_purpose",
-            "slack_set_topic",
-        ]
-        
-        if any(action in tool_name_lower for action in write_actions):
-            print(f"DEBUG: Detected SLACK WRITE action: {tool_name}")
+            "slack_remove_a_user_from_a_conversation",
+            "slack_leave_a_conversation",
+            "slack_archive_a_slack_conversation",
+            "slack_rename_a_conversation",
+            "slack_set_a_conversation_s_purpose",
+            "slack_set_the_topic_of_a_conversation",
+            "slack_updates_a_slack_message",
+        }
+
+        if tool_name_lower in write_actions:
+            print(f"DEBUG: Detected SLACK WRITE action: {normalized_name}")
             return True
             
-        print(f"DEBUG: Detected SLACK READ action: {tool_name}")
+        print(f"DEBUG: Detected SLACK READ action: {normalized_name}")
         return False
     
     def load_tools(self, user_id: str) -> List[Any]:
@@ -141,7 +145,7 @@ class SlackService:
         
         try:
             # Enrich Channel Name
-            channel_id = args.get("channel")
+            channel_id = args.get("channel") or args.get("channel_id")
             if channel_id and isinstance(channel_id, str) and "channelName" not in enriched_args:
                 # Try to resolve channel name
                 # We can use SLACK_LIST_CONVERSATIONS or SLACK_LIST_ALL_CHANNELS

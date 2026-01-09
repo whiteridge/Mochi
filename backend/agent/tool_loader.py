@@ -7,10 +7,13 @@ def load_composio_tools(
     linear_service,
     slack_service,
     notion_service,
+    gmail_service,
+    google_calendar_service,
     user_id: str,
 ) -> Tuple[List, List[str]]:
     """
-    Load Linear, Slack, and Notion tools, collecting any errors.
+    Load Linear, Slack, Notion, Gmail, and Google Calendar tools,
+    collecting any errors.
 
     Returns:
         (tools, errors)
@@ -45,5 +48,22 @@ def load_composio_tools(
         print(f"DEBUG: Error fetching Notion tools: {exc}")
         errors.append(f"Notion: {str(exc)}")
 
-    return all_composio_tools, errors
+    try:
+        gmail_tools = gmail_service.load_tools(user_id=user_id)
+        if gmail_tools:
+            all_composio_tools.extend(gmail_tools)
+            print(f"DEBUG: Loaded {len(gmail_tools)} Gmail tools")
+    except Exception as exc:  # noqa: BLE001 - surfaced to caller via errors list
+        print(f"DEBUG: Error fetching Gmail tools: {exc}")
+        errors.append(f"Gmail: {str(exc)}")
 
+    try:
+        calendar_tools = google_calendar_service.load_tools(user_id=user_id)
+        if calendar_tools:
+            all_composio_tools.extend(calendar_tools)
+            print(f"DEBUG: Loaded {len(calendar_tools)} Google Calendar tools")
+    except Exception as exc:  # noqa: BLE001 - surfaced to caller via errors list
+        print(f"DEBUG: Error fetching Google Calendar tools: {exc}")
+        errors.append(f"Google Calendar: {str(exc)}")
+
+    return all_composio_tools, errors
