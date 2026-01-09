@@ -81,6 +81,7 @@ class ComposioService:
             "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID", "ac_VbAOnHEy6Cts"),
             "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID", "ac_ibulkWqBOyKQ"),
             "notion": os.getenv("COMPOSIO_NOTION_AUTH_CONFIG_ID"),
+            "github": os.getenv("COMPOSIO_GITHUB_AUTH_CONFIG_ID"),
         }
         
         config_id = auth_configs.get(app_name.lower())
@@ -88,6 +89,8 @@ class ComposioService:
             extra_hint = ""
             if app_name.lower() == "notion":
                 extra_hint = " Set COMPOSIO_NOTION_AUTH_CONFIG_ID if you're enabling Notion."
+            if app_name.lower() == "github":
+                extra_hint = " Set COMPOSIO_GITHUB_AUTH_CONFIG_ID if you're enabling GitHub."
             raise ValueError(f"No auth config found for app: {app_name}.{extra_hint}")
             
         request = self.composio.connected_accounts.initiate(
