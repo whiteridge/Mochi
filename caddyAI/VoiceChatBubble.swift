@@ -253,8 +253,17 @@ private extension VoiceChatBubble {
     }
 
     func cancelVoiceSession() {
+        // Guard: Only cancel if we're actually recording
+        guard viewModel.state == .recording || voiceRecorder.isRecording else {
+            // Already cancelled or not recording - do nothing to prevent loop
+            return
+        }
+        
+        // Immediately change state to prevent duplicate cancel calls
+        viewModel.state = .idle
+        
         Task {
-             _ = try? await voiceRecorder.stopRecording()
+            _ = try? await voiceRecorder.stopRecording()
             await MainActor.run {
                 resetConversation(animate: false)
                 // Dismiss the panel
@@ -267,9 +276,10 @@ private extension VoiceChatBubble {
     
     func handleHoldToTalkKeyPress() {
         logger.debug("Hold-to-talk: Key pressed")
-        // If already recording or in chat, don't restart
-        guard viewModel.state == .idle || viewModel.state == .success else {
-            logger.debug("Hold-to-talk: Ignoring press, current state: \(String(describing: viewModel.state))")
+        // Allow recording if not currently recording (idle, success, OR chat states)
+        // Block only if already recording
+        guard viewModel.state != .recording && !voiceRecorder.isRecording else {
+            logger.debug("Hold-to-talk: Ignoring press, already recording (state: \(String(describing: viewModel.state)))")
             return
         }
         resetConversation(animate: false)
@@ -279,8 +289,8 @@ private extension VoiceChatBubble {
     func handleHoldToTalkKeyRelease() {
         logger.debug("Hold-to-talk: Key released")
         // Only stop if we're actually recording
-        guard viewModel.state == .recording || voiceRecorder.isRecording else {
-            logger.debug("Hold-to-talk: Ignoring release, not recording")
+        guard viewModel.state == .recording && voiceRecorder.isRecording else {
+            logger.debug("Hold-to-talk: Ignoring release, not recording (state: \(String(describing: viewModel.state)), isRecording: \(voiceRecorder.isRecording))")
             return
         }
         stopRecording()
@@ -356,15 +366,24 @@ private extension VoiceChatBubble {
         // #region agent log
         debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "stop_recording_called", data: ["currentState": "\(viewModel.state)", "isRecording": "\(voiceRecorder.isRecording)"])
         // #endregion
+        
+        // Guard: Only stop if we're actually in recording state AND recorder is active
+        guard viewModel.state == .recording || voiceRecorder.isRecording else {
+            logger.debug("stopRecording: Ignoring, not in recording state")
+            return
+        }
+        
+        // Immediately change state to prevent duplicate stop calls
+        viewModel.state = .chat
         viewModel.errorMessage = nil
 
         Task {
             do {
                 await MainActor.run {
                     // #region agent log
-                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "setting_state_to_chat", data: ["previousState": "\(viewModel.state)"])
+                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "processing_recording", data: ["currentState": "\(viewModel.state)"])
                     // #endregion
-                    viewModel.state = .chat
+                    // State already changed to .chat before Task started
                     // Don't show any status pill - it will appear when tools are invoked
                     viewModel.showStatusPill = false
                 }

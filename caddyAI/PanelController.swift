@@ -87,7 +87,8 @@ final class PanelController {
 			self?.panel.orderOut(nil)
 			// Reset alpha for next show
 			self?.panel.alphaValue = 1.0
-			NotificationCenter.default.post(name: .voiceChatShouldStopSession, object: nil)
+			// Note: Removed .voiceChatShouldStopSession notification to prevent feedback loop
+			// The cancel flow is handled by cancelVoiceSession() directly
 		}
 	}
 

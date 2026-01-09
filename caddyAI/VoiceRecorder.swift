@@ -120,6 +120,12 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
 	@MainActor
 	func stopRecording() async throws -> URL {
+		// Early return if not recording - prevents spam
+		guard isRecording || audioRecorder != nil else {
+			// Silent return to prevent log spam
+			throw RecorderError.noAudioCaptured
+		}
+		
 		print("VoiceRecorder: stopRecording called, isRecording=\(isRecording)")
 		
 		// Stop metering timer
