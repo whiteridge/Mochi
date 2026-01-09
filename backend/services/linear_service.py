@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from composio.exceptions import EnumMetadataNotFound
 from .composio_service import ComposioService
 from .linear_enricher import LinearEnricher
+from .composio_tool_aliases import normalize_tool_slug
 
 
 class LinearService:
@@ -16,6 +17,7 @@ class LinearService:
         "LINEAR_CREATE_LINEAR_ISSUE_DETAILS",
         "LINEAR_CREATE_LINEAR_LABEL",
         "LINEAR_CREATE_LINEAR_PROJECT",
+        "LINEAR_CREATE_LINEAR_COMMENT",
         "LINEAR_DELETE_LINEAR_ISSUE",
         "LINEAR_GET_ALL_LINEAR_TEAMS",
         "LINEAR_GET_ATTACHMENTS",
@@ -35,9 +37,8 @@ class LinearService:
         "LINEAR_REMOVE_REACTION",
         "LINEAR_RUN_QUERY_OR_MUTATION",
         "LINEAR_UPDATE_ISSUE",
-        "LINEAR_UPDATE_LINEAR_ISSUE",
-        "LINEAR_CREATE_A_COMMENT",
-        "LINEAR_GET_COMMENTS",
+        "LINEAR_UPDATE_LINEAR_COMMENT",
+        "LINEAR_UPDATE_LINEAR_PROJECT",
     ]
     
     def __init__(self, composio_service: ComposioService):
@@ -62,22 +63,23 @@ class LinearService:
         Returns:
             True if this is a write action, False otherwise
         """
-        tool_name_lower = tool_name.lower()
+        normalized_name = normalize_tool_slug(tool_name)
+        tool_name_lower = normalized_name.lower()
         
         # Check for common write prefixes
         write_prefixes = ["create_", "update_", "delete_", "remove_", "manage_"]
         if any(prefix in tool_name_lower for prefix in write_prefixes):
-            print(f"DEBUG: Detected WRITE action (prefix match): {tool_name}")
+            print(f"DEBUG: Detected WRITE action (prefix match): {normalized_name}")
             return True
         
         # Special case: GraphQL mutations via run_query_or_mutation
         if "run_query_or_mutation" in tool_name_lower:
             query = tool_args.get("query_or_mutation", "").strip().lower()
             if query.startswith("mutation"):
-                print(f"DEBUG: Detected WRITE action (mutation): {tool_name}")
+                print(f"DEBUG: Detected WRITE action (mutation): {normalized_name}")
                 return True
         
-        print(f"DEBUG: Detected READ action: {tool_name}")
+        print(f"DEBUG: Detected READ action: {normalized_name}")
         return False
     
     def _extract_missing_action_slug(self, error_message: str) -> Optional[str]:
@@ -202,4 +204,3 @@ class LinearService:
         """
         enricher = LinearEnricher(self)
         return enricher.enrich(user_id=user_id, args=args, tool_name=tool_name)
-

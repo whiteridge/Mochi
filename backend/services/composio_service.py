@@ -6,6 +6,7 @@ import json
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 from composio import Composio
+from .composio_tool_aliases import normalize_tool_slug
 # from composio_google import GoogleProvider # Removed to avoid schema conversion issues
 
 load_dotenv()
@@ -181,7 +182,12 @@ class ComposioService:
             List of tool objects from Composio
         """
         if slugs:
-            return self.composio.tools.get(user_id=user_id, tools=slugs)
+            normalized_slugs = [normalize_tool_slug(slug) for slug in slugs]
+            normalized_slugs = list(dict.fromkeys(normalized_slugs))
+            return self.composio.tools.get(
+                user_id=user_id,
+                tools=normalized_slugs,
+            )
         if toolkits:
             return self.composio.tools.get(user_id=user_id, toolkits=toolkits)
         raise ValueError("Must provide slugs or toolkits to fetch tools.")
@@ -203,8 +209,13 @@ class ComposioService:
         Returns:
             Dictionary with 'data' and 'successful' keys
         """
+        normalized_slug = normalize_tool_slug(action_slug)
+        if normalized_slug != action_slug:
+            print(
+                f"DEBUG: Normalized action slug {action_slug} -> {normalized_slug}"
+            )
         result = self.composio.tools.execute(
-            slug=action_slug,
+            slug=normalized_slug,
             arguments=arguments,
             user_id=user_id,
             dangerously_skip_version_check=True,
@@ -232,6 +243,11 @@ class ComposioService:
         Returns:
             Raw result object from Composio
         """
+        normalized_slug = normalize_tool_slug(slug)
+        if normalized_slug != slug:
+            print(f"DEBUG: Normalized tool slug {slug} -> {normalized_slug}")
+        slug = normalized_slug
+
         # Check cache first for read-only tools
         if slug.upper() in READ_ONLY_CACHEABLE_TOOLS:
             cached = self._get_cached(slug, arguments)
