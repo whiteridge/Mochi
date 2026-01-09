@@ -1,0 +1,24 @@
+"""Legacy-to-current Composio tool slug mappings."""
+
+from typing import Dict
+
+
+TOOL_SLUG_ALIASES: Dict[str, str] = {
+    "LINEAR_CREATE_A_COMMENT": "LINEAR_CREATE_LINEAR_COMMENT",
+    "LINEAR_UPDATE_LINEAR_ISSUE": "LINEAR_UPDATE_ISSUE",
+    "NOTION_ARCHIVE_PAGE": "NOTION_ARCHIVE_NOTION_PAGE",
+    "NOTION_CREATE_PAGE": "NOTION_CREATE_NOTION_PAGE",
+    "SLACK_ARCHIVE_CHANNEL": "SLACK_ARCHIVE_A_SLACK_CONVERSATION",
+    "SLACK_KICK_USER_FROM_CHANNEL": "SLACK_REMOVE_A_USER_FROM_A_CONVERSATION",
+    "SLACK_LEAVE_CHANNEL": "SLACK_LEAVE_A_CONVERSATION",
+    "SLACK_RENAME_CHANNEL": "SLACK_RENAME_A_CONVERSATION",
+    "SLACK_SET_PURPOSE": "SLACK_SET_A_CONVERSATION_S_PURPOSE",
+    "SLACK_SET_TOPIC": "SLACK_SET_THE_TOPIC_OF_A_CONVERSATION",
+}
+
+
+def normalize_tool_slug(slug: str) -> str:
+    """Normalize legacy Composio tool slugs to current equivalents."""
+    if not slug:
+        return slug
+    return TOOL_SLUG_ALIASES.get(slug.upper(), slug)

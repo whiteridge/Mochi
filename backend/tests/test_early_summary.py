@@ -32,6 +32,16 @@ class TestMapToolToApp:
     def test_notion_tools(self):
         """NOTION_ prefix should map to 'notion'."""
         assert map_tool_to_app("NOTION_CREATE_PAGE") == "notion"
+
+    def test_gmail_tools(self):
+        """GMAIL_ prefix should map to 'gmail'."""
+        assert map_tool_to_app("GMAIL_SEND_EMAIL") == "gmail"
+        assert map_tool_to_app("gmail_fetch_emails") == "gmail"
+
+    def test_google_calendar_tools(self):
+        """GOOGLECALENDAR_ prefix should map to 'google_calendar'."""
+        assert map_tool_to_app("GOOGLECALENDAR_CREATE_EVENT") == "google_calendar"
+        assert map_tool_to_app("googlecalendar_events_list") == "google_calendar"
     
     def test_unknown_tool_fallback(self):
         """Unknown tools should use first word before underscore."""
@@ -64,6 +74,16 @@ class TestMakeEarlySummary:
         summary = make_early_summary("jira")
         assert "Jira" in summary  # Should be capitalized
         assert "help with your request" in summary
+
+    def test_gmail_summary(self):
+        """Gmail app should get specific summary."""
+        summary = make_early_summary("gmail")
+        assert "Gmail" in summary
+
+    def test_google_calendar_summary(self):
+        """Google Calendar app should get specific summary."""
+        summary = make_early_summary("google_calendar")
+        assert "Google Calendar" in summary
 
 
 class TestComposioServiceCaching:
