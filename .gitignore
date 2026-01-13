@@ -1,21 +1,35 @@
-# Xcode
-## User settings
-xcuserdata/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
 
-## Derived data
+# Xcode
+xcuserdata/
+*.isuser
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
 DerivedData/
 build/
 *.hmap
 *.ipa
-*.dSYM.zip
+*.pkg
 *.dSYM
-
-## Playgrounds
+*.dSYM.zip
+*.xcresult
 timeline.xctimeline
 playground.xcworkspace
+*.xcodeproj/xcuserdata/
+*.xccheckout
+*.xcscmblueprint
 
 # Swift Package Manager
+# Note: generally Package.resolved SHOULD be committed for reproducibility,
+# but .build must always be ignored.
 .build/
+.swiftpm/
 Packages
 Package.pins
 Package.resolved
@@ -24,83 +38,17 @@ Package.resolved
 # Simulator
 Application Support/iphone/
 
-# Local Config
-config.json
-secrets.swift
-
-# OS X
-.DS_Store
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Backend
-backend/.env
-backend/venv
-
-#Cursor
-.cursor
-
-
-# ========================
-# 🍎 macOS & Xcode
-# ========================
-## User settings (User-specific window layouts, breakpoints, etc.)
-xcuserdata/
-*.isuser
-*.pbxuser
-*.mode1v3
-*.mode2v3
-*.perspectivev3
-
-## Derived data & Build results
-DerivedData/
-build/
-*.hmap
-*.ipa
-*.pkg
-*.dSYM.zip
-*.dSYM
-*.xcresult
-
-## Swift Package Manager
-# Note: generally Package.resolved SHOULD be committed for reproducibility, 
-# but .build must always be ignored.
-.build/
-.swiftpm/
-
-## Xcode Project junk
-*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
-*.xcodeproj/xcuserdata/
-*.xccheckout
-*.xcscmblueprint
-
-## Playgrounds
-timeline.xctimeline
-playground.xcworkspace
-
-# ========================
-# 🐍 Python & Backend
-# ========================
-## Byte-compiled / Optimized / DLL files
+# Python and backend
 __pycache__/
 *.py[cod]
 *$py.class
-
-## Virtual Environments (Covers common names)
 backend/venv
 backend/.venv
 venv/
 .venv/
 env/
 ENV/
-
-## Distribution / Packaging
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -115,8 +63,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-## Testing & Coverage
 .coverage
 .coverage.*
 htmlcov/
@@ -124,18 +70,13 @@ htmlcov/
 .tox/
 .nox/
 *.log
-
-## Type Checking
 .mypy_cache/
 .dmypy.json
 dmypy.json
 .ruff_cache/
 .hypothesis/
 
-# ========================
-# 🔒 Secrets & Environment
-# ========================
-# NEVER commit API keys or secrets
+# Local config and secrets
 .env
 backend/.env
 .env.local
@@ -143,16 +84,7 @@ config.json
 secrets.swift
 Secrets.plist
 
-# ========================
-# ⚙️ Editor & System
-# ========================
-## macOS System Files
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-## VS Code
+# Editors
 .vscode/
 # Exception: If you want to share settings but hide local history
 # .vscode/*
@@ -160,19 +92,21 @@ Secrets.plist
 # !.vscode/tasks.json
 # !.vscode/launch.json
 # !.vscode/extensions.json
-
-## JetBrains / AppCode
 .idea/
 *.iws
 *.iml
 *.ipr
-
-## Vim / Emacs
 *.swp
 *.swo
 *~
 
-## Cursor AI
-# Ignore general cursor data, but keep rules shared
+# Cursor
 .cursor/
+!.cursor/
+.cursor/*
 !.cursor/rules/
+!.cursor/rules/**
+
+
+services/__pycache__/
+utlis/__pycache__/
