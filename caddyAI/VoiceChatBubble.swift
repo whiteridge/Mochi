@@ -61,6 +61,17 @@ struct VoiceChatBubble: View {
                         .matchedGeometryEffect(id: "background", in: animation)
                 )
                 .transition(.scale(scale: 1))
+                
+            case .transcribing:
+                // Transcribing pill - keeps pill visible while waiting for transcription
+                TranscribingPillView()
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        GlassBackground(cornerRadius: 30)
+                            .matchedGeometryEffect(id: "background", in: animation)
+                    )
+                    .transition(.scale(scale: 1))
                     
             case .idle:
                 EmptyView()
@@ -91,11 +102,19 @@ struct VoiceChatBubble: View {
         .onReceive(NotificationCenter.default.publisher(for: .voiceToggleRequested)) { _ in
             handleToggleRequest()
         }
+        // ESC key pressed - close panel
+        .onReceive(NotificationCenter.default.publisher(for: .escapeKeyPressed)) { _ in
+            handleEscapeKey()
+        }
         .onChange(of: viewModel.state) { _, _ in
             NotificationCenter.default.post(name: .voiceChatLayoutNeedsUpdate, object: nil)
         }
         .onKeyPress(.return) {
             handleEnterKey()
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            handleEscapeKey()
             return .handled
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
@@ -236,6 +255,9 @@ private extension VoiceChatBubble {
         case .recording:
             logger.debug("Enter pressed: Stopping recording")
             stopRecording()
+        case .transcribing:
+            // During transcribing, ignore enter key
+            break
         case .chat, .processing:
             logger.debug("Enter pressed: Sending message")
             sendManualMessage()
@@ -243,6 +265,32 @@ private extension VoiceChatBubble {
             break
         case .idle:
             logger.debug("Enter pressed in idle state: Ignoring")
+        }
+    }
+    
+    func handleEscapeKey() {
+        // Always cancel any pending recording to ensure clean state
+        // This prevents voiceRecorder.isRecording from blocking future recordings
+        if voiceRecorder.isRecording {
+            voiceRecorder.cancelRecording()
+        }
+        
+        switch viewModel.state {
+        case .recording, .transcribing:
+            // Cancel recording/transcribing and close
+            logger.debug("Escape pressed: Cancelling recording/transcribing")
+            viewModel.state = .idle
+            resetConversation(animate: false)
+            NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
+        case .chat, .processing, .success:
+            // Close the chat panel
+            logger.debug("Escape pressed: Closing chat")
+            viewModel.reset()
+            viewModel.state = .idle
+            NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
+        case .idle:
+            // Already idle, just make sure panel is dismissed
+            NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
         }
     }
     
@@ -259,17 +307,17 @@ private extension VoiceChatBubble {
             return
         }
         
-        // Immediately change state to prevent duplicate cancel calls
-        viewModel.state = .idle
+        print("VoiceChatBubble: cancelVoiceSession called")
         
-        Task {
-            _ = try? await voiceRecorder.stopRecording()
-            await MainActor.run {
-                resetConversation(animate: false)
-                // Dismiss the panel
-                NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
-            }
-        }
+        // Cancel the recording (stops recorder, deletes temp file, sets wasCancelled = true)
+        voiceRecorder.cancelRecording()
+        
+        // Reset state
+        viewModel.state = .idle
+        resetConversation(animate: false)
+        
+        // Dismiss the panel
+        NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
     }
     
     // MARK: - Hold-to-Talk Handlers
@@ -373,9 +421,14 @@ private extension VoiceChatBubble {
             return
         }
         
-        // Immediately change state to prevent duplicate stop calls
-        viewModel.state = .chat
+        // Set to transcribing state to show transcribing pill while we process
+        // This enables smooth morphing animation from recording pill to transcribing pill to chat
+        viewModel.state = .transcribing
         viewModel.errorMessage = nil
+        
+        // Track start time to ensure minimum display duration for transcribing pill
+        let transcribeStartTime = Date()
+        let minimumDisplayDuration: TimeInterval = 0.5 // 500ms minimum
 
         Task {
             do {
@@ -383,18 +436,56 @@ private extension VoiceChatBubble {
                     // #region agent log
                     debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "processing_recording", data: ["currentState": "\(viewModel.state)"])
                     // #endregion
-                    // State already changed to .chat before Task started
-                    // Don't show any status pill - it will appear when tools are invoked
                     viewModel.showStatusPill = false
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
+                
+                // Check if session was cancelled while we were stopping
+                if voiceRecorder.wasCancelled {
+                    print("VoiceChatBubble: Session was cancelled, aborting transcription")
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
+                    }
+                    return
+                }
+                
                 // #region agent log
                 debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "recording_stopped_got_url", data: ["url": "\(audioURL.lastPathComponent)"])
                 // #endregion
                 let transcript = try await transcriptionService.transcribeFile(at: audioURL)
                 
+                // Check again after transcription (could have been cancelled during transcription)
+                if voiceRecorder.wasCancelled {
+                    print("VoiceChatBubble: Session was cancelled after transcription, discarding result")
+                    await MainActor.run {
+                        viewModel.state = .idle
+                        NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
+                    }
+                    return
+                }
+                
+                // Ensure minimum display time for the transcribing pill
+                let elapsed = Date().timeIntervalSince(transcribeStartTime)
+                if elapsed < minimumDisplayDuration {
+                    let remainingTime = minimumDisplayDuration - elapsed
+                    try? await Task.sleep(nanoseconds: UInt64(remainingTime * 1_000_000_000))
+                }
+                
+                // Check if transcript is empty - if so, close without showing chat
+                let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedTranscript.isEmpty {
+                    print("VoiceChatBubble: Transcription is empty, closing panel")
+                    await MainActor.run {
+                        viewModel.state = .idle
+                        NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
+                    }
+                    return
+                }
+                
+                // Only now transition to chat state since we have valid content
                 await MainActor.run {
+                    viewModel.state = .chat
                     viewModel.errorMessage = nil
                     viewModel.processInputWithThinking(text: transcript)
                 }
@@ -403,13 +494,21 @@ private extension VoiceChatBubble {
                 // #region agent log
                 debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "recording_or_transcription_failed", data: ["error": "\(error.localizedDescription)"])
                 // #endregion
+                
+                // Ensure minimum display time even on error
+                let elapsed = Date().timeIntervalSince(transcribeStartTime)
+                if elapsed < minimumDisplayDuration {
+                    let remainingTime = minimumDisplayDuration - elapsed
+                    try? await Task.sleep(nanoseconds: UInt64(remainingTime * 1_000_000_000))
+                }
+                
+                // On error, just dismiss the panel - don't show chat
                 await MainActor.run {
-                    viewModel.errorMessage = error.localizedDescription
-                    viewModel.showStatusPill = false
                     // #region agent log
-                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "setting_state_to_idle_after_error", data: ["previousState": "\(viewModel.state)"])
+                    debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "dismissing_panel_after_error", data: ["error": "\(error.localizedDescription)"])
                     // #endregion
                     viewModel.state = .idle
+                    NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                 }
             }
         }

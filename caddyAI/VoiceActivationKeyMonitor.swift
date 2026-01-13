@@ -97,6 +97,14 @@ final class VoiceActivationKeyMonitor: ObservableObject {
 		logger.debug("Voice activation key monitoring stopped")
 	}
 	
+	/// Reset the key held state (call when panel is dismissed via ESC while key might be held)
+	func resetKeyState() {
+		if isKeyHeld {
+			logger.debug("Resetting isKeyHeld state (was true)")
+			isKeyHeld = false
+		}
+	}
+	
 	deinit {
 		stop()
 	}

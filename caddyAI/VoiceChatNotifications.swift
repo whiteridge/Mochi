@@ -12,5 +12,8 @@ extension Notification.Name {
 	
 	// Voice activation toggle event
 	static let voiceToggleRequested = Notification.Name("voiceToggleRequested")
+	
+	// ESC key pressed (for closing panel)
+	static let escapeKeyPressed = Notification.Name("escapeKeyPressed")
 }
 

@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			object: nil,
 			queue: .main
 		) { [weak self] _ in
+			// Reset key held state in case panel was dismissed while key was held
+			self?.voiceKeyMonitor.resetKeyState()
 			self?.panelController?.hide()
 		}
 		

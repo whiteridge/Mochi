@@ -5,6 +5,7 @@ import SwiftUI
 public enum VoiceChatState: Equatable {
     case idle
     case recording
+    case transcribing  // Intermediate state while transcribing, keeps pill visible for animation
     case processing
     case chat
     case success

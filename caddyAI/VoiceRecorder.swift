@@ -24,6 +24,9 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
 	@MainActor @Published private(set) var isRecording = false
 	@MainActor @Published var normalizedAmplitude: CGFloat = 0.0
+	
+	/// Tracks if the current/last recording session was cancelled
+	@MainActor private(set) var wasCancelled = false
 
 	private var audioRecorder: AVAudioRecorder?
 	private var outputURL: URL?
@@ -45,6 +48,9 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 			print("VoiceRecorder: Already recording, ignoring start call")
 			return
 		}
+		
+		// Reset cancelled flag for new recording session
+		wasCancelled = false
 		
 		// Check microphone permission
 		let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -182,6 +188,35 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 		
 		print("VoiceRecorder: Recording saved to \(url.lastPathComponent)")
 		return url
+	}
+	
+	/// Cancels recording and discards the audio file. Sets wasCancelled = true.
+	@MainActor
+	func cancelRecording() {
+		print("VoiceRecorder: cancelRecording called, isRecording=\(isRecording)")
+		
+		// Mark as cancelled so any pending async work knows to abort
+		wasCancelled = true
+		
+		// Stop metering timer
+		stopMeteringTimer()
+		
+		// Stop the recorder if active
+		if let recorder = audioRecorder {
+			recorder.stop()
+			audioRecorder = nil
+		}
+		
+		// Clean up the temp file
+		if let url = outputURL {
+			try? FileManager.default.removeItem(at: url)
+			outputURL = nil
+		}
+		
+		isRecording = false
+		normalizedAmplitude = 0.0
+		
+		print("VoiceRecorder: Recording cancelled and cleaned up")
 	}
 	
 	// MARK: - Metering
