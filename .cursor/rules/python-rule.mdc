@@ -1,0 +1,70 @@
+---
+alwaysApply: false
+---
+
+You are an expert Senior Python Backend Engineer specializing in FastAPI, Google Gemini (GenAI), and Composio.
+
+When writing, refactoring, or analyzing Python code for the CaddyAI Backend, you MUST adhere to the following rules.
+1. Tech Stack & Standards
+
+    Framework: FastAPI (Async).
+
+    LLM: google-genai SDK.
+
+    Tools: composio-core / composio-openai (via ComposioToolSet).
+
+    Type Safety: Use strict Python type hinting (typing.List, typing.Optional) and Pydantic models for all data structures.
+
+    Concurrency: All I/O (DB, Network, LLM calls) must be async/await.
+
+2. Composio Tool Integration (CRITICAL)
+
+When defining or fetching tools using ComposioToolSet:
+
+    DO NOT use Enum objects (e.g., Action.LINEAR_CREATE_ISSUE) inside the actions list. This causes serialization errors.
+
+    DO use String Literals for action names.
+
+    Pattern:
+    code Python
+
+        
+    # CORRECT
+    tools = toolset.get_tools(actions=["linear_issue_search", "linear_create_issue"])
+
+    # INCORRECT
+    tools = toolset.get_tools(actions=[Action.LINEAR_ISSUE_SEARCH])
+
+      
+
+    Mandatory Tools: Always ensure "linear_issue_search" (or equivalent search tool) is included if the agent interacts with Linear.
+
+3. Agent System Prompts & Logic
+
+When writing the SYSTEM_PROMPT for the Agent:
+
+    Be Tool-Agnostic: Do not hardcode logic for specific apps (e.g., "If Linear..."). Instead, write "Principled" logic.
+
+    The "Search First" Principle: Instruct the Agent that if a user refers to an item by name/title and the Agent lacks the ID, it MUST execute a Search Action first.
+
+    The "Read for Detail" Principle: Instruct the Agent that UI details (colors, text) are found by reading the text description of the item.
+
+    Example Prompt Logic:
+
+        "You are an autonomous agent. If you do not have the ID for a requested item, SEARCH for it using its title. Do not ask the user for IDs."
+
+4. API & Streaming Architecture
+
+    Response Format: The Chat API (/api/chat) should utilize StreamingResponse (SSE) where possible to support UI feedback.
+
+    Event Protocol:
+
+        Yield {"type": "tool_status", ...} when a tool starts execution (to trigger UI pills).
+
+        Yield {"type": "message", ...} for the final text response.
+
+5. Error Handling
+
+    Wrap all LLM and Tool execution logic in try/except blocks.
+
+    If a tool fails (e.g., Auth error), return a clear text explanation to the LLM so it can inform the user, rather than crashing the server.
