@@ -7,7 +7,7 @@ struct RecordingBubbleView: View {
     var amplitude: CGFloat = 0.5
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 6) {
             // Left: Cancel button (X)
             Button(action: cancelRecording) {
                 Circle()
@@ -26,10 +26,10 @@ struct RecordingBubbleView: View {
                                 lineWidth: 1
                             )
                     )
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                     .overlay(
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.7))
                     )
             }
@@ -37,11 +37,11 @@ struct RecordingBubbleView: View {
             .matchedGeometryEffect(id: "appIcon", in: animation)
             
             AnimatedDotRow(count: 10, amplitude: amplitude)
-                .frame(width: 84, height: 28)
+                .frame(width: 72, height: 22)
 
             // Right: Vibrant stop button
             VoiceActionButton(
-                size: 44,
+                size: 32,
                 isRecording: true,
                 action: stopRecording
             )
@@ -98,6 +98,6 @@ struct AnimatedDotRow: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }
-        .frame(height: 32)
+        .frame(height: 22)
     }
 }

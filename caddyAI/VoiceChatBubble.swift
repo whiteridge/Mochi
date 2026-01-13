@@ -54,10 +54,10 @@ struct VoiceChatBubble: View {
                     animation: animation,
                     amplitude: voiceRecorder.normalizedAmplitude
                 )
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
                 .background(
-                    GlassBackground(cornerRadius: 30)
+                    GlassBackground(cornerRadius: 24)
                         .matchedGeometryEffect(id: "background", in: animation)
                 )
                 .transition(.scale(scale: 1))
@@ -65,10 +65,10 @@ struct VoiceChatBubble: View {
             case .transcribing:
                 // Transcribing pill - keeps pill visible while waiting for transcription
                 TranscribingPillView()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 7)
                     .background(
-                        GlassBackground(cornerRadius: 30)
+                        GlassBackground(cornerRadius: 24)
                             .matchedGeometryEffect(id: "background", in: animation)
                     )
                     .transition(.scale(scale: 1))
