@@ -6,6 +6,7 @@ import json
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 from composio import Composio
+from .composio_tool_aliases import normalize_tool_slug
 # from composio_google import GoogleProvider # Removed to avoid schema conversion issues
 
 load_dotenv()
@@ -75,19 +76,29 @@ class ComposioService:
         Returns:
             The authorization URL for the user to visit
         """
-        # Find or create auth config for the app
-        config_id = self._find_auth_config_for_app(app_name)
-        
+        app_name_lower = app_name.lower()
+        auth_configs = {
+            "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID", "ac_VbAOnHEy6Cts"),
+            "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID", "ac_ibulkWqBOyKQ"),
+            "notion": os.getenv("COMPOSIO_NOTION_AUTH_CONFIG_ID"),
+            "github": os.getenv("COMPOSIO_GITHUB_AUTH_CONFIG_ID"),
+        }
+        config_id = auth_configs.get(app_name_lower)
+
         if not config_id:
-            # Auto-create a Composio-managed auth config for this app
+            config_id = self._find_auth_config_for_app(app_name)
+        if not config_id:
             config_id = self._create_auth_config_for_app(app_name)
-        
         if not config_id:
+            extra_hint = ""
+            if app_name_lower == "notion":
+                extra_hint = " Set COMPOSIO_NOTION_AUTH_CONFIG_ID if you're enabling Notion."
+            if app_name_lower == "github":
+                extra_hint = " Set COMPOSIO_GITHUB_AUTH_CONFIG_ID if you're enabling GitHub."
             raise ValueError(
-                f"No auth config found for {app_name}. "
-                f"Please create one in the Composio dashboard at https://app.composio.dev"
+                f"No auth config found for app: {app_name}.{extra_hint} "
+                "Please create one in the Composio dashboard at https://app.composio.dev"
             )
-        
         request = self.composio.connected_accounts.initiate(
             user_id=user_id,
             auth_config_id=config_id,
@@ -146,15 +157,59 @@ class ComposioService:
         Returns:
             True if connected, False otherwise
         """
-        accounts = self.composio.connected_accounts.list()
-        
-        for account in accounts.items:
-            toolkit = getattr(account, 'toolkit', None)
-            account_app = getattr(toolkit, 'slug', '').lower() if toolkit else ''
-            
-            if account_app == app_name.lower() and account.status == "ACTIVE":
-                return True
-        
+        app_slug = app_name.lower()
+        toolkit_slug_filters = [app_slug]
+        app_slug_upper = app_slug.upper()
+        if app_slug_upper != app_slug:
+            toolkit_slug_filters.append(app_slug_upper)
+        try:
+            accounts = self.composio.connected_accounts.list(
+                user_ids=[user_id],
+                toolkit_slugs=toolkit_slug_filters,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            accounts = self.composio.connected_accounts.list(
+                user_id=user_id,
+                app_names=toolkit_slug_filters,
+            )
+
+        items: List[Any] = []
+        if hasattr(accounts, "items"):
+            items = accounts.items or []
+        elif isinstance(accounts, dict):
+            items = accounts.get("items", [])
+        elif isinstance(accounts, list):
+            items = accounts
+
+        for account in items:
+            status = getattr(account, "status", None)
+            if status is None and isinstance(account, dict):
+                status = account.get("status")
+            if status != "ACTIVE":
+                continue
+
+            toolkit_slug = None
+            toolkit = getattr(account, "toolkit", None)
+            if isinstance(account, dict):
+                toolkit = account.get("toolkit", toolkit)
+                toolkit_slug = account.get("toolkit_slug") or account.get("toolkitSlug")
+
+            if toolkit:
+                if isinstance(toolkit, dict):
+                    toolkit_slug = toolkit.get("slug") or toolkit_slug
+                else:
+                    toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
+
+            normalized_toolkit_slug = None
+            if toolkit_slug is not None:
+                normalized_toolkit_slug = str(toolkit_slug).lower()
+
+            if normalized_toolkit_slug and normalized_toolkit_slug != app_slug:
+                continue
+            return True
+
         return False
 
     def disconnect_app(self, app_name: str, user_id: str) -> int:
@@ -184,18 +239,33 @@ class ComposioService:
         
         return disconnected_count
 
-    def fetch_tools(self, user_id: str, slugs: List[str]):
+    def fetch_tools(
+        self,
+        user_id: str,
+        slugs: Optional[List[str]] = None,
+        toolkits: Optional[List[str]] = None,
+    ):
         """
         Fetch Composio tools for the given user and action slugs.
         
         Args:
             user_id: The user ID to fetch tools for
             slugs: List of action slugs to fetch
+            toolkits: List of toolkit slugs to fetch (e.g., ["NOTION"])
             
         Returns:
             List of tool objects from Composio
         """
-        return self.composio.tools.get(user_id=user_id, tools=slugs)
+        if slugs:
+            normalized_slugs = [normalize_tool_slug(slug) for slug in slugs]
+            normalized_slugs = list(dict.fromkeys(normalized_slugs))
+            return self.composio.tools.get(
+                user_id=user_id,
+                tools=normalized_slugs,
+            )
+        if toolkits:
+            return self.composio.tools.get(user_id=user_id, toolkits=toolkits)
+        raise ValueError("Must provide slugs or toolkits to fetch tools.")
     
     def execute_action(
         self,
@@ -214,8 +284,13 @@ class ComposioService:
         Returns:
             Dictionary with 'data' and 'successful' keys
         """
+        normalized_slug = normalize_tool_slug(action_slug)
+        if normalized_slug != action_slug:
+            print(
+                f"DEBUG: Normalized action slug {action_slug} -> {normalized_slug}"
+            )
         result = self.composio.tools.execute(
-            slug=action_slug,
+            slug=normalized_slug,
             arguments=arguments,
             user_id=user_id,
             dangerously_skip_version_check=True,
@@ -243,6 +318,11 @@ class ComposioService:
         Returns:
             Raw result object from Composio
         """
+        normalized_slug = normalize_tool_slug(slug)
+        if normalized_slug != slug:
+            print(f"DEBUG: Normalized tool slug {slug} -> {normalized_slug}")
+        slug = normalized_slug
+
         # Check cache first for read-only tools
         if slug.upper() in READ_ONLY_CACHEABLE_TOOLS:
             cached = self._get_cached(slug, arguments)
@@ -351,4 +431,3 @@ class ComposioService:
                 self._set_cached(slug, arguments, result)
 
         return result
-

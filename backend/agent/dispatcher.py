@@ -4,16 +4,34 @@ import json
 from typing import Dict, Generator, List, Optional
 from google.genai import types
 
-from .common import detect_apps_from_input, make_early_summary, map_tool_to_app
+from .common import (
+    detect_apps_from_input,
+    format_app_name,
+    make_early_summary,
+    map_tool_to_app,
+)
 
 
 class AgentDispatcher:
     """Handles the agent streaming loop (reads, writes, proposals)."""
 
-    def __init__(self, composio_service, linear_service, slack_service):
+    def __init__(
+        self,
+        composio_service,
+        linear_service,
+        slack_service,
+        notion_service,
+        github_service,
+        gmail_service,
+        google_calendar_service,
+    ):
         self.composio_service = composio_service
         self.linear_service = linear_service
         self.slack_service = slack_service
+        self.notion_service = notion_service
+        self.github_service = github_service
+        self.gmail_service = gmail_service
+        self.google_calendar_service = google_calendar_service
 
     def run(
         self,
@@ -67,7 +85,8 @@ class AgentDispatcher:
             early_summary_text = None
 
             # MULTI-APP SUPPORT: Track involved apps and queue proposals
-            involved_apps = []  # List of app_ids found
+            involved_apps = []  # List of app_ids found (including pre-detected)
+            called_apps: set[str] = set()  # Apps with actual tool calls
             proposal_queue = []  # Queue of proposal dicts
 
             # PRE-DETECT APPS: Scan user input to prepare combined summary for multi-app requests
@@ -90,6 +109,10 @@ class AgentDispatcher:
                             app_actions.append("check GitHub")
                         elif app == "notion":
                             app_actions.append("look in Notion")
+                        elif app == "gmail":
+                            app_actions.append("check Gmail")
+                        elif app == "google_calendar":
+                            app_actions.append("check Google Calendar")
 
                     if len(app_actions) >= 2:
                         early_summary_text = f"I'll {app_actions[0]} and {app_actions[1]}."
@@ -120,9 +143,10 @@ class AgentDispatcher:
                 app_write_executing.add(app_id)
 
                 # Emit early summary for feedback
+                app_display = format_app_name(app_id)
                 yield {
                     "type": "early_summary",
-                    "content": f"Executing your confirmed {app_id.capitalize()} action...",
+                    "content": f"Executing your confirmed {app_display} action...",
                     "app_id": app_id,
                     "involved_apps": involved_apps,
                 }
@@ -142,7 +166,7 @@ class AgentDispatcher:
                         result_data = result
 
                     write_action_executed = True
-                    action_performed = f"{app_id.capitalize()} action executed"
+                    action_performed = f"{app_display} action executed"
                     app_write_executing.discard(app_id)
                     app_read_status[app_id] = "done"
 
@@ -159,7 +183,7 @@ class AgentDispatcher:
                     app_read_status[app_id] = "error"
                     yield {
                         "type": "message",
-                        "content": f"Error executing {app_id.capitalize()} action: {str(exec_error)}",
+                        "content": f"Error executing {app_display} action: {str(exec_error)}",
                         "action_performed": None,
                     }
                     return
@@ -168,7 +192,8 @@ class AgentDispatcher:
                 # Track actions in this iteration
                 read_actions_to_execute = pending_read_actions  # (tool_name, args, part, app_id)
                 pending_read_actions = []
-                write_actions_found = []  # (tool_name, args, app_id, is_linear_write, is_slack_write)
+                # (tool, args, app_id, linear, slack, notion, github, gmail, calendar)
+                write_actions_found = []
                 found_function_call = False
 
                 # Check if the model wants to call a function
@@ -192,6 +217,7 @@ class AgentDispatcher:
                             is_new_app = app_id not in involved_apps
                             if is_new_app:
                                 involved_apps.append(app_id)
+                            called_apps.add(app_id)
 
                             # EARLY SUMMARY: Emit immediately on first tool call
                             if not early_summary_sent:
@@ -208,7 +234,18 @@ class AgentDispatcher:
                             # Check if this is a write action
                             is_linear_write = self.linear_service.is_write_action(tool_name, args)
                             is_slack_write = self.slack_service.is_write_action(tool_name, args)
-                            is_write = is_linear_write or is_slack_write
+                            is_notion_write = self.notion_service.is_write_action(tool_name, args)
+                            is_github_write = self.github_service.is_write_action(tool_name, args)
+                            is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
+                            is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
+                            is_write = (
+                                is_linear_write
+                                or is_slack_write
+                                or is_notion_write
+                                or is_github_write
+                                or is_gmail_write
+                                or is_calendar_write
+                            )
                             executed_key = (tool_name, json.dumps(args, sort_keys=True))
 
                             if is_write:
@@ -224,14 +261,29 @@ class AgentDispatcher:
                                 if app_id == "slack":
                                     linear_state = app_read_status.get("linear")
                                     if (
-                                        (linear_state not in ("done", "error") or ("linear" in app_write_executing))
-                                        and "linear" in involved_apps
+                                        "linear" in called_apps
+                                        and (
+                                            linear_state not in ("done", "error")
+                                            or ("linear" in app_write_executing)
+                                        )
                                     ):
                                         print("DEBUG: Gating Slack write until Linear read+write complete")
                                         continue
                                 # Always queue writes for confirmation - we use confirmed_tool for execution
                                 print(f"DEBUG: Queueing {tool_name} for confirmation")
-                                write_actions_found.append((tool_name, args, app_id, is_linear_write, is_slack_write))
+                                write_actions_found.append(
+                                    (
+                                        tool_name,
+                                        args,
+                                        app_id,
+                                        is_linear_write,
+                                        is_slack_write,
+                                        is_notion_write,
+                                        is_github_write,
+                                        is_gmail_write,
+                                        is_calendar_write,
+                                    )
+                                )
                                 executed_write_keys.add(executed_key)
                             else:
                                 # Read action - queue for execution (process one per iteration for sequential pills)
@@ -239,8 +291,11 @@ class AgentDispatcher:
                                 if app_id == "slack":
                                     linear_state = app_read_status.get("linear")
                                     if (
-                                        (linear_state not in ("done", "error") or ("linear" in app_write_executing))
-                                        and "linear" in involved_apps
+                                        "linear" in called_apps
+                                        and (
+                                            linear_state not in ("done", "error")
+                                            or ("linear" in app_write_executing)
+                                        )
                                     ):
                                         print("DEBUG: Gating Slack read until Linear read+write complete")
                                         continue
@@ -321,13 +376,33 @@ class AgentDispatcher:
                 if pending_write_actions and not read_actions_to_execute and not pending_read_actions:
                     print(f"DEBUG: Emitting {len(pending_write_actions)} queued proposal(s)")
 
-                    for tool_name, args, app_id, is_linear_write, is_slack_write in pending_write_actions:
+                    for (
+                        tool_name,
+                        args,
+                        app_id,
+                        is_linear_write,
+                        is_slack_write,
+                        is_notion_write,
+                        is_github_write,
+                        is_gmail_write,
+                        is_calendar_write,
+                    ) in pending_write_actions:
                         # Enrich proposal with human-readable names
                         enriched_args = args
                         if is_linear_write:
                             enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
                         elif is_slack_write:
                             enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_notion_write:
+                            enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_github_write:
+                            enriched_args = self.github_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_gmail_write:
+                            enriched_args = self.gmail_service.enrich_proposal(user_id, args, tool_name)
+                        elif is_calendar_write:
+                            enriched_args = self.google_calendar_service.enrich_proposal(
+                                user_id, args, tool_name
+                            )
 
                         proposal_queue.append(
                             {
@@ -401,5 +476,3 @@ class AgentDispatcher:
                 "content": f"An error occurred: {str(exc)}",
                 "action_performed": None,
             }
-
-

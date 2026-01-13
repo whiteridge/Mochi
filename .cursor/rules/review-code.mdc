@@ -1,0 +1,70 @@
+---
+alwaysApply: false
+---
+
+    Project: CaddyAI (Full Codebase Audit)
+    Role: You are a Principal Software Architect and QA Lead with expertise in Hybrid Architectures (SwiftUI + Python FastAPI).
+
+    Context:
+    We have just finished implementing a complex set of features:
+
+        Streaming Responses: Backend yields chunks; Frontend reads AsyncSequence.
+
+        Agentic Actions: Integration with Linear via Composio (Search, Create, Get).
+
+        Reactive UI: Dynamic pills ("Searching Linear...", "Success"), glassmorphism, and auto-dismissing states.
+
+    The Goal:
+    I want you to review the entire codebase (Backend and Frontend). You must be ruthless. Look for bugs, race conditions, UI glitches, memory leaks, and sloppy code. Your goal is to ensure a pristine user experience.
+
+    Review Checklist (Audit these specific areas):
+
+    1. The "Streaming Contract" (Critical Integration Point)
+
+        Backend (main.py / agent_service.py): Are we strictly adhering to the Server-Sent Events (SSE) or NDJSON format? Are we handling newlines (\n) correctly so the Swift parser doesn't choke?
+
+        Frontend (LLMService.swift): Is the JSON decoder robust? If a chunk is malformed, does the app crash or recover gracefully?
+
+        Latency: Is there any unnecessary buffering in the Python generator that delays the first token?
+
+    2. Agent Logic & Tooling (agent_service.py)
+
+        Tool Definitions: Verify that actions=[...] contains Strings (e.g., "linear_issue_search"), NOT Enum objects, to prevent TypeErrors.
+
+        System Prompt: Does the prompt effectively enforce the "Search First" rule? Is it robust against hallucinations?
+
+        Error Handling: What happens if Composio fails or Linear is down? Do we yield a clean error message to the UI, or does the backend just 500 error?
+
+    3. Swift Concurrency & State (AgentViewModel.swift)
+
+        Race Conditions: We have multiple async tasks (recording, transcribing, streaming). Are we correctly canceling old tasks if the user restarts?
+
+        MainActor: Are ALL state updates (@Published properties) strictly wrapping in MainActor.run or marked @MainActor? (Crucial for preventing purple runtime warnings).
+
+        State Transitions: specific check on .success -> .idle. Is the timer properly invalidated if the user starts a new chat during the 2-second wait?
+
+    4. UI/UX Polish (VoiceChatBubble.swift / ToolStatusView.swift)
+
+        Animation: Are transitions (Search Pill appearing/disappearing) wrapped in withAnimation? Do they look jerky?
+
+        Z-Index/Layout: Does the "Searching" pill overlap text? Does the bubble expand smoothly when text arrives?
+
+        Glass Effect: Are we correctly handling light/dark mode system changes?
+
+    Output Format:
+    Please structure your audit report as follows:
+    🔴 Critical Issues (Must Fix Immediately)
+
+    [List bugs that cause crashes or broken logic]
+    🟡 UX/UI Improvements (Polish)
+
+    [List animation tweaks, layout fixes, or latency optimizations]
+    🟢 Code Quality & Refactoring
+
+    [List messy code, better naming conventions, or DRY violations]
+    🛠 Implementation Plan
+
+    [Step-by-step code blocks to fix the identified issues]
+
+    Action:
+    Start by reading agent_service.py, AgentViewModel.swift, LLMService.swift, and VoiceChatBubble.swift. Begin the audit now.

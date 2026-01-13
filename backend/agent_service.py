@@ -7,14 +7,18 @@ from agent.dispatcher import AgentDispatcher
 from agent.gemini_config import build_gemini_tools, create_chat
 from agent.tool_loader import load_composio_tools
 from services.composio_service import ComposioService
+from services.github_service import GitHubService
+from services.gmail_service import GmailService
+from services.google_calendar_service import GoogleCalendarService
 from services.linear_service import LinearService
+from services.notion_service import NotionService
 from services.slack_service import SlackService
 
 load_dotenv()
 
 
 class AgentService:
-    """Main agent service for orchestrating conversations with Linear and Slack tools."""
+    """Main agent service for orchestrating conversations with Composio tools."""
     
     def __init__(self):
         """Initialize the agent service with Gemini client and service dependencies."""
@@ -27,8 +31,20 @@ class AgentService:
         self.composio_service = ComposioService()
         self.linear_service = LinearService(self.composio_service)
         self.slack_service = SlackService(self.composio_service)
+        self.notion_service = NotionService(self.composio_service)
+        self.github_service = GitHubService(self.composio_service)
+        self.gmail_service = GmailService(self.composio_service)
+        self.google_calendar_service = GoogleCalendarService(
+            self.composio_service
+        )
 
-    def run_agent(self, user_input: str, user_id: str, chat_history: List[Dict[str, str]] = [], confirmed_tool: Dict = None):
+    def run_agent(
+        self,
+        user_input: str,
+        user_id: str,
+        chat_history: List[Dict[str, str]] = [],
+        confirmed_tool: Dict = None,
+    ):
         """
         Runs the agent with the given user input and user_id.
         
@@ -45,10 +61,14 @@ class AgentService:
         """
         print(f"Running agent for user: {user_id} with input: {user_input}")
 
-        # 1. Get tools for the user (Linear + Slack)
+        # 1. Get tools for the user (Linear, Slack, Notion, GitHub, Gmail, Calendar)
         all_composio_tools, errors = load_composio_tools(
             self.linear_service,
             self.slack_service,
+            self.notion_service,
+            self.github_service,
+            self.gmail_service,
+            self.google_calendar_service,
             user_id,
         )
 
@@ -72,6 +92,10 @@ class AgentService:
             composio_service=self.composio_service,
             linear_service=self.linear_service,
             slack_service=self.slack_service,
+            notion_service=self.notion_service,
+            github_service=self.github_service,
+            gmail_service=self.gmail_service,
+            google_calendar_service=self.google_calendar_service,
         )
         yield from dispatcher.run(
             chat=chat,

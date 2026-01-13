@@ -35,20 +35,34 @@ def mock_agent_service():
     with patch("backend.agent_service.genai.Client") as mock_client, \
          patch("backend.agent_service.ComposioService") as mock_composio, \
          patch("backend.agent_service.LinearService") as mock_linear, \
+         patch("backend.agent_service.NotionService") as mock_notion, \
+         patch("backend.agent_service.GitHubService") as mock_github, \
          patch("backend.agent_service.os.getenv", return_value="fake_key"):
         
         service = AgentService()
         service.slack_service = MagicMock(spec=SlackService)
         service.linear_service = MagicMock()
+        service.notion_service = MagicMock()
+        service.github_service = MagicMock()
+        service.gmail_service = MagicMock()
+        service.google_calendar_service = MagicMock()
         
         # Setup default behavior for services
         service.slack_service.load_tools.return_value = ["dummy_tool"]
         service.linear_service.load_tools.return_value = []
+        service.notion_service.load_tools.return_value = []
+        service.github_service.load_tools.return_value = []
+        service.gmail_service.load_tools.return_value = []
+        service.google_calendar_service.load_tools.return_value = []
         
         # CRITICAL: Configure is_write_action to return False by default
         # otherwise MagicMock objects are truthy!
         service.slack_service.is_write_action.return_value = False
         service.linear_service.is_write_action.return_value = False
+        service.notion_service.is_write_action.return_value = False
+        service.github_service.is_write_action.return_value = False
+        service.gmail_service.is_write_action.return_value = False
+        service.google_calendar_service.is_write_action.return_value = False
         
         # Mock chat session
         mock_chat = MagicMock()
