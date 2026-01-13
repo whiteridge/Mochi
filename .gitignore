@@ -3,6 +3,14 @@
 .AppleDouble
 .LSOverride
 ._*
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Xcode
 xcuserdata/
@@ -78,11 +86,18 @@ dmypy.json
 
 # Local config and secrets
 .env
+.env.*
+!.env.example
 backend/.env
+backend/.env.*
+!backend/.env.example
 .env.local
 config.json
 secrets.swift
 Secrets.plist
+*.key
+*.pem
+*.p12
 
 # Editors
 .vscode/

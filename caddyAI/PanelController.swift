@@ -10,6 +10,7 @@ final class PanelController {
 	private(set) var panel: CaddyPanel
 	private var hostingView: NSHostingView<AnyView>
 	private var layoutObserver: NSObjectProtocol?
+	private var escapeKeyMonitor: Any?
 
 	init(rootView: AnyView) {
 		// Create the panel and configure its style
@@ -49,6 +50,9 @@ final class PanelController {
 		if let layoutObserver {
 			NotificationCenter.default.removeObserver(layoutObserver)
 		}
+		if let escapeKeyMonitor {
+			NSEvent.removeMonitor(escapeKeyMonitor)
+		}
 	}
 
 	private func refreshLayout() {
@@ -74,10 +78,29 @@ final class PanelController {
 		// Ensure the app is active to receive global keyboard events
 		NSApp.activate(ignoringOtherApps: true)
 		
-		NotificationCenter.default.post(name: .voiceChatShouldStartRecording, object: nil)
+		// Setup ESC key monitor for closing the panel
+		if escapeKeyMonitor == nil {
+			escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+				if event.keyCode == 53 { // ESC key code
+					print("[PanelController] ESC key pressed")
+					NotificationCenter.default.post(name: .escapeKeyPressed, object: nil)
+					return nil // Consume the event
+				}
+				return event
+			}
+		}
+		
+		// Note: Recording start is handled by the caller (AppDelegate) via specific notifications
+		// (voiceKeyDidPress for hold-to-talk, voiceToggleRequested for toggle mode)
 	}
 
 	func hide() {
+		// Remove ESC key monitor
+		if let monitor = escapeKeyMonitor {
+			NSEvent.removeMonitor(monitor)
+			escapeKeyMonitor = nil
+		}
+		
 		// Fade out animation before hiding
 		NSAnimationContext.runAnimationGroup { context in
 			context.duration = 0.2
@@ -87,7 +110,8 @@ final class PanelController {
 			self?.panel.orderOut(nil)
 			// Reset alpha for next show
 			self?.panel.alphaValue = 1.0
-			NotificationCenter.default.post(name: .voiceChatShouldStopSession, object: nil)
+			// Note: Removed .voiceChatShouldStopSession notification to prevent feedback loop
+			// The cancel flow is handled by cancelVoiceSession() directly
 		}
 	}
 

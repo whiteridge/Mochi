@@ -129,7 +129,7 @@ def create_chat(client, gemini_tools, chat_history):
         thinking_config=types.ThinkingConfig(include_thoughts=True),
     )
     return client.chats.create(
-        model="gemini-3-flash-preview",
+        model="gemini-2.5-flash",  # Using stable model - gemini-3-flash not yet available in v1beta API
         config=config,
         history=formatted_history,
     )

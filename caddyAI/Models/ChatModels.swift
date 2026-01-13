@@ -258,6 +258,39 @@ struct ProposalData: Equatable {
         args["state_id"] as? String ?? args["status"] as? String
     }
     
+    // MARK: - Slack Fields
+    
+    /// The channel name or ID for Slack messages
+    var channel: String? {
+        // Prefer enriched channelName, fall back to raw channel ID
+        args["channelName"] as? String ?? args["channel_name"] as? String ?? args["channel"] as? String
+    }
+    
+    /// The message text for Slack
+    var messageText: String? {
+        args["text"] as? String ?? args["message"] as? String
+    }
+    
+    /// The target user name for Slack DMs or ephemeral messages
+    var userName: String? {
+        args["userName"] as? String ?? args["user_name"] as? String ?? args["user"] as? String
+    }
+    
+    /// Scheduled time for Slack scheduled messages (Unix timestamp)
+    var scheduledTime: Int? {
+        args["post_at"] as? Int ?? args["postAt"] as? Int ?? args["scheduled_time"] as? Int
+    }
+    
+    // MARK: - App Type Detection
+    
+    var isSlackApp: Bool {
+        appId?.lowercased() == "slack" || tool.lowercased().contains("slack")
+    }
+    
+    var isLinearApp: Bool {
+        appId?.lowercased() == "linear" || tool.lowercased().contains("linear")
+    }
+    
     // Helper to check if field exists
     func hasField(_ key: String) -> Bool {
         return args[key] != nil

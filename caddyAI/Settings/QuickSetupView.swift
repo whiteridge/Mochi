@@ -1,0 +1,305 @@
+import SwiftUI
+
+struct QuickSetupView: View {
+    @EnvironmentObject private var integrationService: IntegrationService
+    @EnvironmentObject private var viewModel: SettingsViewModel
+    @EnvironmentObject private var preferences: PreferencesStore
+    
+    var onComplete: () -> Void
+    
+    @State private var connectingSlack = false
+    @State private var connectingLinear = false
+    @State private var slackError: String?
+    @State private var linearError: String?
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            // Header
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [preferences.accentColor.opacity(0.2), preferences.accentColor.opacity(0.05)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 88, height: 88)
+                    
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 36, weight: .medium))
+                        .foregroundStyle(preferences.accentColor)
+                }
+                
+                Text("Welcome to caddyAI")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                
+                Text("Connect your tools to get started")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 32)
+            
+            // Integration Cards
+            VStack(spacing: 16) {
+                IntegrationConnectCard(
+                    title: "Slack",
+                    subtitle: "Send messages and receive alerts",
+                    iconName: "slack-icon",
+                    fallbackIcon: "bubble.left.and.bubble.right.fill",
+                    isConnected: integrationService.slackState.isConnected,
+                    isLoading: connectingSlack,
+                    errorMessage: slackError
+                ) {
+                    connectSlack()
+                }
+                
+                IntegrationConnectCard(
+                    title: "Linear",
+                    subtitle: "Create issues and track progress",
+                    iconName: "linear-icon",
+                    fallbackIcon: "checklist",
+                    isConnected: integrationService.linearState.isConnected,
+                    isLoading: connectingLinear,
+                    errorMessage: linearError
+                ) {
+                    connectLinear()
+                }
+            }
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            
+            // Footer
+            VStack(spacing: 14) {
+                Button {
+                    completeSetup()
+                } label: {
+                    Text(allConnected ? "Get Started" : "Continue")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(preferences.accentColor)
+                .disabled(!hasAnyConnection)
+                
+                Button("Skip for now") {
+                    preferences.hasCompletedSetup = true
+                    onComplete()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .font(.subheadline)
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 28)
+        }
+        .frame(width: 420, height: 540)
+        .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // Refresh connection status when view appears
+            viewModel.refreshStatus(appName: "slack")
+            viewModel.refreshStatus(appName: "linear")
+        }
+    }
+    
+    private var allConnected: Bool {
+        integrationService.slackState.isConnected && integrationService.linearState.isConnected
+    }
+    
+    private var hasAnyConnection: Bool {
+        integrationService.slackState.isConnected || integrationService.linearState.isConnected
+    }
+    
+    private func connectSlack() {
+        slackError = nil
+        connectingSlack = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "slack")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.slackError = error
+                    self.connectingSlack = false
+                } else {
+                    self.pollStatus(app: "slack") {
+                        self.connectingSlack = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func connectLinear() {
+        linearError = nil
+        connectingLinear = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "linear")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.linearError = error
+                    self.connectingLinear = false
+                } else {
+                    self.pollStatus(app: "linear") {
+                        self.connectingLinear = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func pollStatus(app: String, completion: @escaping () -> Void) {
+        Task {
+            // Poll every 2 seconds for up to 60 seconds
+            for _ in 0..<30 {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                viewModel.refreshStatus(appName: app)
+                
+                // Small delay to let the state update
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                
+                let connected = await MainActor.run {
+                    app == "slack"
+                        ? integrationService.slackState.isConnected
+                        : integrationService.linearState.isConnected
+                }
+                
+                if connected {
+                    await MainActor.run { completion() }
+                    return
+                }
+            }
+            await MainActor.run { completion() }
+        }
+    }
+    
+    private func completeSetup() {
+        preferences.hasCompletedSetup = true
+        onComplete()
+    }
+}
+
+// MARK: - Integration Connect Card
+
+private struct IntegrationConnectCard: View {
+    let title: String
+    let subtitle: String
+    let iconName: String
+    let fallbackIcon: String
+    let isConnected: Bool
+    let isLoading: Bool
+    let errorMessage: String?
+    let action: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                // App icon
+                Group {
+                    if let nsImage = NSImage(named: iconName) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.gray.opacity(0.15))
+                            Image(systemName: fallbackIcon)
+                                .font(.system(size: 22))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                if isConnected {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.green)
+                        Text("Connected")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                } else if isLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Waiting...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button("Connect") {
+                        action()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
+                }
+            }
+            
+            // Error message
+            if let errorMessage = errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+        }
+        .animation(.easeInOut(duration: 0.2), value: isConnected)
+        .animation(.easeInOut(duration: 0.2), value: isLoading)
+        .animation(.easeInOut(duration: 0.2), value: errorMessage)
+    }
+    
+    private var borderColor: Color {
+        if isConnected {
+            return Color.green.opacity(0.4)
+        } else if errorMessage != nil {
+            return Color.orange.opacity(0.4)
+        } else {
+            return Color.gray.opacity(0.15)
+        }
+    }
+}
+
+#Preview {
+    let keychain = KeychainStore(service: "com.caddyai.preview")
+    let prefs = PreferencesStore()
+    let integrationService = IntegrationService(keychain: keychain)
+    return QuickSetupView(onComplete: {})
+        .environmentObject(prefs)
+        .environmentObject(integrationService)
+        .environmentObject(SettingsViewModel(
+            preferences: prefs,
+            integrationService: integrationService
+        ))
+}
+

@@ -76,30 +76,75 @@ class ComposioService:
         Returns:
             The authorization URL for the user to visit
         """
-        # Map app names to auth_config_ids from the Composio environment
+        app_name_lower = app_name.lower()
         auth_configs = {
             "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID", "ac_VbAOnHEy6Cts"),
             "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID", "ac_ibulkWqBOyKQ"),
             "notion": os.getenv("COMPOSIO_NOTION_AUTH_CONFIG_ID"),
             "github": os.getenv("COMPOSIO_GITHUB_AUTH_CONFIG_ID"),
         }
-        
-        config_id = auth_configs.get(app_name.lower())
+        config_id = auth_configs.get(app_name_lower)
+
+        if not config_id:
+            config_id = self._find_auth_config_for_app(app_name)
+        if not config_id:
+            config_id = self._create_auth_config_for_app(app_name)
         if not config_id:
             extra_hint = ""
-            if app_name.lower() == "notion":
+            if app_name_lower == "notion":
                 extra_hint = " Set COMPOSIO_NOTION_AUTH_CONFIG_ID if you're enabling Notion."
-            if app_name.lower() == "github":
+            if app_name_lower == "github":
                 extra_hint = " Set COMPOSIO_GITHUB_AUTH_CONFIG_ID if you're enabling GitHub."
-            raise ValueError(f"No auth config found for app: {app_name}.{extra_hint}")
-            
+            raise ValueError(
+                f"No auth config found for app: {app_name}.{extra_hint} "
+                "Please create one in the Composio dashboard at https://app.composio.dev"
+            )
         request = self.composio.connected_accounts.initiate(
             user_id=user_id,
             auth_config_id=config_id,
             callback_url=callback_url
         )
         
-        return request.redirectUrl
+        # SDK uses snake_case: redirect_url
+        redirect_url = getattr(request, 'redirect_url', None) or getattr(request, 'redirectUrl', None)
+        
+        if not redirect_url:
+            raise ValueError(f"No redirect URL in response")
+        
+        return redirect_url
+    
+    def _create_auth_config_for_app(self, app_name: str) -> Optional[str]:
+        """Auto-create a Composio-managed auth config for the app."""
+        try:
+            # Use Composio's managed OAuth credentials
+            result = self.composio.auth_configs.create(
+                toolkit=app_name.lower(),
+                options={"type": "use_composio_managed_auth"}
+            )
+            return getattr(result, 'id', None)
+        except Exception:
+            return None
+    
+    def _find_auth_config_for_app(self, app_name: str) -> Optional[str]:
+        """Find an auth config ID for the given app name."""
+        try:
+            auth_configs = self.composio.auth_configs.list()
+            
+            for config in auth_configs.items:
+                # Check toolkit slug
+                toolkit = getattr(config, 'toolkit', None)
+                toolkit_slug = getattr(toolkit, 'slug', '').lower() if toolkit else ''
+                
+                # Also check app_name attribute and name
+                config_app = getattr(config, 'app_name', getattr(config, 'appName', '')).lower()
+                config_name = getattr(config, 'name', '').lower()
+                
+                if toolkit_slug == app_name.lower() or config_app == app_name.lower() or app_name.lower() in config_name:
+                    return config.id
+            
+            return None
+        except Exception:
+            return None
 
     def get_connection_status(self, app_name: str, user_id: str) -> bool:
         """
@@ -166,6 +211,33 @@ class ComposioService:
             return True
 
         return False
+
+    def disconnect_app(self, app_name: str, user_id: str) -> int:
+        """
+        Disconnect all accounts for the given app.
+        
+        Args:
+            app_name: Name of the app (e.g., 'slack', 'linear')
+            user_id: The user ID (currently unused, disconnects all matching app accounts)
+            
+        Returns:
+            Number of accounts disconnected
+        """
+        accounts = self.composio.connected_accounts.list()
+        disconnected_count = 0
+        
+        for account in accounts.items:
+            toolkit = getattr(account, 'toolkit', None)
+            account_app = getattr(toolkit, 'slug', '').lower() if toolkit else ''
+            
+            if account_app == app_name.lower():
+                try:
+                    self.composio.connected_accounts.delete(id=account.id)
+                    disconnected_count += 1
+                except Exception:
+                    pass  # Continue disconnecting other accounts
+        
+        return disconnected_count
 
     def fetch_tools(
         self,

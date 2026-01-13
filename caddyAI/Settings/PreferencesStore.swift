@@ -20,6 +20,86 @@ enum ThemePreference: String, CaseIterable, Identifiable {
 	}
 }
 
+/// Available shortcut keys for voice activation
+enum VoiceShortcutKey: String, CaseIterable, Identifiable {
+	case fn = "fn"
+	case option = "option"
+	case control = "control"
+	case command = "command"
+	
+	var id: String { rawValue }
+	
+	var label: String {
+		switch self {
+		case .fn: "Fn"
+		case .option: "Option (⌥)"
+		case .control: "Control (⌃)"
+		case .command: "Command (⌘)"
+		}
+	}
+	
+	var icon: String {
+		switch self {
+		case .fn: "fn"
+		case .option: "option"
+		case .control: "control"
+		case .command: "command"
+		}
+	}
+	
+	/// The key code for this modifier key
+	var keyCode: UInt16 {
+		switch self {
+		case .fn: 63 // Fn key
+		case .option: 58 // Left Option (Right Option is 61)
+		case .control: 59 // Left Control (Right Control is 62)
+		case .command: 55 // Left Command (Right Command is 54)
+		}
+	}
+	
+	/// Alternative key code (for left/right variants)
+	var alternateKeyCode: UInt16? {
+		switch self {
+		case .fn: nil
+		case .option: 61 // Right Option
+		case .control: 62 // Right Control
+		case .command: 54 // Right Command
+		}
+	}
+	
+	/// The modifier flag to check
+	var modifierFlag: NSEvent.ModifierFlags? {
+		switch self {
+		case .fn: .function
+		case .option: .option
+		case .control: .control
+		case .command: .command
+		}
+	}
+}
+
+/// Voice activation mode
+enum VoiceActivationMode: String, CaseIterable, Identifiable {
+	case holdToTalk = "hold"
+	case toggle = "toggle"
+	
+	var id: String { rawValue }
+	
+	var label: String {
+		switch self {
+		case .holdToTalk: "Hold to Talk"
+		case .toggle: "Toggle"
+		}
+	}
+	
+	var description: String {
+		switch self {
+		case .holdToTalk: "Press and hold to record, release to send"
+		case .toggle: "Press once to start, press again to stop"
+		}
+	}
+}
+
 struct AccentColorOption: Identifiable, Hashable {
 	let id: String
 	let name: String
@@ -34,6 +114,8 @@ final class PreferencesStore: ObservableObject {
 		static let apiKey = "apiKey"
 		static let apiBaseURL = "apiBaseURL"
 		static let hasCompletedSetup = "hasCompletedSetup"
+		static let voiceShortcutKey = "voiceShortcutKey"
+		static let voiceActivationMode = "voiceActivationMode"
 	}
 	
 	private let store: UserDefaults
@@ -43,11 +125,50 @@ final class PreferencesStore: ObservableObject {
 	@Published var apiKey: String { didSet { store.set(apiKey, forKey: Keys.apiKey) } }
 	@Published var apiBaseURL: String { didSet { store.set(apiBaseURL, forKey: Keys.apiBaseURL) } }
 	@Published var hasCompletedSetup: Bool { didSet { store.set(hasCompletedSetup, forKey: Keys.hasCompletedSetup) } }
+	@Published var voiceShortcutKeyRaw: String { didSet { store.set(voiceShortcutKeyRaw, forKey: Keys.voiceShortcutKey) } }
+	@Published var voiceActivationModeRaw: String { didSet { store.set(voiceActivationModeRaw, forKey: Keys.voiceActivationMode) } }
 	
 	var accentColor: Color { Color(hex: accentColorHex) ?? .accentColor }
 	var theme: ThemePreference {
 		get { ThemePreference(rawValue: themeRaw) ?? .system }
 		set { themeRaw = newValue.rawValue; applyTheme(newValue) }
+	}
+	
+	// #region agent log
+	private func debugLog(hypothesisId: String, location: String, message: String, data: [String: String] = [:]) {
+		let logPath = "/Users/matteofari/Desktop/projects/caddyAI/.cursor/debug.log"
+		let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+		let dataJson = data.isEmpty ? "{}" : "{\(data.map { "\"\($0.key)\":\"\($0.value)\"" }.joined(separator: ","))}"
+		let logEntry = "{\"hypothesisId\":\"\(hypothesisId)\",\"location\":\"\(location)\",\"message\":\"\(message)\",\"data\":\(dataJson),\"timestamp\":\(timestamp)}\n"
+		if let handle = FileHandle(forWritingAtPath: logPath) {
+			handle.seekToEndOfFile()
+			handle.write(logEntry.data(using: .utf8)!)
+			handle.closeFile()
+		} else {
+			FileManager.default.createFile(atPath: logPath, contents: logEntry.data(using: .utf8), attributes: nil)
+		}
+	}
+	// #endregion
+	
+	var voiceShortcutKey: VoiceShortcutKey {
+		get {
+			let result = VoiceShortcutKey(rawValue: voiceShortcutKeyRaw) ?? .fn
+			// #region agent log
+			debugLog(hypothesisId: "A", location: "PreferencesStore.voiceShortcutKey.get", message: "getter_called", data: ["rawValue": voiceShortcutKeyRaw, "result": result.rawValue])
+			// #endregion
+			return result
+		}
+		set {
+			// #region agent log
+			debugLog(hypothesisId: "A", location: "PreferencesStore.voiceShortcutKey.set", message: "setter_called", data: ["newValue": newValue.rawValue, "currentRaw": voiceShortcutKeyRaw])
+			// #endregion
+			voiceShortcutKeyRaw = newValue.rawValue
+		}
+	}
+	
+	var voiceActivationMode: VoiceActivationMode {
+		get { VoiceActivationMode(rawValue: voiceActivationModeRaw) ?? .holdToTalk }
+		set { voiceActivationModeRaw = newValue.rawValue }
 	}
 	
 	init(store: UserDefaults = UserDefaults.standard) {
@@ -57,6 +178,8 @@ final class PreferencesStore: ObservableObject {
 		self.apiKey = store.string(forKey: Keys.apiKey) ?? ""
 		self.apiBaseURL = store.string(forKey: Keys.apiBaseURL) ?? ""
 		self.hasCompletedSetup = store.bool(forKey: Keys.hasCompletedSetup)
+		self.voiceShortcutKeyRaw = store.string(forKey: Keys.voiceShortcutKey) ?? VoiceShortcutKey.fn.rawValue
+		self.voiceActivationModeRaw = store.string(forKey: Keys.voiceActivationMode) ?? VoiceActivationMode.holdToTalk.rawValue
 		applyTheme(theme)
 	}
 	
@@ -69,12 +192,16 @@ final class PreferencesStore: ObservableObject {
 		apiKey = ""
 		apiBaseURL = ""
 		hasCompletedSetup = false
+		voiceShortcutKeyRaw = VoiceShortcutKey.fn.rawValue
+		voiceActivationModeRaw = VoiceActivationMode.holdToTalk.rawValue
 		
 		store.removeObject(forKey: Keys.accent)
 		store.removeObject(forKey: Keys.theme)
 		store.removeObject(forKey: Keys.apiKey)
 		store.removeObject(forKey: Keys.apiBaseURL)
 		store.removeObject(forKey: Keys.hasCompletedSetup)
+		store.removeObject(forKey: Keys.voiceShortcutKey)
+		store.removeObject(forKey: Keys.voiceActivationMode)
 	}
 	
 	private func applyTheme(_ theme: ThemePreference) {

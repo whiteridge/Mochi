@@ -89,6 +89,18 @@ async def get_integration_status(app_name: str, user_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.delete("/api/v1/integrations/disconnect/{app_name}")
+async def disconnect_integration(app_name: str, user_id: str):
+    """Disconnect the user from the specified app via Composio."""
+    if not agent_service:
+        raise HTTPException(status_code=500, detail="Agent service not initialized")
+        
+    try:
+        count = agent_service.composio_service.disconnect_app(app_name, user_id)
+        return {"disconnected": True, "accounts_removed": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

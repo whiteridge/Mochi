@@ -285,9 +285,6 @@ extension AgentViewModel {
                     
                 case .message:
                     if let content = event.content?.value as? String {
-                        // Check if this is a text-only response (no tool was called)
-                        let isTextOnlyResponse = appSteps.isEmpty && !hasInsertedActionSummary
-                        
                         await MainActor.run {
                             isThinking = false
                             activeTool = nil // Clear tool status

@@ -1,22 +1,36 @@
 import SwiftUI
 
+enum SettingsSidebarItem: Identifiable {
+	case section(SettingsSection)
+	case separator
+	
+	var id: String {
+		switch self {
+		case .section(let section): return section.rawValue
+		case .separator: return "separator"
+		}
+	}
+	
+	static var allItems: [SettingsSidebarItem] {
+		[.section(.general), .section(.integrations), .separator, .section(.about)]
+	}
+}
+
 enum SettingsSection: String, CaseIterable, Identifiable {
-	case general, api, integrations, onboarding
+	case general, integrations, about
 	var id: String { rawValue }
 	var label: String {
 		switch self {
 		case .general: "General"
-		case .api: "API & Accounts"
 		case .integrations: "Integrations"
-		case .onboarding: "Setup"
+		case .about: "About"
 		}
 	}
 	var icon: String {
 		switch self {
 		case .general: "gearshape"
-		case .api: "key"
-		case .integrations: "rectangle.connected.to.line.below"
-		case .onboarding: "sparkles"
+		case .integrations: "link"
+		case .about: "info.circle"
 		}
 	}
 }
@@ -107,23 +121,82 @@ final class SettingsViewModel: ObservableObject {
 
 	func connectViaComposio(appName: String) {
 		Task {
-			do {
-				let url = try await integrationService.fetchComposioConnectURL(for: appName)
-				await MainActor.run {
-					NSWorkspace.shared.open(url)
-				}
-				
-				// Poll for status or just wait a bit and refresh
-				try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
-				refreshStatus(appName: appName)
-			} catch {
-				print("Error connecting via Composio: \(error)")
+			_ = await connectViaComposioAsync(appName: appName)
+		}
+	}
+	
+	/// Async version that returns an error message if failed, nil on success
+	func connectViaComposioAsync(appName: String) async -> String? {
+		do {
+			let url = try await integrationService.fetchComposioConnectURL(for: appName)
+			await MainActor.run {
+				_ = NSWorkspace.shared.open(url)
 			}
+			
+			// Poll for status after OAuth completes
+			try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+			refreshStatus(appName: appName)
+			return nil // Success
+		} catch let error as IntegrationError {
+			print("Error connecting via Composio: \(error)")
+			return error.localizedDescription
+		} catch let error as NSError {
+			print("Error connecting via Composio: \(error)")
+			
+			if error.code == -1004 {
+				return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
+			}
+			return "Connection failed: \(error.localizedDescription)"
 		}
 	}
 
 	func refreshStatus(appName: String) {
 		integrationService.refreshComposioStatus(for: appName)
+	}
+	
+	/// Polls the connection status for an app until connected or timeout
+	/// - Parameters:
+	///   - appName: The app name ("slack" or "linear")
+	///   - intervalSeconds: Polling interval in seconds (default 2)
+	///   - maxAttempts: Maximum number of polling attempts (default 30 = 60 seconds)
+	///   - onStatusChange: Called on each poll with current connection status
+	/// - Returns: True if connection was successful, false if timed out
+	@discardableResult
+	func pollConnectionStatus(
+		appName: String,
+		intervalSeconds: Double = 2.0,
+		maxAttempts: Int = 30,
+		onStatusChange: ((Bool) -> Void)? = nil
+	) async -> Bool {
+		for _ in 0..<maxAttempts {
+			try? await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
+			
+			// Refresh status from backend
+			integrationService.refreshComposioStatus(for: appName)
+			
+			// Small delay to let the state update propagate
+			try? await Task.sleep(nanoseconds: 300_000_000)
+			
+			let isConnected: Bool = await MainActor.run {
+				switch appName.lowercased() {
+				case "slack":
+					return integrationService.slackState.isConnected
+				case "linear":
+					return integrationService.linearState.isConnected
+				default:
+					return false
+				}
+			}
+			
+			await MainActor.run {
+				onStatusChange?(isConnected)
+			}
+			
+			if isConnected {
+				return true
+			}
+		}
+		return false
 	}
 	
 	func disconnectSlack() { integrationService.disconnectSlack() }

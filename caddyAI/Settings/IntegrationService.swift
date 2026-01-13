@@ -155,7 +155,19 @@ final class IntegrationService: ObservableObject {
 		
 		guard let url = components?.url else { throw URLError(.badURL) }
 		
-		let (data, _) = try await URLSession.shared.data(from: url)
+		let (data, httpResponse) = try await URLSession.shared.data(from: url)
+		
+		// Check HTTP status code
+		if let httpResponse = httpResponse as? HTTPURLResponse {
+			if httpResponse.statusCode >= 400 {
+				// Try to parse error response
+				if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+					throw IntegrationError.serverError(errorResponse.detail)
+				}
+				throw IntegrationError.serverError("Server returned status \(httpResponse.statusCode)")
+			}
+		}
+		
 		let response = try JSONDecoder().decode(ConnectURLResponse.self, from: data)
 		
 		guard let redirectURL = URL(string: response.url) else { throw URLError(.badURL) }
@@ -170,7 +182,13 @@ final class IntegrationService: ObservableObject {
 			guard let url = components?.url else { return }
 			
 			do {
-				let (data, _) = try await URLSession.shared.data(from: url)
+				let (data, httpResponse) = try await URLSession.shared.data(from: url)
+				
+				// Check HTTP status
+				if let httpResponse = httpResponse as? HTTPURLResponse, httpResponse.statusCode >= 400 {
+					return
+				}
+				
 				let response = try JSONDecoder().decode(StatusResponse.self, from: data)
 				
 				await MainActor.run {
@@ -232,3 +250,23 @@ struct StatusResponse: Codable {
 	let connected: Bool
 }
 
+struct ErrorResponse: Codable {
+	let detail: String
+}
+
+enum IntegrationError: LocalizedError {
+	case serverError(String)
+	case networkError(String)
+	case invalidResponse
+	
+	var errorDescription: String? {
+		switch self {
+		case .serverError(let detail):
+			return detail
+		case .networkError(let message):
+			return message
+		case .invalidResponse:
+			return "Invalid response from server"
+		}
+	}
+}

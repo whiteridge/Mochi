@@ -257,7 +257,7 @@ class AgentDispatcher:
                                 if app_id in completed_write_apps:
                                     print(f"DEBUG: Skipping write for completed app {app_id}")
                                     continue
-                                # Gate Slack writes until Linear read AND write are complete
+                                # Gate Slack writes until Linear read AND write are complete (only if Linear is involved)
                                 if app_id == "slack":
                                     linear_state = app_read_status.get("linear")
                                     if (
