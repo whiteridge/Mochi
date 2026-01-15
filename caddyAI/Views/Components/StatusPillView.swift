@@ -40,6 +40,7 @@ struct StatusPillView: View {
     var isCompact: Bool = false
     var morphNamespace: Namespace.ID? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme)
@@ -87,6 +88,48 @@ struct StatusPillView: View {
     }
 
     var body: some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            nativeBody
+        } else {
+            legacyBody
+        }
+    }
+    
+    // MARK: - Native Liquid Glass (macOS 26+ / iOS 26+)
+    
+    @available(macOS 26.0, iOS 26.0, *)
+    private var nativeBody: some View {
+        pillContent
+            .padding(.leading, 5)
+            .padding(.trailing, isCompact ? 12 : 14)
+            .padding(.vertical, 5)
+            .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
+            .animation(.easeInOut(duration: 0.3), value: isCompact)
+    }
+    
+    // MARK: - Legacy Glass Effect
+    
+    private var legacyBody: some View {
+        pillContent
+            .padding(.leading, 5)
+            .padding(.trailing, isCompact ? 12 : 14)
+            .padding(.vertical, 5)
+            .background(pillBackground)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(palette.subtleBorder, lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
+            .animation(.easeInOut(duration: 0.3), value: isCompact)
+    }
+    
+    // MARK: - Shared Pill Content
+    
+    private var pillContent: some View {
         HStack(spacing: isCompact ? 8 : 10) {
             // Circular icon at left edge
             ZStack {
@@ -132,18 +175,6 @@ struct StatusPillView: View {
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)
             }
         }
-        .padding(.leading, 5)
-        .padding(.trailing, isCompact ? 12 : 14)
-        .padding(.vertical, 5)
-        .background(pillBackground)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(palette.subtleBorder, lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
-        .animation(.easeInOut(duration: 0.3), value: isCompact)
     }
 
     @ViewBuilder

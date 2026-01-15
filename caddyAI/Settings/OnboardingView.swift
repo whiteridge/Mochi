@@ -9,7 +9,7 @@ struct OnboardingView: View {
 	private let steps = [
 		"Set your accent color and theme.",
 		"Add your API key and optional base URL.",
-		"Connect Slack and Linear to enable automations."
+		"Connect your integrations (Slack, Linear, Notion, GitHub, Gmail, Google Calendar)."
 	]
 	
 	var body: some View {
@@ -84,4 +84,3 @@ struct OnboardingView: View {
 		}
 	}
 }
-

@@ -28,6 +28,7 @@ struct ConfirmButtonFrameKey: PreferenceKey {
 }
 
 struct VoiceChatBubble: View {
+    @EnvironmentObject private var preferences: PreferencesStore
     @StateObject private var viewModel = AgentViewModel()
     @State private var viewID = 0
     
@@ -41,6 +42,17 @@ struct VoiceChatBubble: View {
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
     var body: some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            GlassEffectContainer {
+                mainContent
+            }
+        } else {
+            mainContent
+        }
+    }
+    
+    @ViewBuilder
+    private var mainContent: some View {
         ZStack(alignment: .bottom) {
             // Root-level rotating light background that morphs based on state
             rotatingLightBackgroundLayer
@@ -48,23 +60,25 @@ struct VoiceChatBubble: View {
             // Content layers
             switch viewModel.state {
             case .recording:
-                RecordingBubbleView(
-                    stopRecording: stopRecording,
-                    cancelRecording: cancelVoiceSession,
-                    animation: animation,
-                    amplitude: voiceRecorder.normalizedAmplitude
-                )
-                .padding(.horizontal, 8)
-                .padding(.vertical, 7)
-                .background(
-                    LiquidGlassDockBackground()
-                        .matchedGeometryEffect(id: "background", in: animation)
-                )
-                .transition(.scale(scale: 1))
-                
-            case .transcribing:
-                // Transcribing pill - keeps pill visible while waiting for transcription
-                TranscribingPillView()
+                if #available(macOS 26.0, iOS 26.0, *) {
+                    RecordingBubbleView(
+                        stopRecording: stopRecording,
+                        cancelRecording: cancelVoiceSession,
+                        animation: animation,
+                        amplitude: voiceRecorder.normalizedAmplitude
+                    )
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 7)
+                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                    .matchedGeometryEffect(id: "background", in: animation)
+                    .transition(.scale(scale: 1))
+                } else {
+                    RecordingBubbleView(
+                        stopRecording: stopRecording,
+                        cancelRecording: cancelVoiceSession,
+                        animation: animation,
+                        amplitude: voiceRecorder.normalizedAmplitude
+                    )
                     .padding(.horizontal, 8)
                     .padding(.vertical, 7)
                     .background(
@@ -72,6 +86,27 @@ struct VoiceChatBubble: View {
                             .matchedGeometryEffect(id: "background", in: animation)
                     )
                     .transition(.scale(scale: 1))
+                }
+                
+            case .transcribing:
+                // Transcribing pill - keeps pill visible while waiting for transcription
+                if #available(macOS 26.0, iOS 26.0, *) {
+                    TranscribingPillView()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 7)
+                        .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                        .matchedGeometryEffect(id: "background", in: animation)
+                        .transition(.scale(scale: 1))
+                } else {
+                    TranscribingPillView()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 7)
+                        .background(
+                            LiquidGlassDockBackground()
+                                .matchedGeometryEffect(id: "background", in: animation)
+                        )
+                        .transition(.scale(scale: 1))
+                }
                     
             case .idle:
                 EmptyView()
@@ -205,41 +240,82 @@ fileprivate extension VoiceChatBubble {
         }
         // Animate the frame width: 650 for chat, intrinsic for pill
         .frame(width: isSuccess ? nil : 650)
-        .background(
-            ZStack {
-                // Glass background (fade out in success to emphasize the light, or keep it?)
-                // The original SuccessPill didn't have glass, so let's fade it out.
-                // Glass background
-                if isSuccess {
-                    // Success state: Darker glass pill
-                    LiquidGlassDockBackground(refractionStrength: 9.5, edgeWidth: 30)
-                        .transition(.opacity)
-                } else {
-                    // Chat state: Dark glass window
-                    LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong)
-                    .transition(.opacity)
-                }
-                
-                // Rotating Light
-                // In Chat: visible only if processing & executing.
-                // In Success: always visible.
-                if (viewModel.isExecutingAction && viewModel.state == .processing) || isSuccess {
-                    RotatingLightBackground(
-                        cornerRadius: isSuccess ? 50 : 24,
-                        shape: isSuccess ? .capsule : .roundedRect,
-                        rotationSpeed: isSuccess ? 0.8 : 10.0
-                    )
-                    // We don't need matchedGeometryEffect here because it's the same view instance (conditionally present)
-                    // But to ensure smooth transition from "processing" to "success", we want it to be the SAME view.
-                    // The condition `(processing) || isSuccess` ensures it stays alive during the switch.
-                    .opacity(isSuccess ? 1.0 : 0.6)
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: isSuccess ? 50 : 24, style: .continuous))
+        .modifier(ChatSuccessBackgroundModifier(isSuccess: isSuccess, isExecutingAction: viewModel.isExecutingAction && viewModel.state == .processing, rotatingLightNamespace: rotatingLightNamespace))
         // Animate layout changes
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: isSuccess)
         .animation(.easeOut(duration: 0.3), value: viewModel.isExecutingAction)
+        // Force dark mode (white text) when using Clear glass, as it's typically used over dark wallpapers
+        .preferredColorScheme(preferences.glassStyle == .clear ? .dark : nil)
+    }
+}
+
+// MARK: - Chat/Success Background Modifier
+
+private struct ChatSuccessBackgroundModifier: ViewModifier {
+    @EnvironmentObject private var preferences: PreferencesStore
+    let isSuccess: Bool
+    let isExecutingAction: Bool
+    let rotatingLightNamespace: Namespace.ID
+    
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            if isSuccess {
+                content
+                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                    .overlay {
+                        if isExecutingAction || isSuccess {
+                            RotatingLightBackground(
+                                cornerRadius: 50,
+                                shape: .capsule,
+                                rotationSpeed: 0.8
+                            )
+                            .opacity(1.0)
+                            .allowsHitTesting(false)
+                        }
+                    }
+            } else {
+                content
+                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .rect(cornerRadius: 24))
+                    .overlay {
+                        if isExecutingAction {
+                            RotatingLightBackground(
+                                cornerRadius: 24,
+                                shape: .roundedRect,
+                                rotationSpeed: 10.0
+                            )
+                            .opacity(0.6)
+                            .allowsHitTesting(false)
+                        }
+                    }
+            }
+        } else {
+            content
+                .background(
+                    ZStack {
+                        // Glass background
+                        if isSuccess {
+                            // Success state: Darker glass pill
+                            LiquidGlassDockBackground(refractionStrength: 9.5, edgeWidth: 30)
+                                .transition(.opacity)
+                        } else {
+                            // Chat state: Dark glass window
+                            LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong)
+                                .transition(.opacity)
+                        }
+                        
+                        // Rotating Light
+                        if isExecutingAction || isSuccess {
+                            RotatingLightBackground(
+                                cornerRadius: isSuccess ? 50 : 24,
+                                shape: isSuccess ? .capsule : .roundedRect,
+                                rotationSpeed: isSuccess ? 0.8 : 10.0
+                            )
+                            .opacity(isSuccess ? 1.0 : 0.6)
+                        }
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: isSuccess ? 50 : 24, style: .continuous))
+        }
     }
 }
 

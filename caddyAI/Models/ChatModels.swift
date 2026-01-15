@@ -290,6 +290,13 @@ struct ProposalData: Equatable {
     var isLinearApp: Bool {
         appId?.lowercased() == "linear" || tool.lowercased().contains("linear")
     }
+
+    var isCalendarApp: Bool {
+        let lowerTool = tool.lowercased()
+        return appId?.lowercased() == "google_calendar"
+            || lowerTool.contains("googlecalendar")
+            || lowerTool.contains("google_calendar")
+    }
     
     // Helper to check if field exists
     func hasField(_ key: String) -> Bool {

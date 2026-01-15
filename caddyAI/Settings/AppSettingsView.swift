@@ -245,6 +245,26 @@ private struct GeneralSettingsView: View {
 							}
 						}
 					}
+					
+					if #available(macOS 26.0, iOS 26.0, *) {
+						SettingsRow(label: "Glass Style", showDivider: false) {
+							let glassStyleBinding = Binding(
+								get: { preferences.glassStyle },
+								set: { newValue in
+									DispatchQueue.main.async {
+										preferences.glassStyle = newValue
+									}
+								}
+							)
+							Picker("", selection: glassStyleBinding) {
+								ForEach(GlassStyle.allCases) { style in
+									Text(style.label).tag(style)
+								}
+							}
+							.pickerStyle(.segmented)
+							.frame(width: 160)
+						}
+					}
 				}
 				
 				// Permissions Section
@@ -312,8 +332,16 @@ private struct IntegrationsSettingsView: View {
 	
 	@State private var slackLoading = false
 	@State private var linearLoading = false
+	@State private var notionLoading = false
+	@State private var githubLoading = false
+	@State private var gmailLoading = false
+	@State private var googleCalendarLoading = false
 	@State private var slackError: String?
 	@State private var linearError: String?
+	@State private var notionError: String?
+	@State private var githubError: String?
+	@State private var gmailError: String?
+	@State private var googleCalendarError: String?
 	@State private var showAdvanced = false
 	@State private var showSaved = false
 	@State private var refreshTimer: Timer?
@@ -348,6 +376,62 @@ private struct IntegrationsSettingsView: View {
 						accentColor: preferences.accentColor,
 						onConnect: connectLinear,
 						onDisconnect: disconnectLinear,
+						showDivider: true
+					)
+					
+					// Notion Row
+					IntegrationRow(
+						name: "Notion",
+						iconName: "notion-icon",
+						fallbackIcon: "doc.text",
+						state: integrationService.notionState,
+						isLoading: notionLoading,
+						errorMessage: notionError,
+						accentColor: preferences.accentColor,
+						onConnect: connectNotion,
+						onDisconnect: disconnectNotion,
+						showDivider: true
+					)
+					
+					// GitHub Row
+					IntegrationRow(
+						name: "GitHub",
+						iconName: "github-icon",
+						fallbackIcon: "chevron.left.forwardslash.chevron.right",
+						state: integrationService.githubState,
+						isLoading: githubLoading,
+						errorMessage: githubError,
+						accentColor: preferences.accentColor,
+						onConnect: connectGitHub,
+						onDisconnect: disconnectGitHub,
+						showDivider: true
+					)
+					
+					// Gmail Row
+					IntegrationRow(
+						name: "Gmail",
+						iconName: "gmail-icon",
+						fallbackIcon: "envelope.fill",
+						state: integrationService.gmailState,
+						isLoading: gmailLoading,
+						errorMessage: gmailError,
+						accentColor: preferences.accentColor,
+						onConnect: connectGmail,
+						onDisconnect: disconnectGmail,
+						showDivider: true
+					)
+					
+					// Google Calendar Row
+					IntegrationRow(
+						name: "Google Calendar",
+						iconName: "calendar-icon",
+						fallbackIcon: "calendar",
+						state: integrationService.googleCalendarState,
+						isLoading: googleCalendarLoading,
+						errorMessage: googleCalendarError,
+						accentColor: preferences.accentColor,
+						onConnect: connectGoogleCalendar,
+						onDisconnect: disconnectGoogleCalendar,
 						showDivider: false
 					)
 				}
@@ -450,9 +534,17 @@ private struct IntegrationsSettingsView: View {
 	private func startAutoRefresh() {
 		viewModel.refreshStatus(appName: "slack")
 		viewModel.refreshStatus(appName: "linear")
+		viewModel.refreshStatus(appName: "notion")
+		viewModel.refreshStatus(appName: "github")
+		viewModel.refreshStatus(appName: "gmail")
+		viewModel.refreshStatus(appName: "googlecalendar")
 		refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
 			viewModel.refreshStatus(appName: "slack")
 			viewModel.refreshStatus(appName: "linear")
+			viewModel.refreshStatus(appName: "notion")
+			viewModel.refreshStatus(appName: "github")
+			viewModel.refreshStatus(appName: "gmail")
+			viewModel.refreshStatus(appName: "googlecalendar")
 		}
 	}
 	
@@ -494,6 +586,70 @@ private struct IntegrationsSettingsView: View {
 			}
 		}
 	}
+
+	private func connectNotion() {
+		notionError = nil
+		notionLoading = true
+		Task {
+			let error = await viewModel.connectViaComposioAsync(appName: "notion")
+			await MainActor.run {
+				if let error = error {
+					notionError = error
+					notionLoading = false
+				} else {
+					pollUntilConnected(app: "notion") { notionLoading = false }
+				}
+			}
+		}
+	}
+
+	private func connectGitHub() {
+		githubError = nil
+		githubLoading = true
+		Task {
+			let error = await viewModel.connectViaComposioAsync(appName: "github")
+			await MainActor.run {
+				if let error = error {
+					githubError = error
+					githubLoading = false
+				} else {
+					pollUntilConnected(app: "github") { githubLoading = false }
+				}
+			}
+		}
+	}
+
+	private func connectGmail() {
+		gmailError = nil
+		gmailLoading = true
+		Task {
+			let error = await viewModel.connectViaComposioAsync(appName: "gmail")
+			await MainActor.run {
+				if let error = error {
+					gmailError = error
+					gmailLoading = false
+				} else {
+					pollUntilConnected(app: "gmail") { gmailLoading = false }
+				}
+			}
+		}
+	}
+
+	private func connectGoogleCalendar() {
+		googleCalendarError = nil
+		googleCalendarLoading = true
+		Task {
+			let error = await viewModel.connectViaComposioAsync(appName: "googlecalendar")
+			await MainActor.run {
+				if let error = error {
+					googleCalendarError = error
+					googleCalendarLoading = false
+				} else {
+					pollUntilConnected(app: "googlecalendar") { googleCalendarLoading = false }
+				}
+			}
+		}
+	}
 	
 	private func disconnectSlack() {
 		slackLoading = true
@@ -518,6 +674,54 @@ private struct IntegrationsSettingsView: View {
 			}
 		}
 	}
+
+	private func disconnectNotion() {
+		notionLoading = true
+		Task {
+			await disconnectViaBackend(app: "notion")
+			await MainActor.run {
+				integrationService.disconnectNotion()
+				notionLoading = false
+				viewModel.refreshStatus(appName: "notion")
+			}
+		}
+	}
+
+	private func disconnectGitHub() {
+		githubLoading = true
+		Task {
+			await disconnectViaBackend(app: "github")
+			await MainActor.run {
+				integrationService.disconnectGitHub()
+				githubLoading = false
+				viewModel.refreshStatus(appName: "github")
+			}
+		}
+	}
+
+	private func disconnectGmail() {
+		gmailLoading = true
+		Task {
+			await disconnectViaBackend(app: "gmail")
+			await MainActor.run {
+				integrationService.disconnectGmail()
+				gmailLoading = false
+				viewModel.refreshStatus(appName: "gmail")
+			}
+		}
+	}
+
+	private func disconnectGoogleCalendar() {
+		googleCalendarLoading = true
+		Task {
+			await disconnectViaBackend(app: "googlecalendar")
+			await MainActor.run {
+				integrationService.disconnectGoogleCalendar()
+				googleCalendarLoading = false
+				viewModel.refreshStatus(appName: "googlecalendar")
+			}
+		}
+	}
 	
 	private func disconnectViaBackend(app: String) async {
 		let urlString = "http://127.0.0.1:8000/api/v1/integrations/disconnect/\(app)?user_id=caddyai-default"
@@ -535,9 +739,22 @@ private struct IntegrationsSettingsView: View {
 				try? await Task.sleep(nanoseconds: 500_000_000)
 				
 				let connected = await MainActor.run {
-					app == "slack"
-						? integrationService.slackState.isConnected
-						: integrationService.linearState.isConnected
+					switch app {
+					case "slack":
+						return integrationService.slackState.isConnected
+					case "linear":
+						return integrationService.linearState.isConnected
+					case "notion":
+						return integrationService.notionState.isConnected
+					case "github":
+						return integrationService.githubState.isConnected
+					case "gmail":
+						return integrationService.gmailState.isConnected
+					case "googlecalendar", "google_calendar":
+						return integrationService.googleCalendarState.isConnected
+					default:
+						return false
+					}
 				}
 				
 				if connected {

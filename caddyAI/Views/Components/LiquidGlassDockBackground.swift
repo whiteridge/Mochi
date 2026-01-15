@@ -10,6 +10,88 @@ struct LiquidGlassDockBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
+    @EnvironmentObject private var preferences: PreferencesStore
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            
+            if size.width > 0, size.height > 0 {
+                // Use native glassEffect on macOS 26+ / iOS 26+
+                if #available(macOS 26.0, iOS 26.0, *) {
+                    Color.clear
+                        .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                        .shadow(
+                            color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.25 : 0.15) : .clear,
+                            radius: shadowed ? 10 : 0,
+                            x: 0,
+                            y: shadowed ? 4 : 0
+                        )
+                } else {
+                    // Fallback for older OS versions
+                    legacyGlassView(size: size)
+                }
+            } else {
+                Color.clear
+            }
+        }
+    }
+    
+    // MARK: - Legacy Glass Implementation (pre-macOS 26)
+    
+    @ViewBuilder
+    private func legacyGlassView(size: CGSize) -> some View {
+        let shape = Capsule()
+        let minEdge = Float(max(min(size.width, size.height), 1))
+        let adjustedEdgeWidth = min(edgeWidth, minEdge * 0.45)
+        let adjustedStrength = min(refractionStrength, minEdge * 0.35)
+        let baseStyle = reduceTransparency
+            ? AnyShapeStyle(fallbackFill)
+            : AnyShapeStyle(.ultraThinMaterial)
+
+        let glassLayer = ZStack {
+            shape.fill(tint)
+            shape.fill(ambientGradient).opacity(0.38)
+            shape.fill(glossGradient).opacity(0.32)
+            shape.fill(bottomShade).opacity(0.32)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(baseStyle)
+        .clipShape(shape)
+        .compositingGroup()
+        .distortionEffect(
+            ShaderLibrary.liquidCapsuleRefraction(
+                Shader.Argument.float2(Float(size.width), Float(size.height)),
+                Shader.Argument.float(adjustedStrength),
+                Shader.Argument.float(adjustedEdgeWidth)
+            ),
+            maxSampleOffset: CGSize(
+                width: CGFloat(adjustedStrength),
+                height: CGFloat(adjustedStrength)
+            )
+        )
+
+        glassLayer
+            .overlay(
+                shape
+                    .strokeBorder(rimGradient, lineWidth: rimWidth)
+            )
+            .overlay(
+                shape
+                    .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.35 : 0.25), lineWidth: innerRimWidth)
+                    .blur(radius: 1.2)
+                    .opacity(0.7)
+            )
+            .shadow(
+                color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.35 : 0.2) : .clear,
+                radius: shadowed ? (colorScheme == .dark ? 14 : 10) : 0,
+                x: 0,
+                y: shadowed ? (colorScheme == .dark ? 6 : 4) : 0
+            )
+    }
+    
+    // MARK: - Legacy Styling Properties
+
     private var rimGradient: LinearGradient {
         LinearGradient(
             colors: [
@@ -63,62 +145,5 @@ struct LiquidGlassDockBackground: View {
 
     private var fallbackFill: Color {
         colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.85)
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            let shape = Capsule()
-            let minEdge = Float(max(min(size.width, size.height), 1))
-            let adjustedEdgeWidth = min(edgeWidth, minEdge * 0.45)
-            let adjustedStrength = min(refractionStrength, minEdge * 0.35)
-            let baseStyle = reduceTransparency
-                ? AnyShapeStyle(fallbackFill)
-                : AnyShapeStyle(.ultraThinMaterial)
-
-            if size.width > 0, size.height > 0 {
-                let glassLayer = ZStack {
-                    shape.fill(tint)
-                    shape.fill(ambientGradient).opacity(0.38)
-                    shape.fill(glossGradient).opacity(0.32)
-                    shape.fill(bottomShade).opacity(0.32)
-                }
-                .frame(width: size.width, height: size.height)
-                .background(baseStyle)
-                .clipShape(shape)
-                .compositingGroup()
-                .distortionEffect(
-                    ShaderLibrary.liquidCapsuleRefraction(
-                        Shader.Argument.float2(Float(size.width), Float(size.height)),
-                        Shader.Argument.float(adjustedStrength),
-                        Shader.Argument.float(adjustedEdgeWidth)
-                    ),
-                    maxSampleOffset: CGSize(
-                        width: CGFloat(adjustedStrength),
-                        height: CGFloat(adjustedStrength)
-                    )
-                )
-
-                glassLayer
-                    .overlay(
-                        shape
-                            .strokeBorder(rimGradient, lineWidth: rimWidth)
-                    )
-                    .overlay(
-                        shape
-                            .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.35 : 0.25), lineWidth: innerRimWidth)
-                            .blur(radius: 1.2)
-                            .opacity(0.7)
-                    )
-                    .shadow(
-                        color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.35 : 0.2) : .clear,
-                        radius: shadowed ? (colorScheme == .dark ? 14 : 10) : 0,
-                        x: 0,
-                        y: shadowed ? (colorScheme == .dark ? 6 : 4) : 0
-                    )
-            } else {
-                Color.clear
-            }
-        }
     }
 }

@@ -1,9 +1,29 @@
 import Foundation
 
 enum IntegrationKind: String, CaseIterable, Identifiable {
-	case slack, linear, notion
+	case slack
+	case linear
+	case notion
+	case github
+	case gmail
+	case googleCalendar = "googlecalendar"
 	var id: String { rawValue }
-	var displayName: String { rawValue.capitalized }
+	var displayName: String {
+		switch self {
+		case .slack:
+			return "Slack"
+		case .linear:
+			return "Linear"
+		case .notion:
+			return "Notion"
+		case .github:
+			return "GitHub"
+		case .gmail:
+			return "Gmail"
+		case .googleCalendar:
+			return "Google Calendar"
+		}
+	}
 }
 
 enum IntegrationState: Equatable {
@@ -124,6 +144,9 @@ final class IntegrationService: ObservableObject {
 	@Published private(set) var slackState: IntegrationState = .disconnected
 	@Published private(set) var linearState: IntegrationState = .disconnected
 	@Published private(set) var notionState: IntegrationState = .disconnected
+	@Published private(set) var githubState: IntegrationState = .disconnected
+	@Published private(set) var gmailState: IntegrationState = .disconnected
+	@Published private(set) var googleCalendarState: IntegrationState = .disconnected
 	@Published private(set) var slackWorkspaces: [SlackWorkspace] = []
 	@Published private(set) var slackChannels: [SlackChannel] = []
 	@Published private(set) var linearTeams: [LinearTeam] = []
@@ -147,6 +170,9 @@ final class IntegrationService: ObservableObject {
 		slackState = states.slack
 		linearState = states.linear
 		notionState = .disconnected
+		githubState = .disconnected
+		gmailState = .disconnected
+		googleCalendarState = .disconnected
 	}
 	
 	func fetchComposioConnectURL(for appName: String) async throws -> URL {
@@ -193,12 +219,21 @@ final class IntegrationService: ObservableObject {
 				
 				await MainActor.run {
 					let newState: IntegrationState = response.connected ? .connected(Date()) : .disconnected
-					if appName.lowercased() == "slack" {
+					switch appName.lowercased() {
+					case "slack":
 						self.slackState = newState
-					} else if appName.lowercased() == "linear" {
+					case "linear":
 						self.linearState = newState
-					} else if appName.lowercased() == "notion" {
+					case "notion":
 						self.notionState = newState
+					case "github":
+						self.githubState = newState
+					case "gmail":
+						self.gmailState = newState
+					case "googlecalendar", "google_calendar":
+						self.googleCalendarState = newState
+					default:
+						break
 					}
 				}
 			} catch {
@@ -222,12 +257,31 @@ final class IntegrationService: ObservableObject {
 	func disconnectLinear() {
 		linearState = core.disconnectLinear()
 	}
+
+	func disconnectNotion() {
+		notionState = .disconnected
+	}
+
+	func disconnectGitHub() {
+		githubState = .disconnected
+	}
+
+	func disconnectGmail() {
+		gmailState = .disconnected
+	}
+
+	func disconnectGoogleCalendar() {
+		googleCalendarState = .disconnected
+	}
 	
 	func reset() {
 		let states = core.resetAll()
 		slackState = states.slack
 		linearState = states.linear
 		notionState = .disconnected
+		githubState = .disconnected
+		gmailState = .disconnected
+		googleCalendarState = .disconnected
 	}
 	
 	// MARK: - Metadata placeholders (empty until real API wired)

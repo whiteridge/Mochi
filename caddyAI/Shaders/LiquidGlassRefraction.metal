@@ -1,6 +1,5 @@
 #include <metal_stdlib>
 using namespace metal;
-#include <SwiftUI/SwiftUI.h>
 
 static float sdRoundedRect(float2 p, float2 halfSize, float radius) {
     float2 q = abs(p) - halfSize;

@@ -52,6 +52,14 @@ final class SettingsViewModel: ObservableObject {
 	@Published var slackTestSuccess: Bool?
 	@Published var linearTestMessage: String?
 	@Published var linearTestSuccess: Bool?
+	@Published var notionTestMessage: String?
+	@Published var notionTestSuccess: Bool?
+	@Published var githubTestMessage: String?
+	@Published var githubTestSuccess: Bool?
+	@Published var gmailTestMessage: String?
+	@Published var gmailTestSuccess: Bool?
+	@Published var googleCalendarTestMessage: String?
+	@Published var googleCalendarTestSuccess: Bool?
 	@Published var accentOptions: [AccentColorOption] = [
 		AccentColorOption(id: "blue", name: "Blue", color: Color(red: 0.27, green: 0.54, blue: 0.98), hex: "#4688FA"),
 		AccentColorOption(id: "green", name: "Green", color: Color(red: 0.25, green: 0.74, blue: 0.40), hex: "#3FBF66"),
@@ -103,6 +111,7 @@ final class SettingsViewModel: ObservableObject {
 		credentialManager.saveCredentials()
 		
 		integrationService.connectSlack(token: slackToken)
+		testSlack()
 		slackToken = ""
 		if integrationService.slackState.isConnected { preferences.hasCompletedSetup = true }
 	}
@@ -112,6 +121,7 @@ final class SettingsViewModel: ObservableObject {
 		credentialManager.saveCredentials()
 		
 		integrationService.connectLinear(apiKey: linearApiKey, teamKey: linearTeamKey)
+		testLinear()
 		if integrationService.linearState.isConnected {
 			linearApiKey = ""
 			linearTeamKey = ""
@@ -183,6 +193,14 @@ final class SettingsViewModel: ObservableObject {
 					return integrationService.slackState.isConnected
 				case "linear":
 					return integrationService.linearState.isConnected
+				case "notion":
+					return integrationService.notionState.isConnected
+				case "github":
+					return integrationService.githubState.isConnected
+				case "gmail":
+					return integrationService.gmailState.isConnected
+				case "googlecalendar", "google_calendar":
+					return integrationService.googleCalendarState.isConnected
 				default:
 					return false
 				}
@@ -201,6 +219,10 @@ final class SettingsViewModel: ObservableObject {
 	
 	func disconnectSlack() { integrationService.disconnectSlack() }
 	func disconnectLinear() { integrationService.disconnectLinear() }
+	func disconnectNotion() { integrationService.disconnectNotion() }
+	func disconnectGitHub() { integrationService.disconnectGitHub() }
+	func disconnectGmail() { integrationService.disconnectGmail() }
+	func disconnectGoogleCalendar() { integrationService.disconnectGoogleCalendar() }
 	
 	func testAPI() {
 		guard !apiKey.isEmpty else {
@@ -230,6 +252,46 @@ final class SettingsViewModel: ObservableObject {
 		} else {
 			linearTestSuccess = false
 			linearTestMessage = "Connect Linear first, then test."
+		}
+	}
+
+	func testNotion() {
+		if integrationService.notionState.isConnected {
+			notionTestSuccess = true
+			notionTestMessage = "Notion connected. Ready to access pages."
+		} else {
+			notionTestSuccess = false
+			notionTestMessage = "Connect Notion first, then test."
+		}
+	}
+
+	func testGitHub() {
+		if integrationService.githubState.isConnected {
+			githubTestSuccess = true
+			githubTestMessage = "GitHub connected. Ready to access repositories."
+		} else {
+			githubTestSuccess = false
+			githubTestMessage = "Connect GitHub first, then test."
+		}
+	}
+
+	func testGmail() {
+		if integrationService.gmailState.isConnected {
+			gmailTestSuccess = true
+			gmailTestMessage = "Gmail connected. Ready to read or send mail."
+		} else {
+			gmailTestSuccess = false
+			gmailTestMessage = "Connect Gmail first, then test."
+		}
+	}
+
+	func testGoogleCalendar() {
+		if integrationService.googleCalendarState.isConnected {
+			googleCalendarTestSuccess = true
+			googleCalendarTestMessage = "Calendar connected. Ready to manage events."
+		} else {
+			googleCalendarTestSuccess = false
+			googleCalendarTestMessage = "Connect Google Calendar first, then test."
 		}
 	}
 	
@@ -264,4 +326,3 @@ final class SettingsViewModel: ObservableObject {
 		return linearProjects.filter { $0.teamId == teamId }
 	}
 }
-

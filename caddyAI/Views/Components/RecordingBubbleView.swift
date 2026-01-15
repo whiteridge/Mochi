@@ -16,14 +16,15 @@ struct RecordingBubbleView: View {
             // Left: Cancel button (X)
             Button(action: cancelRecording) {
                 Circle()
-                    .fill(palette.iconBackground)
+                    // Use Color.primary to ensure system adaptation matches the dots
+                    .fill(Color.primary.opacity(0.1))
                     .overlay(
                         Circle()
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        palette.iconStroke.opacity(0.9),
-                                        palette.iconStroke.opacity(0.2)
+                                        Color.primary.opacity(0.3),
+                                        Color.primary.opacity(0.1)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -35,7 +36,7 @@ struct RecordingBubbleView: View {
                     .overlay(
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(palette.iconSecondary)
+                            .foregroundStyle(Color.primary)
                     )
             }
             .buttonStyle(.plain)
@@ -94,8 +95,9 @@ struct AnimatedDotRow: View {
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        palette.primaryText.opacity(0.85),
-                                        palette.primaryText.opacity(0.55)
+                                        // Use Color.primary to match X button and system theme
+                                        Color.primary.opacity(0.85),
+                                        Color.primary.opacity(0.55)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom

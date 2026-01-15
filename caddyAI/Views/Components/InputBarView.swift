@@ -9,11 +9,50 @@ struct InputBarView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    @EnvironmentObject private var preferences: PreferencesStore
+
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme)
     }
     
     var body: some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            nativeContent
+        } else {
+            legacyContent
+        }
+    }
+    
+    // MARK: - Native Glass Effect (macOS 26+)
+    
+    @available(macOS 26.0, iOS 26.0, *)
+    private var nativeContent: some View {
+        inputContent
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .glassEffect(
+                preferences.glassStyle == .clear 
+                    ? .clear.interactive() 
+                    : .regular.interactive(), 
+                in: .capsule
+            )
+    }
+    
+    // MARK: - Legacy Glass Effect
+    
+    private var legacyContent: some View {
+        inputContent
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                LiquidGlassSurface(shape: .capsule, prominence: .strong, shadowed: false)
+            )
+            .clipShape(Capsule())
+    }
+    
+    // MARK: - Shared Content
+    
+    private var inputContent: some View {
         HStack(spacing: 10) {
             // Logo icon with glass effect
             Circle()
@@ -64,30 +103,5 @@ struct InputBarView: View {
                 action: isRecording ? stopRecording : startRecording
             )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            LiquidGlassSurface(shape: .capsule, prominence: .strong, shadowed: false)
-        )
-        .clipShape(Capsule())
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

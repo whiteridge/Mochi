@@ -33,7 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		// Ensure the main app can present windows from the status item.
 		NSApp.setActivationPolicy(.regular)
 		
-		panelController = PanelController(rootView: AnyView(VoiceChatBubble()))
+		panelController = PanelController(rootView: AnyView(
+			VoiceChatBubble()
+				.environmentObject(settingsEnvironment.preferences)
+		))
 		
 		statusItemController = MenuBarStatusController(
 			toggleBubble: { [weak self] in

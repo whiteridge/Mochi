@@ -60,20 +60,88 @@ struct LiquidGlassSurface: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @EnvironmentObject private var preferences: PreferencesStore
 
     var body: some View {
+        if #available(macOS 26.0, iOS 26.0, *) {
+            nativeSurface
+        } else {
+            legacySurface
+        }
+    }
+    
+    // MARK: - Native Glass Effect (macOS 26+ / iOS 26+)
+    
+    @available(macOS 26.0, iOS 26.0, *)
+    @ViewBuilder
+    private var nativeSurface: some View {
         switch shape {
         case .roundedRect(let radius):
-            surface(for: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            Color.clear
+                .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .rect(cornerRadius: radius))
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
         case .capsule:
-            surface(for: Capsule())
+            Color.clear
+                .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
         case .circle:
-            surface(for: Circle())
+            Color.clear
+                .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .circle)
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
+        }
+    }
+    
+    private var shadowColor: Color {
+        Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12)
+    }
+    
+    private var shadowRadius: CGFloat {
+        switch prominence {
+        case .subtle: return 6
+        case .regular: return 8
+        case .strong: return 10
+        }
+    }
+    
+    private var shadowY: CGFloat {
+        switch prominence {
+        case .subtle: return 3
+        case .regular: return 4
+        case .strong: return 5
+        }
+    }
+    
+    // MARK: - Legacy Glass Effect (pre-macOS 26)
+    
+    @ViewBuilder
+    private var legacySurface: some View {
+        switch shape {
+        case .roundedRect(let radius):
+            legacySurfaceImpl(for: RoundedRectangle(cornerRadius: radius, style: .continuous))
+        case .capsule:
+            legacySurfaceImpl(for: Capsule())
+        case .circle:
+            legacySurfaceImpl(for: Circle())
         }
     }
 
     @ViewBuilder
-    private func surface<S: InsettableShape>(for shape: S) -> some View {
+    private func legacySurfaceImpl<S: InsettableShape>(for shape: S) -> some View {
         let metrics = LiquidGlassMetrics(colorScheme: colorScheme, prominence: prominence, tintOverride: tint)
 
         ZStack {

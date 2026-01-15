@@ -100,6 +100,28 @@ enum VoiceActivationMode: String, CaseIterable, Identifiable {
 	}
 }
 
+/// Glass effect style preference
+enum GlassStyle: String, CaseIterable, Identifiable {
+	case clear = "clear"
+	case regular = "regular"
+	
+	var id: String { rawValue }
+	
+	var label: String {
+		switch self {
+		case .clear: "Clear"
+		case .regular: "Regular"
+		}
+	}
+	
+	var description: String {
+		switch self {
+		case .clear: "Maximum transparency, works best over dark backgrounds"
+		case .regular: "Frosted glass with better contrast over any background"
+		}
+	}
+}
+
 struct AccentColorOption: Identifiable, Hashable {
 	let id: String
 	let name: String
@@ -116,6 +138,7 @@ final class PreferencesStore: ObservableObject {
 		static let hasCompletedSetup = "hasCompletedSetup"
 		static let voiceShortcutKey = "voiceShortcutKey"
 		static let voiceActivationMode = "voiceActivationMode"
+		static let glassStyle = "glassStyle"
 	}
 	
 	private let store: UserDefaults
@@ -127,6 +150,7 @@ final class PreferencesStore: ObservableObject {
 	@Published var hasCompletedSetup: Bool { didSet { store.set(hasCompletedSetup, forKey: Keys.hasCompletedSetup) } }
 	@Published var voiceShortcutKeyRaw: String { didSet { store.set(voiceShortcutKeyRaw, forKey: Keys.voiceShortcutKey) } }
 	@Published var voiceActivationModeRaw: String { didSet { store.set(voiceActivationModeRaw, forKey: Keys.voiceActivationMode) } }
+	@Published var glassStyleRaw: String { didSet { store.set(glassStyleRaw, forKey: Keys.glassStyle) } }
 	
 	var accentColor: Color { Color(hex: accentColorHex) ?? .accentColor }
 	var theme: ThemePreference {
@@ -171,6 +195,11 @@ final class PreferencesStore: ObservableObject {
 		set { voiceActivationModeRaw = newValue.rawValue }
 	}
 	
+	var glassStyle: GlassStyle {
+		get { GlassStyle(rawValue: glassStyleRaw) ?? .regular }
+		set { glassStyleRaw = newValue.rawValue }
+	}
+	
 	init(store: UserDefaults = UserDefaults.standard) {
 		self.store = store
 		self.accentColorHex = store.string(forKey: Keys.accent) ?? "#4A90E2"
@@ -180,6 +209,7 @@ final class PreferencesStore: ObservableObject {
 		self.hasCompletedSetup = store.bool(forKey: Keys.hasCompletedSetup)
 		self.voiceShortcutKeyRaw = store.string(forKey: Keys.voiceShortcutKey) ?? VoiceShortcutKey.fn.rawValue
 		self.voiceActivationModeRaw = store.string(forKey: Keys.voiceActivationMode) ?? VoiceActivationMode.holdToTalk.rawValue
+		self.glassStyleRaw = store.string(forKey: Keys.glassStyle) ?? GlassStyle.regular.rawValue
 		applyTheme(theme)
 	}
 	
@@ -194,6 +224,7 @@ final class PreferencesStore: ObservableObject {
 		hasCompletedSetup = false
 		voiceShortcutKeyRaw = VoiceShortcutKey.fn.rawValue
 		voiceActivationModeRaw = VoiceActivationMode.holdToTalk.rawValue
+		glassStyleRaw = GlassStyle.regular.rawValue
 		
 		store.removeObject(forKey: Keys.accent)
 		store.removeObject(forKey: Keys.theme)
@@ -202,6 +233,7 @@ final class PreferencesStore: ObservableObject {
 		store.removeObject(forKey: Keys.hasCompletedSetup)
 		store.removeObject(forKey: Keys.voiceShortcutKey)
 		store.removeObject(forKey: Keys.voiceActivationMode)
+		store.removeObject(forKey: Keys.glassStyle)
 	}
 	
 	private func applyTheme(_ theme: ThemePreference) {

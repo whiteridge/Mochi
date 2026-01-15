@@ -10,8 +10,16 @@ struct QuickSetupView: View {
     
     @State private var connectingSlack = false
     @State private var connectingLinear = false
+    @State private var connectingNotion = false
+    @State private var connectingGitHub = false
+    @State private var connectingGmail = false
+    @State private var connectingGoogleCalendar = false
     @State private var slackError: String?
     @State private var linearError: String?
+    @State private var notionError: String?
+    @State private var githubError: String?
+    @State private var gmailError: String?
+    @State private var googleCalendarError: String?
 
     private var backgroundGradient: LinearGradient {
         let colors: [Color] = colorScheme == .dark
@@ -27,104 +35,166 @@ struct QuickSetupView: View {
     }
     
     var body: some View {
-        VStack(spacing: 32) {
-            // Header
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [preferences.accentColor.opacity(0.2), preferences.accentColor.opacity(0.05)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+        ScrollView {
+            VStack(spacing: 32) {
+                // Header
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [preferences.accentColor.opacity(0.2), preferences.accentColor.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
-                        .frame(width: 88, height: 88)
+                            .frame(width: 88, height: 88)
+                        
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 36, weight: .medium))
+                            .foregroundStyle(preferences.accentColor)
+                    }
                     
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 36, weight: .medium))
-                        .foregroundStyle(preferences.accentColor)
+                    Text("Welcome to caddyAI")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                    
+                    Text("Connect your tools to get started")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.top, 32)
                 
-                Text("Welcome to caddyAI")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                // Integration Cards
+                VStack(spacing: 16) {
+                    IntegrationConnectCard(
+                        title: "Slack",
+                        subtitle: "Send messages and receive alerts",
+                        iconName: "slack-icon",
+                        fallbackIcon: "bubble.left.and.bubble.right.fill",
+                        isConnected: integrationService.slackState.isConnected,
+                        isLoading: connectingSlack,
+                        errorMessage: slackError
+                    ) {
+                        connectSlack()
+                    }
+                    
+                    IntegrationConnectCard(
+                        title: "Linear",
+                        subtitle: "Create issues and track progress",
+                        iconName: "linear-icon",
+                        fallbackIcon: "checklist",
+                        isConnected: integrationService.linearState.isConnected,
+                        isLoading: connectingLinear,
+                        errorMessage: linearError
+                    ) {
+                        connectLinear()
+                    }
+                    
+                    IntegrationConnectCard(
+                        title: "Notion",
+                        subtitle: "Search pages and update docs",
+                        iconName: "notion-icon",
+                        fallbackIcon: "doc.text",
+                        isConnected: integrationService.notionState.isConnected,
+                        isLoading: connectingNotion,
+                        errorMessage: notionError
+                    ) {
+                        connectNotion()
+                    }
+                    
+                    IntegrationConnectCard(
+                        title: "GitHub",
+                        subtitle: "Find issues and update repos",
+                        iconName: "github-icon",
+                        fallbackIcon: "chevron.left.forwardslash.chevron.right",
+                        isConnected: integrationService.githubState.isConnected,
+                        isLoading: connectingGitHub,
+                        errorMessage: githubError
+                    ) {
+                        connectGitHub()
+                    }
+                    
+                    IntegrationConnectCard(
+                        title: "Gmail",
+                        subtitle: "Read and send email securely",
+                        iconName: "gmail-icon",
+                        fallbackIcon: "envelope.fill",
+                        isConnected: integrationService.gmailState.isConnected,
+                        isLoading: connectingGmail,
+                        errorMessage: gmailError
+                    ) {
+                        connectGmail()
+                    }
+                    
+                    IntegrationConnectCard(
+                        title: "Google Calendar",
+                        subtitle: "Manage meetings and availability",
+                        iconName: "calendar-icon",
+                        fallbackIcon: "calendar",
+                        isConnected: integrationService.googleCalendarState.isConnected,
+                        isLoading: connectingGoogleCalendar,
+                        errorMessage: googleCalendarError
+                    ) {
+                        connectGoogleCalendar()
+                    }
+                }
+                .padding(.horizontal, 32)
                 
-                Text("Connect your tools to get started")
-                    .font(.title3)
+                // Footer
+                VStack(spacing: 14) {
+                    Button {
+                        completeSetup()
+                    } label: {
+                        Text(allConnected ? "Get Started" : "Continue")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(preferences.accentColor)
+                    .disabled(!hasAnyConnection)
+                    
+                    Button("Skip for now") {
+                        preferences.hasCompletedSetup = true
+                        onComplete()
+                    }
+                    .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-            }
-            .padding(.top, 32)
-            
-            // Integration Cards
-            VStack(spacing: 16) {
-                IntegrationConnectCard(
-                    title: "Slack",
-                    subtitle: "Send messages and receive alerts",
-                    iconName: "slack-icon",
-                    fallbackIcon: "bubble.left.and.bubble.right.fill",
-                    isConnected: integrationService.slackState.isConnected,
-                    isLoading: connectingSlack,
-                    errorMessage: slackError
-                ) {
-                    connectSlack()
-                }
-                
-                IntegrationConnectCard(
-                    title: "Linear",
-                    subtitle: "Create issues and track progress",
-                    iconName: "linear-icon",
-                    fallbackIcon: "checklist",
-                    isConnected: integrationService.linearState.isConnected,
-                    isLoading: connectingLinear,
-                    errorMessage: linearError
-                ) {
-                    connectLinear()
+                    .font(.subheadline)
                 }
             }
             .padding(.horizontal, 32)
-            
-            Spacer()
-            
-            // Footer
-            VStack(spacing: 14) {
-                Button {
-                    completeSetup()
-                } label: {
-                    Text(allConnected ? "Get Started" : "Continue")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(preferences.accentColor)
-                .disabled(!hasAnyConnection)
-                
-                Button("Skip for now") {
-                    preferences.hasCompletedSetup = true
-                    onComplete()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
-            }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 28)
-    }
-    .frame(width: 420, height: 540)
-    .background(backgroundGradient)
-    .onAppear {
-        // Refresh connection status when view appears
-        viewModel.refreshStatus(appName: "slack")
-        viewModel.refreshStatus(appName: "linear")
+            .padding(.bottom, 28)
+        }
+        .frame(width: 420, height: 640)
+        .background(backgroundGradient)
+        .onAppear {
+            // Refresh connection status when view appears
+            viewModel.refreshStatus(appName: "slack")
+            viewModel.refreshStatus(appName: "linear")
+            viewModel.refreshStatus(appName: "notion")
+            viewModel.refreshStatus(appName: "github")
+            viewModel.refreshStatus(appName: "gmail")
+            viewModel.refreshStatus(appName: "googlecalendar")
         }
     }
     
     private var allConnected: Bool {
-        integrationService.slackState.isConnected && integrationService.linearState.isConnected
+        integrationService.slackState.isConnected
+            && integrationService.linearState.isConnected
+            && integrationService.notionState.isConnected
+            && integrationService.githubState.isConnected
+            && integrationService.gmailState.isConnected
+            && integrationService.googleCalendarState.isConnected
     }
     
     private var hasAnyConnection: Bool {
-        integrationService.slackState.isConnected || integrationService.linearState.isConnected
+        integrationService.slackState.isConnected
+            || integrationService.linearState.isConnected
+            || integrationService.notionState.isConnected
+            || integrationService.githubState.isConnected
+            || integrationService.gmailState.isConnected
+            || integrationService.googleCalendarState.isConnected
     }
     
     private func connectSlack() {
@@ -162,6 +232,78 @@ struct QuickSetupView: View {
             }
         }
     }
+
+    private func connectNotion() {
+        notionError = nil
+        connectingNotion = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "notion")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.notionError = error
+                    self.connectingNotion = false
+                } else {
+                    self.pollStatus(app: "notion") {
+                        self.connectingNotion = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func connectGitHub() {
+        githubError = nil
+        connectingGitHub = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "github")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.githubError = error
+                    self.connectingGitHub = false
+                } else {
+                    self.pollStatus(app: "github") {
+                        self.connectingGitHub = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func connectGmail() {
+        gmailError = nil
+        connectingGmail = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "gmail")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.gmailError = error
+                    self.connectingGmail = false
+                } else {
+                    self.pollStatus(app: "gmail") {
+                        self.connectingGmail = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func connectGoogleCalendar() {
+        googleCalendarError = nil
+        connectingGoogleCalendar = true
+        Task { @MainActor in
+            let error = await viewModel.connectViaComposioAsync(appName: "googlecalendar")
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.googleCalendarError = error
+                    self.connectingGoogleCalendar = false
+                } else {
+                    self.pollStatus(app: "googlecalendar") {
+                        self.connectingGoogleCalendar = false
+                    }
+                }
+            }
+        }
+    }
     
     private func pollStatus(app: String, completion: @escaping () -> Void) {
         Task {
@@ -174,9 +316,22 @@ struct QuickSetupView: View {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 
                 let connected = await MainActor.run {
-                    app == "slack"
-                        ? integrationService.slackState.isConnected
-                        : integrationService.linearState.isConnected
+                    switch app {
+                    case "slack":
+                        return integrationService.slackState.isConnected
+                    case "linear":
+                        return integrationService.linearState.isConnected
+                    case "notion":
+                        return integrationService.notionState.isConnected
+                    case "github":
+                        return integrationService.githubState.isConnected
+                    case "gmail":
+                        return integrationService.gmailState.isConnected
+                    case "googlecalendar", "google_calendar":
+                        return integrationService.googleCalendarState.isConnected
+                    default:
+                        return false
+                    }
                 }
                 
                 if connected {
