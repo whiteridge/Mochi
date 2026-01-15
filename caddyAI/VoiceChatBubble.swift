@@ -69,6 +69,13 @@ struct VoiceChatBubble: View {
                     )
                     .padding(.horizontal, 8)
                     .padding(.vertical, 7)
+                    // Add subtle material backing for Clear mode to anchor adaptive colors
+                    .background(
+                        preferences.glassStyle == .clear 
+                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                            : AnyShapeStyle(Color.clear), 
+                        in: .capsule
+                    )
                     .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
                     .matchedGeometryEffect(id: "background", in: animation)
                     .transition(.scale(scale: 1))
@@ -94,6 +101,13 @@ struct VoiceChatBubble: View {
                     TranscribingPillView()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 7)
+                        // Add subtle material backing for Clear mode to anchor adaptive colors
+                        .background(
+                            preferences.glassStyle == .clear 
+                                ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                                : AnyShapeStyle(Color.clear), 
+                            in: .capsule
+                        )
                         .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
                         .matchedGeometryEffect(id: "background", in: animation)
                         .transition(.scale(scale: 1))
@@ -244,8 +258,6 @@ fileprivate extension VoiceChatBubble {
         // Animate layout changes
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: isSuccess)
         .animation(.easeOut(duration: 0.3), value: viewModel.isExecutingAction)
-        // Force dark mode (white text) when using Clear glass, as it's typically used over dark wallpapers
-        .preferredColorScheme(preferences.glassStyle == .clear ? .dark : nil)
     }
 }
 
@@ -261,6 +273,13 @@ private struct ChatSuccessBackgroundModifier: ViewModifier {
         if #available(macOS 26.0, iOS 26.0, *) {
             if isSuccess {
                 content
+                    // Add subtle material backing for Clear mode to anchor adaptive colors
+                    .background(
+                        preferences.glassStyle == .clear 
+                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                            : AnyShapeStyle(Color.clear), 
+                        in: .capsule
+                    )
                     .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
                     .overlay {
                         if isExecutingAction || isSuccess {
@@ -275,6 +294,13 @@ private struct ChatSuccessBackgroundModifier: ViewModifier {
                     }
             } else {
                 content
+                    // Add subtle material backing for Clear mode to anchor adaptive colors
+                    .background(
+                        preferences.glassStyle == .clear 
+                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                            : AnyShapeStyle(Color.clear), 
+                        in: .rect(cornerRadius: 24)
+                    )
                     .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .rect(cornerRadius: 24))
                     .overlay {
                         if isExecutingAction {

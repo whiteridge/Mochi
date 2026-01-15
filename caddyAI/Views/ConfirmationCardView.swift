@@ -786,7 +786,7 @@ private struct CalendarProposalDetails {
             "end_day"
         ])
 
-        var resolvedStart = startInfo.date
+        let resolvedStart = startInfo.date
         var resolvedEnd = endInfo.date
 
         if resolvedEnd == nil, let durationMinutes = Self.extractDurationMinutes(from: args), let start = resolvedStart {
@@ -939,17 +939,17 @@ private struct CalendarProposalDetails {
         if let direct = direct?.nilIfEmpty { return direct }
 
         if let conferenceData = args["conferenceData"] as? [String: Any],
-           let link = extractConferenceLink(from: conferenceData) {
+           let link = extractConferenceLinkFromPayload(conferenceData) {
             return link
         }
         if let conferenceData = args["conference_data"] as? [String: Any],
-           let link = extractConferenceLink(from: conferenceData) {
+           let link = extractConferenceLinkFromPayload(conferenceData) {
             return link
         }
         return nil
     }
 
-    private static func extractConferenceLink(from data: [String: Any]) -> String? {
+    private static func extractConferenceLinkFromPayload(_ data: [String: Any]) -> String? {
         if let entryPoints = data["entryPoints"] as? [[String: Any]] {
             for entry in entryPoints {
                 if let uri = stringValue(entry["uri"])?.nilIfEmpty {

@@ -78,6 +78,13 @@ struct LiquidGlassSurface: View {
         switch shape {
         case .roundedRect(let radius):
             Color.clear
+                // Add subtle material backing for Clear mode to anchor adaptive colors
+                .background(
+                    preferences.glassStyle == .clear 
+                        ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                        : AnyShapeStyle(Color.clear), 
+                    in: .rect(cornerRadius: radius)
+                )
                 .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .rect(cornerRadius: radius))
                 .shadow(
                     color: shadowed ? shadowColor : .clear,
@@ -87,6 +94,13 @@ struct LiquidGlassSurface: View {
                 )
         case .capsule:
             Color.clear
+                // Add subtle material backing for Clear mode to anchor adaptive colors
+                .background(
+                    preferences.glassStyle == .clear 
+                        ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                        : AnyShapeStyle(Color.clear), 
+                    in: .capsule
+                )
                 .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
                 .shadow(
                     color: shadowed ? shadowColor : .clear,
@@ -96,6 +110,13 @@ struct LiquidGlassSurface: View {
                 )
         case .circle:
             Color.clear
+                // Add subtle material backing for Clear mode to anchor adaptive colors
+                .background(
+                    preferences.glassStyle == .clear 
+                        ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                        : AnyShapeStyle(Color.clear), 
+                    in: .circle
+                )
                 .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .circle)
                 .shadow(
                     color: shadowed ? shadowColor : .clear,

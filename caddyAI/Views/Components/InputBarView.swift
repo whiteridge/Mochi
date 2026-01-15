@@ -30,6 +30,13 @@ struct InputBarView: View {
         inputContent
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            // Add subtle material backing for Clear mode to anchor adaptive colors
+            .background(
+                preferences.glassStyle == .clear 
+                    ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
+                    : AnyShapeStyle(Color.clear), 
+                in: .capsule
+            )
             .glassEffect(
                 preferences.glassStyle == .clear 
                     ? .clear.interactive() 

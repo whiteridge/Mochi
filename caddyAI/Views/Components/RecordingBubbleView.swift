@@ -6,9 +6,18 @@ struct RecordingBubbleView: View {
     let animation: Namespace.ID
     var amplitude: CGFloat = 0.5
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme)
+    }
+
+    private var adaptiveIconColor: Color {
+        preferences.glassStyle == .clear ? .white : .primary
+    }
+
+    private var adaptiveBlendMode: BlendMode {
+        preferences.glassStyle == .clear ? .difference : .normal
     }
     
     var body: some View {
@@ -36,7 +45,8 @@ struct RecordingBubbleView: View {
                     .overlay(
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(adaptiveIconColor)
+                            .blendMode(adaptiveBlendMode)
                     )
             }
             .buttonStyle(.plain)
@@ -60,9 +70,18 @@ struct AnimatedDotRow: View {
     let count: Int
     var amplitude: CGFloat = 0.5  // Default to mid-range for backwards compatibility
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme)
+    }
+
+    private var adaptiveWaveColors: [Color] {
+        let baseColor: Color = preferences.glassStyle == .clear ? .white : .primary
+        return [
+            baseColor.opacity(0.85),
+            baseColor.opacity(0.55)
+        ]
     }
 
     var body: some View {
@@ -94,11 +113,7 @@ struct AnimatedDotRow: View {
                         Capsule()
                             .fill(
                                 LinearGradient(
-                                    colors: [
-                                        // Use Color.primary to match X button and system theme
-                                        Color.primary.opacity(0.85),
-                                        Color.primary.opacity(0.55)
-                                    ],
+                                    colors: adaptiveWaveColors,
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
@@ -107,6 +122,7 @@ struct AnimatedDotRow: View {
                             .animation(.linear(duration: 0.1), value: amplitude)
                     }
                 }
+                .blendMode(preferences.glassStyle == .clear ? .difference : .normal)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }
