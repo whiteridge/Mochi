@@ -112,4 +112,7 @@ class GoogleCalendarService:
         """
         Hook to enrich Google Calendar proposals; currently a passthrough.
         """
-        return args
+        enriched = dict(args)
+        if "calendar_id" not in enriched and "calendarId" not in enriched:
+            enriched["calendar_id"] = "primary"
+        return enriched

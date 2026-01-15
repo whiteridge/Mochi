@@ -24,6 +24,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     user_id: str
     confirmed_tool: Optional[dict] = None  # For multi-app: {"tool": "...", "args": {...}, "app_id": "..."}
+    user_timezone: Optional[str] = None
 
 # ChatResponse model is no longer used for the return type of the endpoint directly, 
 # but the events yielded will match the structure we want.
@@ -58,7 +59,13 @@ async def chat_endpoint(request: ChatRequest):
         effective_user_id = os.getenv("COMPOSIO_USER_ID", request.user_id)
         print(f"DEBUG: Using effective user_id: {effective_user_id}")
         
-        for event in agent_service.run_agent(user_input, effective_user_id, chat_history=gemini_history, confirmed_tool=request.confirmed_tool):
+        for event in agent_service.run_agent(
+            user_input,
+            effective_user_id,
+            chat_history=gemini_history,
+            confirmed_tool=request.confirmed_tool,
+            user_timezone=request.user_timezone,
+        ):
             yield json.dumps(event) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")

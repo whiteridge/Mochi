@@ -39,7 +39,13 @@ actor LLMService {
                 var fullMessages = history
                 fullMessages.append(Message(role: "user", content: text))
                 
-                let requestPayload = ChatRequest(messages: fullMessages, userId: userId, confirmedTool: confirmedTool)
+                let userTimezone = TimeZone.current.identifier
+                let requestPayload = ChatRequest(
+                    messages: fullMessages,
+                    userId: userId,
+                    confirmedTool: confirmedTool,
+                    userTimezone: userTimezone
+                )
                 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"

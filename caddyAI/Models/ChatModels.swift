@@ -6,17 +6,20 @@ struct ChatRequest: Codable {
     let messages: [Message]
     let userId: String
     let confirmedTool: ConfirmedToolData?
+    let userTimezone: String?
     
     enum CodingKeys: String, CodingKey {
         case messages
         case userId = "user_id"
         case confirmedTool = "confirmed_tool"
+        case userTimezone = "user_timezone"
     }
     
-    init(messages: [Message], userId: String, confirmedTool: ConfirmedToolData? = nil) {
+    init(messages: [Message], userId: String, confirmedTool: ConfirmedToolData? = nil, userTimezone: String? = nil) {
         self.messages = messages
         self.userId = userId
         self.confirmedTool = confirmedTool
+        self.userTimezone = userTimezone
     }
 }
 

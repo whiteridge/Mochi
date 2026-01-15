@@ -44,6 +44,7 @@ class AgentService:
         user_id: str,
         chat_history: List[Dict[str, str]] = [],
         confirmed_tool: Dict = None,
+        user_timezone: str | None = None,
     ):
         """
         Runs the agent with the given user input and user_id.
@@ -85,7 +86,16 @@ class AgentService:
         gemini_tools, _ = build_gemini_tools(all_composio_tools)
 
         # 3. Start Chat
-        chat = create_chat(self.client, gemini_tools, chat_history)
+        user_context = None
+        if user_timezone:
+            user_context = f"User timezone: {user_timezone}."
+
+        chat = create_chat(
+            self.client,
+            gemini_tools,
+            chat_history,
+            user_context=user_context,
+        )
 
         # 4. Delegate streaming loop
         dispatcher = AgentDispatcher(

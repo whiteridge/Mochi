@@ -1,6 +1,6 @@
 """Gemini configuration helpers for the agent."""
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from google.genai import types
 
 from utils.chat_utils import format_history
@@ -43,6 +43,17 @@ SYSTEM_INSTRUCTION = """
     *   You will NEVER see this preview - it happens in the UI layer.
     *   Just focus on calling the tool correctly. The interception is handled for you.
 
+    ### GOOGLE CALENDAR DEFAULTS & TIME RESOLUTION
+    For Calendar write actions (create/update/delete events):
+    *   **DO NOT** ask the user which calendar to use unless they explicitly name one.
+    *   If no calendar is specified, use `calendar_id = "primary"`.
+    *   **DO NOT** ask for the user's timezone. Use the user's timezone from USER CONTEXT.
+    *   If the user uses relative dates (today/tomorrow/next week), always call
+        `googlecalendar_get_current_date_time` first and then compute the absolute times.
+    *   If a duration is not provided, default to 30 minutes.
+    *   If only a duration is provided, set `end = start + duration`.
+    *   Only ask follow-up questions if the date/time cannot be inferred.
+
     ### SUMMARIZATION & READ ACTIONS
     When reading content (Issues, Emails, Comments, Messages):
     *   **DO NOT** output raw JSON or long lists.
@@ -76,6 +87,7 @@ SYSTEM_INSTRUCTION = """
     *   Find Events: `googlecalendar_events_list` or `googlecalendar_find_event`
     *   Create Event: `googlecalendar_create_event`
     *   Update Event: `googlecalendar_update_event` or `googlecalendar_patch_event`
+    *   Current Date/Time: `googlecalendar_get_current_date_time`
 
     ### SLACK SUMMARIZATION
     When the user asks about the contents of a channel (e.g. "Summarize #general" or "What's been happening in the General channel?"), you must:
@@ -120,12 +132,15 @@ def build_gemini_tools(composio_tools) -> Tuple[List[types.Tool], int]:
     return gemini_tools, num_declarations
 
 
-def create_chat(client, gemini_tools, chat_history):
+def create_chat(client, gemini_tools, chat_history, user_context: Optional[str] = None):
     """Create a Gemini chat with tools and system instruction."""
     formatted_history = format_history(chat_history)
+    system_instruction = SYSTEM_INSTRUCTION
+    if user_context:
+        system_instruction = f"{SYSTEM_INSTRUCTION}\n\n### USER CONTEXT\n{user_context}"
     config = types.GenerateContentConfig(
         tools=gemini_tools,
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=system_instruction,
         thinking_config=types.ThinkingConfig(include_thoughts=True),
     )
     return client.chats.create(
