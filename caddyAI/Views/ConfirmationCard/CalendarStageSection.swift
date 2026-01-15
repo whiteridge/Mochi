@@ -1,0 +1,264 @@
+import SwiftUI
+
+struct CalendarStageSection: View {
+    let proposal: ProposalData
+    let stageCornerRadius: CGFloat
+    
+    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
+    
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
+    
+    var calendarDetails: CalendarProposalDetails {
+        CalendarProposalDetails(args: proposal.args)
+    }
+    
+    var body: some View {
+        stageContainer {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(calendarDetails.title)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(palette.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(calendarDateTimeLine)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(palette.secondaryText)
+
+                    if let hint = calendarDetails.hintText {
+                        Text(hint)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(palette.tertiaryText)
+                    }
+
+                    calendarAttendeesSection
+                    calendarLocationSection
+                    calendarDescriptionSection
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                calendarTimelineSection
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(palette.iconBackground)
+                    )
+            }
+        }
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(ActionGlowPalette.glow.opacity(0.16))
+                .frame(width: 4)
+                .padding(.vertical, 12)
+                .padding(.leading, 8)
+        }
+    }
+    
+    // MARK: - Stage Container
+    
+    @ViewBuilder
+    private func stageContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(16)
+            .background(stageBackground)
+            .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
+                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+            )
+    }
+    
+    @ViewBuilder
+    private var stageBackground: some View {
+        ZStack {
+            LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
+            if preferences.glassStyle == .clear {
+                RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))
+            }
+        }
+    }
+    
+    // MARK: - Calendar Detail Sections
+
+    @ViewBuilder
+    var calendarAttendeesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("People")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(palette.tertiaryText)
+            if calendarDetails.attendees.isEmpty {
+                Text("Add participant")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(palette.tertiaryText)
+            } else {
+                ForEach(Array(calendarDetails.attendees.enumerated()), id: \.element.id) { index, attendee in
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(calendarAttendeeColor(index: index))
+                            .frame(width: 8, height: 8)
+
+                        Text(attendee.displayName)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(palette.primaryText)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 6)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var calendarLocationSection: some View {
+        if let location = calendarDetails.locationDisplay {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Location")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(palette.tertiaryText)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(location.primary)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(palette.primaryText)
+                            .lineLimit(2)
+
+                        if let secondary = location.secondary {
+                            Text(secondary)
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundStyle(palette.tertiaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Location")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+
+                Text("Add location or conferencing")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(palette.tertiaryText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    var calendarDescriptionSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Notes")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(palette.tertiaryText)
+            
+            if let description = calendarDetails.descriptionText {
+                Text(description)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(palette.secondaryText)
+                    .lineLimit(3)
+            } else {
+                Text("Add description...")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(palette.tertiaryText)
+            }
+        }
+    }
+
+    var calendarTimelineSection: some View {
+        CalendarTimelineView(
+            startDate: calendarDetails.startDate,
+            endDate: calendarDetails.endDate,
+            timeZone: calendarDetails.timeZone,
+            title: calendarDetails.title,
+            isAllDay: calendarDetails.isAllDay
+        )
+        .frame(width: 170)
+    }
+    
+    // MARK: - Calendar Display Helpers
+
+    var calendarDateTimeLine: String {
+        guard let startDate = calendarDetails.startDate else {
+            return "Date TBD"
+        }
+
+        let calendar = calendarWithTimeZone()
+        let dateText = calendarFormattedDate(startDate, formatter: Self.calendarFullDateFormatter)
+
+        if calendarDetails.isAllDay {
+            return "\(dateText) All day"
+        }
+
+        guard let endDate = calendarDetails.endDate else {
+            let timeText = calendarFormattedDate(startDate, formatter: Self.calendarTimeFormatter)
+            return "\(dateText) \(timeText)"
+        }
+
+        if calendar.isDate(startDate, inSameDayAs: endDate) {
+            let startTime = calendarFormattedDate(startDate, formatter: Self.calendarTimeFormatter)
+            let endTime = calendarFormattedDate(endDate, formatter: Self.calendarTimeFormatter)
+            return "\(dateText) \(startTime) - \(endTime)"
+        }
+
+        let startText = calendarFormattedDate(startDate, formatter: Self.calendarDateTimeFormatter)
+        let endText = calendarFormattedDate(endDate, formatter: Self.calendarDateTimeFormatter)
+        return "\(startText) - \(endText)"
+    }
+
+    func calendarAttendeeColor(index: Int) -> Color {
+        let colors: [Color] = [
+            Color(nsColor: .systemBlue).opacity(0.75),
+            Color(nsColor: .systemOrange).opacity(0.75),
+            Color(nsColor: .systemGreen).opacity(0.75),
+            Color(nsColor: .systemPink).opacity(0.75)
+        ]
+        return colors[index % colors.count]
+    }
+
+    private func calendarFormattedDate(_ date: Date, formatter: DateFormatter) -> String {
+        formatter.timeZone = calendarDetails.timeZone ?? TimeZone.current
+        return formatter.string(from: date)
+    }
+
+    private func calendarWithTimeZone() -> Calendar {
+        var calendar = Calendar.current
+        if let timeZone = calendarDetails.timeZone {
+            calendar.timeZone = timeZone
+        }
+        return calendar
+    }
+
+    private static let calendarFullDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    private static let calendarTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let calendarDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}

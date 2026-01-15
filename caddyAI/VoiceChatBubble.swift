@@ -29,6 +29,7 @@ struct ConfirmButtonFrameKey: PreferenceKey {
 
 struct VoiceChatBubble: View {
     @EnvironmentObject private var preferences: PreferencesStore
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel = AgentViewModel()
     
     @Namespace private var animation
@@ -48,48 +49,18 @@ struct VoiceChatBubble: View {
             // Root-level rotating light background that morphs based on state
             rotatingLightBackgroundLayer
             
-            // Content layers
-            switch viewModel.state {
-            case .recording:
-                if #available(macOS 26.0, iOS 26.0, *) {
-                    RecordingBubbleView(
-                        stopRecording: stopRecording,
-                        cancelRecording: cancelVoiceSession,
-                        animation: animation,
-                        amplitude: voiceRecorder.normalizedAmplitude
-                    )
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
-                    // Add subtle material backing for Clear mode to anchor adaptive colors
-                    .background(
-                        preferences.glassStyle == .clear 
-                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
-                            : AnyShapeStyle(Color.clear), 
-                        in: .capsule
-                    )
-                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
-                    .matchedGeometryEffect(id: "background", in: animation)
-                    .transition(.scale(scale: 1))
-                } else {
-                    RecordingBubbleView(
-                        stopRecording: stopRecording,
-                        cancelRecording: cancelVoiceSession,
-                        animation: animation,
-                        amplitude: voiceRecorder.normalizedAmplitude
-                    )
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
-                    .background(
-                        LiquidGlassDockBackground()
-                            .matchedGeometryEffect(id: "background", in: animation)
-                    )
-                    .transition(.scale(scale: 1))
-                }
-                    
-            case .idle:
+            // Content layers - use UnifiedPillView for recording/thinking/searching
+            if let pillMode = unifiedPillMode {
+                UnifiedPillView(
+                    mode: pillMode,
+                    morphNamespace: animation,
+                    stopRecording: stopRecording,
+                    cancelRecording: cancelVoiceSession
+                )
+                .transition(.scale(scale: 1))
+            } else if viewModel.state == .idle {
                 EmptyView()
-                
-            case .chat, .processing, .success:
+            } else {
                 compactFlowContent
             }
         }
@@ -152,6 +123,29 @@ struct VoiceChatBubble: View {
         // So this layer is empty - the rotating light is handled by the content views
         EmptyView()
     }
+    
+    // MARK: - Unified Pill Mode
+    
+    /// Computes the unified pill mode for recording/thinking/searching states.
+    /// Returns nil when not in a pill-displayable state.
+    private var unifiedPillMode: UnifiedPillMode? {
+        switch viewModel.state {
+        case .recording:
+            return .recording(amplitude: voiceRecorder.normalizedAmplitude)
+        case .processing, .chat:
+            // Only show unified pill when status pill should be visible (no proposal active)
+            guard viewModel.showStatusPill, viewModel.proposal == nil else { return nil }
+            if let status = viewModel.currentStatus {
+                switch status {
+                case .thinking: return .thinking
+                case .searching(let app): return .searching(app: app)
+                }
+            }
+            return .thinking
+        default:
+            return nil
+        }
+    }
 }
 
 // MARK: - Content Builders
@@ -160,8 +154,10 @@ fileprivate extension VoiceChatBubble {
     @ViewBuilder
     var compactFlowContent: some View {
         if viewModel.state == .success {
-            SuccessPillView(gradientNamespace: rotatingLightNamespace)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            SuccessPillView(
+                gradientNamespace: rotatingLightNamespace,
+                morphNamespace: animation
+            )
         } else if let proposal = viewModel.proposal {
             ConfirmationCardView(
                 proposal: proposal,
@@ -174,14 +170,6 @@ fileprivate extension VoiceChatBubble {
                 appSteps: viewModel.appSteps,
                 activeAppId: activeAppIdForHeader
             )
-            .transition(.opacity)
-        } else if viewModel.showStatusPill {
-            StatusPillView(
-                status: resolvedStatusPill,
-                isCompact: false,
-                morphNamespace: animation
-            )
-            .transition(.opacity)
         } else if let message = latestAssistantMessageText {
             AssistantMessageBubbleView(text: message, morphNamespace: animation)
                 .transition(.opacity)
@@ -229,6 +217,7 @@ fileprivate extension VoiceChatBubble {
         }
         return viewModel.appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
     }
+    
 }
 
 private struct AssistantMessageBubbleView: View {
@@ -241,32 +230,71 @@ private struct AssistantMessageBubbleView: View {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
+    private var maxMessageWidth: CGFloat {
+        text.count > 220 ? 620 : 460
+    }
+
+    private var usesRoundedRect: Bool {
+        text.count > 220
+    }
+
+    private var messageCornerRadius: CGFloat {
+        usesRoundedRect ? 18 : 999
+    }
+
+    private var paneFill: Color {
+        GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
+    }
+
     private var messageContent: some View {
         Text(text)
             .font(.system(size: 15, weight: .regular))
             .foregroundStyle(palette.primaryText)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 460, alignment: .leading)
+            .frame(maxWidth: maxMessageWidth, alignment: .leading)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
     }
     
     var body: some View {
         if #available(macOS 26.0, iOS 26.0, *) {
-            messageContent
-                .background(
-                    preferences.glassStyle == .clear
-                        ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
-                        : AnyShapeStyle(Color.clear),
-                    in: .capsule
-                )
-                .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+            if usesRoundedRect {
+                Group {
+                    if preferences.glassStyle == .regular {
+                        messageContent
+                            .background(.regularMaterial, in: .rect(cornerRadius: messageCornerRadius))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: messageCornerRadius, style: .continuous)
+                                    .fill(paneFill)
+                            )
+                    } else {
+                        messageContent
+                            .background(AnyShapeStyle(paneFill), in: .rect(cornerRadius: messageCornerRadius))
+                            .glassEffect(.clear, in: .rect(cornerRadius: messageCornerRadius))
+                    }
+                }
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
+            } else {
+                Group {
+                    if preferences.glassStyle == .regular {
+                        messageContent
+                            .background(.regularMaterial, in: .capsule)
+                            .overlay(
+                                Capsule().fill(paneFill)
+                            )
+                    } else {
+                        messageContent
+                            .background(AnyShapeStyle(paneFill), in: .capsule)
+                            .glassEffect(.clear, in: .capsule)
+                    }
+                }
+                .matchedGeometryEffect(id: "background", in: morphNamespace)
+            }
         } else {
             messageContent
                 .background(
-                    LiquidGlassDockBackground()
+                    GlassBackground(cornerRadius: messageCornerRadius, prominence: .subtle, shadowed: false)
                         .matchedGeometryEffect(id: "background", in: morphNamespace)
                 )
         }

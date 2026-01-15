@@ -3,29 +3,27 @@ import SwiftUI
 struct SuccessPillView: View {
     // Namespace for matchedGeometryEffect to enable smooth morph from card
     var gradientNamespace: Namespace.ID
-    @Environment(\.colorScheme) private var colorScheme
+    var morphNamespace: Namespace.ID? = nil
     @EnvironmentObject private var preferences: PreferencesStore
 
     private var iconBackground: Color {
         preferences.glassStyle == .clear ? Color.white.opacity(0.2) : Color.white.opacity(0.18)
     }
 
-    private var gradientIntensity: Double {
-        preferences.glassStyle == .clear ? 0.18 : 0.0
+    @ViewBuilder
+    private var backgroundLayer: some View {
+        ActionGlowCapsuleBackground(
+            rotationSpeed: 8.0,
+            gradientNamespace: gradientNamespace
+        )
     }
 
     @ViewBuilder
-    private var baseFill: some View {
-        if preferences.glassStyle == .clear {
-            LiquidGlassSurface(
-                shape: .capsule,
-                prominence: .strong,
-                tint: ActionGlowPalette.glassTint(for: colorScheme),
-                shadowed: false
-            )
+    private var morphingBackground: some View {
+        if let morphNamespace {
+            backgroundLayer.matchedGeometryEffect(id: "background", in: morphNamespace)
         } else {
-            Capsule()
-                .fill(ActionGlowPalette.fillGradient)
+            backgroundLayer
         }
     }
     
@@ -50,18 +48,6 @@ struct SuccessPillView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .background(
-            ZStack {
-                baseFill
-                // Rotating gradient fill that morphs from the confirmation card
-                RotatingGradientFill(
-                    shape: .capsule,
-                    rotationSpeed: 8.0,
-                    intensity: gradientIntensity
-                )
-                .matchedGeometryEffect(id: "gradientFill", in: gradientNamespace)
-            }
-        )
-        .clipShape(Capsule())
+        .background(morphingBackground)
     }
 }

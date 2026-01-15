@@ -9,10 +9,18 @@ struct RotatingGradientFill: View {
         case capsule
         case roundedRect(cornerRadius: CGFloat)
     }
+
+    enum RenderStyle {
+        case fill
+        case ring(lineWidth: CGFloat)
+        case cone(origin: UnitPoint)  // Cone emanating from a specific point
+    }
     
     var shape: ShapeType
     var rotationSpeed: Double = 8.0
     var intensity: Double = 0.12 // Base intensity (0.08-0.15 recommended for subtlety)
+    var renderStyle: RenderStyle = .fill
+    var coneAngle: Double = 90 // Width of cone in degrees (for .cone style)
     
     @State private var rotation: Double = 0
     @Environment(\.colorScheme) private var colorScheme
@@ -31,36 +39,103 @@ struct RotatingGradientFill: View {
         ]
     }
     
+    // Cone gradient colors - bright in center, fading to edges
+    private func coneGradientColors(adjustedIntensity: Double) -> [Color] {
+        return [
+            Color.clear,
+            Color.clear,
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
+            ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.2),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3),
+            Color.clear,
+            Color.clear,
+        ]
+    }
+    
     var body: some View {
         GeometryReader { geometry in
-            // Calculate the diagonal to ensure full coverage during rotation
-            let diagonal = sqrt(pow(geometry.size.width, 2) + pow(geometry.size.height, 2))
-            
-            ZStack {
-                // Angular gradient that rotates - creates a smooth sweeping effect
-                AngularGradient(
-                    gradient: Gradient(colors: gradientColors),
-                    center: .center,
-                    angle: .degrees(rotation)
+            switch shape {
+            case .capsule:
+                gradientLayer(in: Capsule(), size: geometry.size)
+            case .roundedRect(let cornerRadius):
+                gradientLayer(
+                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                    size: geometry.size
                 )
-                .frame(width: diagonal, height: diagonal)
-                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
             }
         }
-        .clipShape(clipShape)
         .onAppear {
             withAnimation(.linear(duration: rotationSpeed).repeatForever(autoreverses: false)) {
                 rotation = 360
             }
         }
     }
-    
-    private var clipShape: AnyShape {
-        switch shape {
-        case .capsule:
-            return AnyShape(Capsule())
-        case .roundedRect(let cornerRadius):
-            return AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+    @ViewBuilder
+    private func gradientLayer<S: InsettableShape>(in shape: S, size: CGSize) -> some View {
+        let diagonal = sqrt(pow(size.width, 2) + pow(size.height, 2))
+        
+        switch renderStyle {
+        case .fill:
+            let gradient = AngularGradient(
+                gradient: Gradient(colors: gradientColors),
+                center: .center,
+                angle: .degrees(rotation)
+            )
+            .frame(width: diagonal, height: diagonal)
+            .position(x: size.width / 2, y: size.height / 2)
+            gradient.clipShape(shape)
+            
+        case .ring(let lineWidth):
+            let gradient = AngularGradient(
+                gradient: Gradient(colors: gradientColors),
+                center: .center,
+                angle: .degrees(rotation)
+            )
+            .frame(width: diagonal, height: diagonal)
+            .position(x: size.width / 2, y: size.height / 2)
+            gradient.mask(shape.strokeBorder(lineWidth: lineWidth))
+            
+        case .cone(let origin):
+            // Cone gradient emanating from origin point, rotating
+            let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
+            let centerX = origin.x * size.width
+            let centerY = origin.y * size.height
+            
+            // Radial gradient for the diffuse fade from origin
+            let radialGradient = RadialGradient(
+                colors: [
+                    ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.5),
+                    ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
+                    ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.4),
+                    ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.15),
+                    Color.clear
+                ],
+                center: origin,
+                startRadius: 0,
+                endRadius: diagonal * 0.8
+            )
+            
+            // Angular gradient for the cone shape, rotating
+            let angularGradient = AngularGradient(
+                gradient: Gradient(colors: coneGradientColors(adjustedIntensity: adjustedIntensity)),
+                center: origin,
+                angle: .degrees(rotation - 45) // Offset to point upward-right initially
+            )
+            
+            ZStack {
+                // Combine radial (distance fade) and angular (cone shape)
+                radialGradient
+                    .clipShape(shape)
+                    .blendMode(.plusLighter)
+                
+                angularGradient
+                    .clipShape(shape)
+                    .blendMode(.plusLighter)
+                    .blur(radius: 20)
+            }
         }
     }
 }

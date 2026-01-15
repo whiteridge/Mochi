@@ -25,15 +25,14 @@ struct RecordingBubbleView: View {
             // Left: Cancel button (X)
             Button(action: cancelRecording) {
                 Circle()
-                    // Use Color.primary to ensure system adaptation matches the dots
-                    .fill(Color.primary.opacity(0.1))
+                    .fill(palette.iconBackground)
                     .overlay(
                         Circle()
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        Color.primary.opacity(0.3),
-                                        Color.primary.opacity(0.1)
+                                        palette.iconStroke.opacity(0.9),
+                                        palette.iconStroke.opacity(0.3)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing

@@ -153,22 +153,8 @@ struct StatusPillView: View {
     // MARK: - Native Liquid Glass (macOS 26+ / iOS 26+)
     
     @available(macOS 26.0, iOS 26.0, *)
-    @ViewBuilder
     private var nativeBody: some View {
-        let content = pillContent
-            .padding(.leading, 5)
-            .padding(.trailing, isCompact ? 12 : 14)
-            .padding(.vertical, 5)
-            .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
-            .animation(.easeInOut(duration: 0.3), value: isCompact)
-        
-        if let morphNamespace {
-            content.matchedGeometryEffect(id: "background", in: morphNamespace)
-        } else {
-            content
-        }
+        legacyBody
     }
     
     // MARK: - Legacy Glass Effect
