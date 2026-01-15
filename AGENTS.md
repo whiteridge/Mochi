@@ -1,5 +1,27 @@
 # Repository Guidelines
 
+## Working Agreements
+- Prefer small diffs. If a change is large, propose a plan first.
+- Don’t add new dependencies (Swift packages / Python deps) without asking.
+
+### Swift (macOS)
+- After Swift code changes, run:
+  - `xcodebuild test -scheme caddyAI -destination 'platform=macOS'`
+- `swift test` applies only if a SwiftPM `Package.swift` is added.
+
+### Python backend
+- After Python code changes, run:
+  - `pytest`
+- Ruff, formatting, and mypy checks are not configured in this repo today; run them only if those tools are added.
+
+### Docker
+- Docker is not set up in this repo. If Docker Compose is added, run commands via:
+  - `docker compose exec backend <cmd>` (Python)
+  - `docker compose exec <service> <cmd>` (other services)
+- Example:
+  - `docker compose exec backend pytest`
+  - `docker compose exec backend ruff check .`
+
 ## Project Structure & Module Organization
 - `caddyAI/`: primary macOS SwiftUI app (views, view models, services, audio, settings).
 - `Shared/`: shared integration/core models used across targets.
