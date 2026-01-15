@@ -5,7 +5,6 @@ import SwiftUI
 public enum VoiceChatState: Equatable {
     case idle
     case recording
-    case transcribing  // Intermediate state while transcribing, keeps pill visible for animation
     case processing
     case chat
     case success
@@ -18,15 +17,12 @@ struct ToolStatus: Equatable {
 
 public enum AgentStatus: Equatable, Identifiable {
     case thinking(text: String = "Thinking...")
-    case transcribing
     case searching(appName: String)
 
     public var id: String {
         switch self {
         case .thinking:
             return "thinking"
-        case .transcribing:
-            return "transcribing"
         case .searching(let app):
             return "search-\(app)"
         }
@@ -36,8 +32,6 @@ public enum AgentStatus: Equatable, Identifiable {
         switch self {
         case .thinking(let text):
             return text
-        case .transcribing:
-            return "Transcribing..."
         case .searching(let appName):
             return "Searching \(appName)..."
         }
@@ -50,8 +44,6 @@ public enum AgentStatus: Equatable, Identifiable {
             return "thinking"
         case .searching(let name):
             return name
-        default:
-            return nil
         }
     }
 }
@@ -295,8 +287,21 @@ class AgentViewModel: ObservableObject {
             proposal = nil
             return
         }
+
+        let orderedSteps: [AppStep] = proposals.enumerated().compactMap { index, proposal in
+            guard let appId = proposal.appId else { return nil }
+            if let existingIndex = appSteps.firstIndex(where: { $0.appId == appId }) {
+                var existing = appSteps[existingIndex]
+                existing.proposalIndex = index
+                return existing
+            }
+            return AppStep(appId: appId, state: .waiting, proposalIndex: index)
+        }
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            if !orderedSteps.isEmpty {
+                appSteps = orderedSteps
+            }
             cardTransitionDirection = previousAppId == nil ? .bottom : .trailing
             proposal = next
             isThinking = false

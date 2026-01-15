@@ -10,9 +10,5 @@ struct AgentStatusTests {
         let searching = AgentStatus.searching(appName: "Slack")
         #expect(searching.labelText == "Searching Slack...")
         #expect(searching.appName == "Slack")
-        
-        let transcribing = AgentStatus.transcribing
-        #expect(transcribing.labelText == "Transcribing...")
-        #expect(transcribing.appName == nil)
     }
 }

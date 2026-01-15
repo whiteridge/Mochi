@@ -4,7 +4,6 @@ struct StatusPillView: View {
     enum Status: Equatable {
         case thinking
         case searching(app: String)
-        case transcribing
         
         var appName: String? {
             switch self {
@@ -12,7 +11,6 @@ struct StatusPillView: View {
             case .searching(let app): 
                 // "Action" is an internal ID, display as "Conductor" or generic
                 return app.lowercased() == "action" ? "Conductor" : app
-            case .transcribing: return nil
             }
         }
         
@@ -20,7 +18,6 @@ struct StatusPillView: View {
             switch self {
             case .thinking: return "Thinking"
             case .searching: return "Searching"
-            case .transcribing: return "Transcribing"
             }
         }
         
@@ -31,7 +28,6 @@ struct StatusPillView: View {
             case .searching(let app):
                 let displayApp = app.lowercased() == "action" ? "Conductor" : app
                 return "Searching \(displayApp)"
-            case .transcribing: return "Transcribing"
             }
         }
     }
@@ -98,8 +94,9 @@ struct StatusPillView: View {
     // MARK: - Native Liquid Glass (macOS 26+ / iOS 26+)
     
     @available(macOS 26.0, iOS 26.0, *)
+    @ViewBuilder
     private var nativeBody: some View {
-        pillContent
+        let content = pillContent
             .padding(.leading, 5)
             .padding(.trailing, isCompact ? 12 : 14)
             .padding(.vertical, 5)
@@ -107,6 +104,12 @@ struct StatusPillView: View {
             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
             .animation(.easeInOut(duration: 0.3), value: isCompact)
+        
+        if let morphNamespace {
+            content.matchedGeometryEffect(id: "background", in: morphNamespace)
+        } else {
+            content
+        }
     }
     
     // MARK: - Legacy Glass Effect
@@ -193,8 +196,6 @@ extension StatusPillView {
         let status: Status
         if text.lowercased().contains("thinking") || appName?.lowercased() == "thinking" {
             status = .thinking
-        } else if text.lowercased().contains("transcribing") {
-            status = .transcribing
         } else if let app = appName {
             status = .searching(app: app)
         } else {

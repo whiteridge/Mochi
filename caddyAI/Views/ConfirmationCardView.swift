@@ -9,6 +9,8 @@ struct ConfirmationCardView: View {
     var morphNamespace: Namespace.ID? = nil
     let isExecuting: Bool
     let isFinalAction: Bool
+    let appSteps: [AppStep]
+    let activeAppId: String?
 
     @Environment(\.colorScheme) private var colorScheme
     
@@ -64,7 +66,11 @@ struct ConfirmationCardView: View {
 private extension ConfirmationCardView {
     var headerSection: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 10) {
+                if !appSteps.isEmpty {
+                    MultiStatusPillView(appSteps: appSteps, activeAppId: activeAppId)
+                }
+                
                 if let summaryText = proposal.summaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !summaryText.isEmpty {
                     Text(summaryText)
@@ -92,7 +98,11 @@ private extension ConfirmationCardView {
 
     var calendarHeaderSection: some View {
         HStack(alignment: .center, spacing: 12) {
-            ToolBadgeView(iconName: "calendar", displayName: "Calendar")
+            if !appSteps.isEmpty {
+                MultiStatusPillView(appSteps: appSteps, activeAppId: activeAppId)
+            } else {
+                ToolBadgeView(iconName: "calendar", displayName: "Calendar")
+            }
 
             Spacer()
 

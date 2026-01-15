@@ -83,7 +83,9 @@ struct ChatHistoryView: View {
                                     rotatingLightNamespace: rotatingLightNamespace,
                                     morphNamespace: animation,
                                     isExecuting: viewModel.isExecutingAction,
-                                    isFinalAction: viewModel.proposalQueue.count <= 1
+                                    isFinalAction: viewModel.proposalQueue.count <= 1,
+                                    appSteps: viewModel.appSteps,
+                                    activeAppId: proposal.appId ?? viewModel.appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
                                 )
                                 .id("\(proposal.appId ?? proposal.tool)-\(proposal.proposalIndex)")  // Force view recreation on proposal change
                                 .zIndex(1)
@@ -94,7 +96,6 @@ struct ChatHistoryView: View {
                                     if let status = currentStatus {
                                         switch status {
                                         case .thinking: return .thinking
-                                        case .transcribing: return .transcribing
                                         case .searching(let app): return .searching(app: app)
                                         }
                                     } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {

@@ -44,26 +44,33 @@ struct AppPillView: View {
     
     // Fallback SF Symbol for apps without custom icons
     private var sfSymbolName: String {
-        switch appId.lowercased() {
+        let lowered = appId.lowercased()
+        switch lowered {
         case "github":
             return "chevron.left.forwardslash.chevron.right"
         case "notion":
             return "doc.text"
-        case "google":
-            return "globe"
+        case "google", "google_calendar":
+            return "calendar"
+        case "calendar":
+            return "calendar"
         default:
             return "sparkles"
         }
     }
     
-    /// Show full text for active/searching states, icon only when done
+    /// Show text only for the active app, icon only for the rest
     private var showText: Bool {
-        state != .done
+        isActive
     }
     
-    /// Show bouncing dots when searching
-    private var showDots: Bool {
-        state == .searching
+    private var displayName: String {
+        appId
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .split(separator: " ")
+            .map { $0.capitalized }
+            .joined(separator: " ")
     }
     
     private var borderColor: Color {
@@ -103,24 +110,10 @@ struct AppPillView: View {
             // Text area - only shown when not done
             if showText {
                 HStack(spacing: 0) {
-                    // "Searching " prefix - only when actively searching
-                    if state == .searching {
-                        Text("Searching ")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(palette.primaryText)
-                    }
-                    
                     // App name
-                    Text(appId.capitalized)
+                    Text(displayName)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(palette.primaryText)
-                    
-                    // Bouncing dots when searching
-                    if showDots {
-                        ContinuousBouncingDotsView(dotColor: palette.primaryText)
-                            .padding(.leading, 2)
-                            .offset(y: 1)
-                    }
                 }
             }
         }
@@ -150,7 +143,7 @@ struct AppPillView: View {
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         // Dim non-active, non-done pills
-        .opacity(state == .waiting ? 0.6 : 1.0)
+        .opacity(state == .waiting ? 0.6 : (state == .done ? 0.5 : 1.0))
         .animation(.easeInOut(duration: 0.3), value: state)
         .animation(.easeInOut(duration: 0.3), value: showText)
     }

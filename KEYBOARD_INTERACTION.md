@@ -15,14 +15,12 @@ Implementation notes:
 
 | State | Enter action |
 | --- | --- |
-| Recording | Stop recording and move to transcription |
-| Chat | Send the typed message |
-| Transcribing | No action |
+| Recording | Stop recording and start processing |
+| Processing/Response | No action |
 | Idle | No action |
 
 Implementation notes:
 - `.onKeyPress(.return)` on the main view calls `handleEnterKey()`.
-- The text field also uses `.onSubmit` for natural input behavior.
 
 ## Focus behavior
 - The app activates with `NSApp.activate(ignoringOtherApps: true)`.

@@ -30,14 +30,11 @@ struct ConfirmButtonFrameKey: PreferenceKey {
 struct VoiceChatBubble: View {
     @EnvironmentObject private var preferences: PreferencesStore
     @StateObject private var viewModel = AgentViewModel()
-    @State private var viewID = 0
     
     @Namespace private var animation
     @Namespace private var rotatingLightNamespace
 
     @StateObject private var voiceRecorder = VoiceRecorder()
-    @State private var scrollContentHeight: CGFloat = 100
-    @State private var inputContentHeight: CGFloat = 0
     private let transcriptionService = ParakeetTranscriptionService()
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
@@ -94,40 +91,12 @@ struct VoiceChatBubble: View {
                     )
                     .transition(.scale(scale: 1))
                 }
-                
-            case .transcribing:
-                // Transcribing pill - keeps pill visible while waiting for transcription
-                if #available(macOS 26.0, iOS 26.0, *) {
-                    TranscribingPillView()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 7)
-                        // Add subtle material backing for Clear mode to anchor adaptive colors
-                        .background(
-                            preferences.glassStyle == .clear 
-                                ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
-                                : AnyShapeStyle(Color.clear), 
-                            in: .capsule
-                        )
-                        .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
-                        .matchedGeometryEffect(id: "background", in: animation)
-                        .transition(.scale(scale: 1))
-                } else {
-                    TranscribingPillView()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 7)
-                        .background(
-                            LiquidGlassDockBackground()
-                                .matchedGeometryEffect(id: "background", in: animation)
-                        )
-                        .transition(.scale(scale: 1))
-                }
                     
             case .idle:
                 EmptyView()
                 
             case .chat, .processing, .success:
-                // === CHAT & SUCCESS STATE ===
-                chatAndSuccessWrapper
+                compactFlowContent
             }
         }
         .padding(.bottom, 20)
@@ -184,8 +153,7 @@ struct VoiceChatBubble: View {
     @ViewBuilder
     private var rotatingLightBackgroundLayer: some View {
         // The rotating light is rendered in different places:
-        // - chat state with proposal: rendered by ConfirmationCardView button
-        // - processing state with isExecutingAction: rendered in expandedChatContent overlay
+        // - confirmation card: rendered by ConfirmationCardView button
         // - success state: rendered in SuccessPill
         // So this layer is empty - the rotating light is handled by the content views
         EmptyView()
@@ -195,152 +163,118 @@ struct VoiceChatBubble: View {
 // MARK: - Content Builders
 
 fileprivate extension VoiceChatBubble {
-    
-    var expandedChatContent: some View {
-        VStack(spacing: 0) {
-            // 1. CHAT HISTORY (Flexible)
-            ChatHistoryView(
-                viewModel: viewModel,
-                messages: viewModel.messages,
-                currentStatus: viewModel.currentStatus,
-                proposal: viewModel.proposal,
-                typewriterText: viewModel.typewriterText,
-                isProcessing: viewModel.state == .processing,
-                onConfirmProposal: { viewModel.confirmProposal() },
-                onCancelProposal: { viewModel.cancelProposal() },
+    @ViewBuilder
+    var compactFlowContent: some View {
+        if viewModel.state == .success {
+            SuccessPillView(gradientNamespace: rotatingLightNamespace)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+        } else if let proposal = viewModel.proposal {
+            ConfirmationCardView(
+                proposal: proposal,
+                onConfirm: { viewModel.confirmProposal() },
+                onCancel: { viewModel.cancelProposal() },
                 rotatingLightNamespace: rotatingLightNamespace,
-                animation: animation
+                morphNamespace: animation,
+                isExecuting: viewModel.isExecutingAction,
+                isFinalAction: viewModel.proposalQueue.count <= 1,
+                appSteps: viewModel.appSteps,
+                activeAppId: activeAppIdForHeader
             )
-            .onPreferenceChange(ViewHeightKey.self) { height in
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    scrollContentHeight = height
-                }
-            }
-            .frame(
-                height: min(
-                    max(scrollContentHeight, 0),
-                    ((NSScreen.main?.visibleFrame.height ?? 1000) * 0.66) - inputContentHeight
-                )
+            .transition(.opacity)
+        } else if viewModel.showStatusPill {
+            StatusPillView(
+                status: resolvedStatusPill,
+                isCompact: false,
+                morphNamespace: animation
             )
-            .layoutPriority(1)
-            
-            // 2. INPUT BAR
-            ChatInputSection(
-                text: $viewModel.userInput,
-                isRecording: voiceRecorder.isRecording,
-                startRecording: startRecording,
-                stopRecording: stopRecording,
-                sendAction: sendManualMessage,
-                animation: animation
-            )
-            .onPreferenceChange(InputViewHeightKey.self) { height in
-                inputContentHeight = height
-            }
+            .transition(.opacity)
+        } else if let message = latestAssistantMessageText {
+            AssistantMessageBubbleView(text: message, morphNamespace: animation)
+                .transition(.opacity)
+        } else {
+            EmptyView()
         }
     }
-
-    @ViewBuilder
-    var chatAndSuccessWrapper: some View {
-        let isSuccess = viewModel.state == .success
-        
-        VStack(spacing: 0) {
-            if isSuccess {
-                SuccessPillView(gradientNamespace: rotatingLightNamespace)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            } else {
-                expandedChatContent
-                    .transition(.opacity)
+    
+    private var resolvedStatusPill: StatusPillView.Status {
+        if let status = viewModel.currentStatus {
+            switch status {
+            case .thinking:
+                return .thinking
+            case .searching(let app):
+                return .searching(app: app)
             }
         }
-        // Animate the frame width: 650 for chat, intrinsic for pill
-        .frame(width: isSuccess ? nil : 650)
-        .modifier(ChatSuccessBackgroundModifier(isSuccess: isSuccess, isExecutingAction: viewModel.isExecutingAction && viewModel.state == .processing, rotatingLightNamespace: rotatingLightNamespace))
-        // Animate layout changes
-        .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: isSuccess)
-        .animation(.easeOut(duration: 0.3), value: viewModel.isExecutingAction)
+        
+        if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
+            return .searching(app: activeStep.appId.capitalized)
+        }
+        
+        return .thinking
+    }
+    
+    private var latestAssistantMessageText: String? {
+        let typewriterText = viewModel.typewriterText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typewriterText.isEmpty {
+            return typewriterText
+        }
+        
+        guard let message = viewModel.messages.last(where: { message in
+            message.role == .assistant && !message.isHidden && !message.isActionSummary
+        }) else {
+            return nil
+        }
+        
+        let trimmedMessage = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedMessage.isEmpty ? nil : trimmedMessage
+    }
+    
+    private var activeAppIdForHeader: String? {
+        if let activeAppId = viewModel.proposal?.appId {
+            return activeAppId
+        }
+        return viewModel.appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
     }
 }
 
-// MARK: - Chat/Success Background Modifier
-
-private struct ChatSuccessBackgroundModifier: ViewModifier {
+private struct AssistantMessageBubbleView: View {
+    let text: String
+    let morphNamespace: Namespace.ID
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
-    let isSuccess: Bool
-    let isExecutingAction: Bool
-    let rotatingLightNamespace: Namespace.ID
     
-    func body(content: Content) -> some View {
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
+    
+    private var messageContent: some View {
+        Text(text)
+            .font(.system(size: 15, weight: .regular))
+            .foregroundStyle(palette.primaryText)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 460, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+    }
+    
+    var body: some View {
         if #available(macOS 26.0, iOS 26.0, *) {
-            if isSuccess {
-                content
-                    // Add subtle material backing for Clear mode to anchor adaptive colors
-                    .background(
-                        preferences.glassStyle == .clear 
-                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
-                            : AnyShapeStyle(Color.clear), 
-                        in: .capsule
-                    )
-                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
-                    .overlay {
-                        if isExecutingAction || isSuccess {
-                            RotatingLightBackground(
-                                cornerRadius: 50,
-                                shape: .capsule,
-                                rotationSpeed: 0.8
-                            )
-                            .opacity(1.0)
-                            .allowsHitTesting(false)
-                        }
-                    }
-            } else {
-                content
-                    // Add subtle material backing for Clear mode to anchor adaptive colors
-                    .background(
-                        preferences.glassStyle == .clear 
-                            ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3)) 
-                            : AnyShapeStyle(Color.clear), 
-                        in: .rect(cornerRadius: 24)
-                    )
-                    .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .rect(cornerRadius: 24))
-                    .overlay {
-                        if isExecutingAction {
-                            RotatingLightBackground(
-                                cornerRadius: 24,
-                                shape: .roundedRect,
-                                rotationSpeed: 10.0
-                            )
-                            .opacity(0.6)
-                            .allowsHitTesting(false)
-                        }
-                    }
-            }
-        } else {
-            content
+            messageContent
                 .background(
-                    ZStack {
-                        // Glass background
-                        if isSuccess {
-                            // Success state: Darker glass pill
-                            LiquidGlassDockBackground(refractionStrength: 9.5, edgeWidth: 30)
-                                .transition(.opacity)
-                        } else {
-                            // Chat state: Dark glass window
-                            LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong)
-                                .transition(.opacity)
-                        }
-                        
-                        // Rotating Light
-                        if isExecutingAction || isSuccess {
-                            RotatingLightBackground(
-                                cornerRadius: isSuccess ? 50 : 24,
-                                shape: isSuccess ? .capsule : .roundedRect,
-                                rotationSpeed: isSuccess ? 0.8 : 10.0
-                            )
-                            .opacity(isSuccess ? 1.0 : 0.6)
-                        }
-                    }
+                    preferences.glassStyle == .clear
+                        ? AnyShapeStyle(.ultraThinMaterial.opacity(0.3))
+                        : AnyShapeStyle(Color.clear),
+                    in: .capsule
                 )
-                .clipShape(RoundedRectangle(cornerRadius: isSuccess ? 50 : 24, style: .continuous))
+                .glassEffect(preferences.glassStyle == .clear ? .clear : .regular, in: .capsule)
+                .matchedGeometryEffect(id: "background", in: morphNamespace)
+        } else {
+            messageContent
+                .background(
+                    LiquidGlassDockBackground()
+                        .matchedGeometryEffect(id: "background", in: morphNamespace)
+                )
         }
     }
 }
@@ -354,13 +288,7 @@ private extension VoiceChatBubble {
         case .recording:
             logger.debug("Enter pressed: Stopping recording")
             stopRecording()
-        case .transcribing:
-            // During transcribing, ignore enter key
-            break
-        case .chat, .processing:
-            logger.debug("Enter pressed: Sending message")
-            sendManualMessage()
-        case .success:
+        case .chat, .processing, .success:
             break
         case .idle:
             logger.debug("Enter pressed in idle state: Ignoring")
@@ -375,15 +303,15 @@ private extension VoiceChatBubble {
         }
         
         switch viewModel.state {
-        case .recording, .transcribing:
-            // Cancel recording/transcribing and close
-            logger.debug("Escape pressed: Cancelling recording/transcribing")
+        case .recording:
+            // Cancel recording and close
+            logger.debug("Escape pressed: Cancelling recording")
             viewModel.state = .idle
             resetConversation(animate: false)
             NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
         case .chat, .processing, .success:
-            // Close the chat panel
-            logger.debug("Escape pressed: Closing chat")
+            // Close the panel
+            logger.debug("Escape pressed: Closing panel")
             viewModel.reset()
             viewModel.state = .idle
             NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
@@ -394,8 +322,10 @@ private extension VoiceChatBubble {
     }
     
     func beginHotkeySession() {
-        guard viewModel.state != .recording else { return }
-        resetConversation(animate: false)
+        guard viewModel.state != .recording && viewModel.state != .processing else { return }
+        if viewModel.state == .idle || viewModel.state == .success {
+            resetConversation(animate: false)
+        }
         startRecording()
     }
 
@@ -424,12 +354,14 @@ private extension VoiceChatBubble {
     func handleHoldToTalkKeyPress() {
         logger.debug("Hold-to-talk: Key pressed")
         // Allow recording if not currently recording (idle, success, OR chat states)
-        // Block only if already recording
-        guard viewModel.state != .recording && !voiceRecorder.isRecording else {
-            logger.debug("Hold-to-talk: Ignoring press, already recording (state: \(String(describing: viewModel.state)))")
+        // Block only if already recording or processing
+        guard viewModel.state != .recording && viewModel.state != .processing && !voiceRecorder.isRecording else {
+            logger.debug("Hold-to-talk: Ignoring press, recording or processing (state: \(String(describing: viewModel.state)))")
             return
         }
-        resetConversation(animate: false)
+        if viewModel.state == .idle || viewModel.state == .success {
+            resetConversation(animate: false)
+        }
         startRecording()
     }
     
@@ -456,19 +388,21 @@ private extension VoiceChatBubble {
             debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "stopping_recording", data: ["reason": "state_is_recording_or_voiceRecorder_isRecording"])
             // #endregion
             stopRecording()
-        } else if viewModel.state == .idle || viewModel.state == .success {
+        } else if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .chat {
             // Not recording - start
             // #region agent log
-            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "starting_recording", data: ["reason": "state_is_idle_or_success"])
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "starting_recording", data: ["reason": "state_is_idle_or_success_or_chat"])
             // #endregion
-            resetConversation(animate: false)
+            if viewModel.state == .idle || viewModel.state == .success {
+                resetConversation(animate: false)
+            }
             startRecording()
         } else {
             // #region agent log
-            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "toggle_ignored", data: ["reason": "state_is_chat_or_processing", "currentState": "\(viewModel.state)"])
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "toggle_ignored", data: ["reason": "state_is_processing", "currentState": "\(viewModel.state)"])
             // #endregion
         }
-        // If in chat/processing state, ignore toggle
+        // If in processing state, ignore toggle
     }
 
     func startRecording() {
@@ -485,7 +419,6 @@ private extension VoiceChatBubble {
             return
         }
         viewModel.state = .recording
-        viewID += 1
         
         Task {
             do {
@@ -520,13 +453,15 @@ private extension VoiceChatBubble {
             return
         }
         
-        // Set to transcribing state to show transcribing pill while we process
-        // This enables smooth morphing animation from recording pill to transcribing pill to chat
-        viewModel.state = .transcribing
+        // Move immediately into a compact thinking/searching pill
+        viewModel.state = .processing
         viewModel.errorMessage = nil
+        viewModel.isThinking = true
+        viewModel.currentStatus = .thinking()
+        viewModel.showStatusPill = true
         
-        // Track start time to ensure minimum display duration for transcribing pill
-        let transcribeStartTime = Date()
+        // Track start time to ensure minimum display duration for the processing pill
+        let processingStartTime = Date()
         let minimumDisplayDuration: TimeInterval = 0.5 // 500ms minimum
 
         Task {
@@ -535,7 +470,6 @@ private extension VoiceChatBubble {
                     // #region agent log
                     debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "processing_recording", data: ["currentState": "\(viewModel.state)"])
                     // #endregion
-                    viewModel.showStatusPill = false
                 }
                 
                 let audioURL = try await voiceRecorder.stopRecording()
@@ -544,6 +478,10 @@ private extension VoiceChatBubble {
                 if voiceRecorder.wasCancelled {
                     print("VoiceChatBubble: Session was cancelled, aborting transcription")
                     await MainActor.run {
+                        viewModel.currentStatus = nil
+                        viewModel.showStatusPill = false
+                        viewModel.isThinking = false
+                        viewModel.state = .idle
                         NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                     }
                     return
@@ -558,14 +496,17 @@ private extension VoiceChatBubble {
                 if voiceRecorder.wasCancelled {
                     print("VoiceChatBubble: Session was cancelled after transcription, discarding result")
                     await MainActor.run {
+                        viewModel.currentStatus = nil
+                        viewModel.showStatusPill = false
+                        viewModel.isThinking = false
                         viewModel.state = .idle
                         NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                     }
                     return
                 }
                 
-                // Ensure minimum display time for the transcribing pill
-                let elapsed = Date().timeIntervalSince(transcribeStartTime)
+                // Ensure minimum display time for the processing pill
+                let elapsed = Date().timeIntervalSince(processingStartTime)
                 if elapsed < minimumDisplayDuration {
                     let remainingTime = minimumDisplayDuration - elapsed
                     try? await Task.sleep(nanoseconds: UInt64(remainingTime * 1_000_000_000))
@@ -576,15 +517,16 @@ private extension VoiceChatBubble {
                 if trimmedTranscript.isEmpty {
                     print("VoiceChatBubble: Transcription is empty, closing panel")
                     await MainActor.run {
+                        viewModel.currentStatus = nil
+                        viewModel.showStatusPill = false
+                        viewModel.isThinking = false
                         viewModel.state = .idle
                         NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                     }
                     return
                 }
                 
-                // Only now transition to chat state since we have valid content
                 await MainActor.run {
-                    viewModel.state = .chat
                     viewModel.errorMessage = nil
                     viewModel.processInputWithThinking(text: transcript)
                 }
@@ -595,7 +537,7 @@ private extension VoiceChatBubble {
                 // #endregion
                 
                 // Ensure minimum display time even on error
-                let elapsed = Date().timeIntervalSince(transcribeStartTime)
+                let elapsed = Date().timeIntervalSince(processingStartTime)
                 if elapsed < minimumDisplayDuration {
                     let remainingTime = minimumDisplayDuration - elapsed
                     try? await Task.sleep(nanoseconds: UInt64(remainingTime * 1_000_000_000))
@@ -606,15 +548,14 @@ private extension VoiceChatBubble {
                     // #region agent log
                     debugLog(hypothesisId: "E", location: "VoiceChatBubble.stopRecording", message: "dismissing_panel_after_error", data: ["error": "\(error.localizedDescription)"])
                     // #endregion
+                    viewModel.currentStatus = nil
+                    viewModel.showStatusPill = false
+                    viewModel.isThinking = false
                     viewModel.state = .idle
                     NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
                 }
             }
         }
-    }
-
-    func sendManualMessage() {
-        viewModel.processInputWithThinking(text: viewModel.userInput)
     }
 
     func resetConversation(animate: Bool = true) {

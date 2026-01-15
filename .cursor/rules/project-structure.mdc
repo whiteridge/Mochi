@@ -49,7 +49,7 @@ You are an expert Senior Swift Engineer and Python Backend Developer. You are wo
 - **Tools:** Composio for external integrations (Linear, etc.).
 
 ## 3. Architecture & State Management
-- **State Machine:** The app is driven by `VoiceChatState` (idle, recording, transcribing, processing, success, chat).
+- **State Machine:** The app is driven by `VoiceChatState` (idle, recording, processing, success, chat).
 - **Data Flow:** Voice -> Transcription -> Text -> Backend (LLM) -> Action/Response -> Frontend UI.
 - **View Hierarchy:**
   - Use a `ZStack(alignment: .bottomTrailing)` to anchor animations.
