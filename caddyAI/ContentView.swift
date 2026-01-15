@@ -8,16 +8,24 @@
 import SwiftUI
 
 struct ContentView: View {
+	@Environment(\.colorScheme) private var colorScheme
+
+	private var backgroundGradient: LinearGradient {
+		let colors: [Color] = colorScheme == .dark
+			? [
+				Color(red: 0.06, green: 0.07, blue: 0.08),
+				Color(red: 0.1, green: 0.12, blue: 0.14)
+			]
+			: [
+				Color(red: 0.96, green: 0.97, blue: 0.98),
+				Color(red: 0.88, green: 0.9, blue: 0.93)
+			]
+		return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+	}
+
 	var body: some View {
 		ZStack {
-			LinearGradient(
-				colors: [
-					Color(nsColor: .windowBackgroundColor),
-					Color(nsColor: .controlBackgroundColor)
-				],
-				startPoint: .topLeading,
-				endPoint: .bottomTrailing
-			)
+			backgroundGradient
 			.ignoresSafeArea()
 
 			VoiceChatBubble()

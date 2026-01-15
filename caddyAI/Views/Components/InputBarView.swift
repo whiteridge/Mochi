@@ -6,19 +6,25 @@ struct InputBarView: View {
     var startRecording: () -> Void
     var stopRecording: () -> Void
     var sendAction: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         HStack(spacing: 10) {
             // Logo icon with glass effect
             Circle()
-                .fill(Color.white.opacity(0.06))
+                .fill(palette.iconBackground)
                 .overlay(
                     Circle()
                         .strokeBorder(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(0.2),
-                                    Color.white.opacity(0.04)
+                                    palette.iconStroke.opacity(0.9),
+                                    palette.iconStroke.opacity(0.25)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -30,7 +36,7 @@ struct InputBarView: View {
                 .overlay(
                     Image(systemName: "waveform")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(palette.iconSecondary)
                 )
             
             // Text field
@@ -38,13 +44,13 @@ struct InputBarView: View {
                 if text.isEmpty {
                     Text("Type to Caddy")
                         .font(.system(size: 15, weight: .regular, design: .default))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(palette.secondaryText)
                 }
                 
                 TextField("", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(palette.primaryText)
                     .lineLimit(3)
                     .onSubmit(sendAction)
             }
@@ -61,33 +67,11 @@ struct InputBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
-            ZStack {
-                Capsule()
-                    .fill(.thickMaterial)
-                Capsule()
-                    .fill(Color.black.opacity(0.85))
-            }
+            LiquidGlassSurface(shape: .capsule, prominence: .strong, shadowed: false)
         )
         .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.2),
-                            Color.white.opacity(0.05)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
     }
 }
-
-
 
 
 

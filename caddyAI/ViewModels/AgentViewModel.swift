@@ -191,24 +191,30 @@ class AgentViewModel: ObservableObject {
     }
     
     func cancelProposal() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-            proposal = nil
-            proposalQueue.removeAll()
-            currentProposalIndex = 0
-            appSteps.removeAll()
-            // Clear proposal-related flags
-            messages = messages.map { msg in
-                var copy = msg
-                copy.isAttachedToProposal = false
-                return copy
+        guard let current = proposal else { return }
+        let previousAppId = current.appId
+        let hasNext = advanceProposalQueue(previousAppId: previousAppId)
+        
+        if !hasNext {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                proposal = nil
+                proposalQueue.removeAll()
+                currentProposalIndex = 0
+                appSteps.removeAll()
+                // Clear proposal-related flags
+                messages = messages.map { msg in
+                    var copy = msg
+                    copy.isAttachedToProposal = false
+                    return copy
+                }
+                // Clear status pill and tool indicators
+                showStatusPill = false
+                activeTool = nil
+                currentStatus = nil
+                state = .chat // Return to chat state
             }
-            // Clear status pill and tool indicators
-            showStatusPill = false
-            activeTool = nil
-            currentStatus = nil
-            state = .chat // Return to chat state
+            messages.append(ChatMessage(role: .assistant, content: "Action cancelled."))
         }
-        messages.append(ChatMessage(role: .assistant, content: "Action cancelled."))
     }
     
     
@@ -242,5 +248,83 @@ class AgentViewModel: ObservableObject {
         // For now, standard capitalization should work for "linear" -> "Linear", "slack" -> "Slack", "google_calendar" -> "Google"
         
         return appName
+    }
+
+    // MARK: - Proposal Queue
+    
+    @discardableResult
+    func advanceProposalQueue(previousAppId: String?) -> Bool {
+        // Remove the current proposal from the front of the queue if present
+        if let current = proposal {
+            if let first = proposalQueue.first, first == current {
+                proposalQueue.removeFirst()
+            } else if let index = proposalQueue.firstIndex(where: { $0 == current }) {
+                proposalQueue.remove(at: index)
+            }
+        }
+        
+        currentProposalIndex = 0
+        
+        if let next = proposalQueue.first {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                cardTransitionDirection = previousAppId == nil ? .bottom : .trailing
+                proposal = next
+                isThinking = false
+                activeTool = nil
+                updateAppStepsForActiveProposal(next: next, previousAppId: previousAppId)
+            }
+            return true
+        }
+        
+        if let previousAppId,
+           let index = appSteps.firstIndex(where: { $0.appId == previousAppId }) {
+            appSteps[index].state = .done
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            proposal = nil
+        }
+        return false
+    }
+    
+    func startProposalQueue(_ proposals: [ProposalData], previousAppId: String?) {
+        proposalQueue = proposals
+        currentProposalIndex = 0
+        
+        guard let next = proposalQueue.first else {
+            proposal = nil
+            return
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            cardTransitionDirection = previousAppId == nil ? .bottom : .trailing
+            proposal = next
+            isThinking = false
+            activeTool = nil
+            updateAppStepsForActiveProposal(next: next, previousAppId: previousAppId)
+        }
+    }
+    
+    private func updateAppStepsForActiveProposal(next: ProposalData, previousAppId: String?) {
+        guard let nextAppId = next.appId else { return }
+        
+        if let previousAppId,
+           previousAppId != nextAppId,
+           let index = appSteps.firstIndex(where: { $0.appId == previousAppId }) {
+            appSteps[index].state = .done
+        }
+        
+        if !appSteps.contains(where: { $0.appId == nextAppId }) {
+            appSteps.append(AppStep(appId: nextAppId, state: .waiting, proposalIndex: next.proposalIndex))
+        }
+        
+        for index in appSteps.indices {
+            if appSteps[index].appId == nextAppId {
+                appSteps[index].state = .active
+                appSteps[index].proposalIndex = next.proposalIndex
+            } else if appSteps[index].state != .done {
+                appSteps[index].state = .waiting
+            }
+        }
     }
 }

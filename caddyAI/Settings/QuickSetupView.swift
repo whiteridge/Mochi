@@ -4,6 +4,7 @@ struct QuickSetupView: View {
     @EnvironmentObject private var integrationService: IntegrationService
     @EnvironmentObject private var viewModel: SettingsViewModel
     @EnvironmentObject private var preferences: PreferencesStore
+    @Environment(\.colorScheme) private var colorScheme
     
     var onComplete: () -> Void
     
@@ -11,6 +12,19 @@ struct QuickSetupView: View {
     @State private var connectingLinear = false
     @State private var slackError: String?
     @State private var linearError: String?
+
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [
+                Color(red: 0.08, green: 0.09, blue: 0.1),
+                Color(red: 0.12, green: 0.14, blue: 0.16)
+            ]
+            : [
+                Color(red: 0.97, green: 0.98, blue: 0.99),
+                Color(red: 0.9, green: 0.92, blue: 0.94)
+            ]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
     
     var body: some View {
         VStack(spacing: 32) {
@@ -93,15 +107,15 @@ struct QuickSetupView: View {
                 .foregroundStyle(.secondary)
                 .font(.subheadline)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 28)
-        }
-        .frame(width: 420, height: 540)
-        .background(Color(NSColor.windowBackgroundColor))
-        .onAppear {
-            // Refresh connection status when view appears
-            viewModel.refreshStatus(appName: "slack")
-            viewModel.refreshStatus(appName: "linear")
+        .padding(.horizontal, 32)
+        .padding(.bottom, 28)
+    }
+    .frame(width: 420, height: 540)
+    .background(backgroundGradient)
+    .onAppear {
+        // Refresh connection status when view appears
+        viewModel.refreshStatus(appName: "slack")
+        viewModel.refreshStatus(appName: "linear")
         }
     }
     
@@ -191,6 +205,11 @@ private struct IntegrationConnectCard: View {
     let isLoading: Bool
     let errorMessage: String?
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -203,11 +222,10 @@ private struct IntegrationConnectCard: View {
                             .aspectRatio(contentMode: .fit)
                     } else {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.gray.opacity(0.15))
+                            LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false)
                             Image(systemName: fallbackIcon)
                                 .font(.system(size: 22))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(palette.secondaryText)
                         }
                     }
                 }
@@ -267,8 +285,7 @@ private struct IntegrationConnectCard: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor))
+            LiquidGlassSurface(shape: .roundedRect(14), prominence: .regular)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -302,4 +319,3 @@ private struct IntegrationConnectCard: View {
             integrationService: integrationService
         ))
 }
-

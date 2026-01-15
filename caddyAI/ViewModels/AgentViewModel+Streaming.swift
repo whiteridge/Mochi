@@ -9,52 +9,49 @@ extension AgentViewModel {
             args: proposal.args,  // Pass args directly, ConfirmedToolData handles encoding
             appId: proposal.appId ?? proposal.tool.split(separator: "_").first.map(String.init)?.lowercased() ?? "unknown"
         )
-        
-        // Remove this proposal from the queue so remaining steps (e.g., Slack) still show
-        await MainActor.run {
-            proposalQueue.removeAll { item in
-                let sameApp = proposal.appId == nil || item.appId == proposal.appId
-                return sameApp && item.tool == proposal.tool
-            }
-            currentProposalIndex = proposalQueue.isEmpty ? 0 : min(currentProposalIndex, proposalQueue.count - 1)
-        }
-        
+
         do {
             let historyForRequest = messages.dropLast().map { msg in
                 Message(role: msg.role == .user ? "user" : "assistant", content: msg.content)
             }
             
             let stream = await llmService.sendMessage(text: "Execute confirmed action", history: historyForRequest, confirmedTool: confirmedTool)
+            var didReceiveMessage = false
             
             for try await event in stream {
+                if event.type == .message {
+                    didReceiveMessage = true
+                }
                 await handleStreamEvent(event)
             }
             
-            // Mark execution complete
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    isExecutingAction = false
-                }
-                
-                // Fallback: if all proposals are processed and we still have app steps, mark completion
-                if proposalQueue.isEmpty && !appSteps.isEmpty {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        for idx in appSteps.indices {
-                            appSteps[idx].state = .done
+            if !didReceiveMessage {
+                await MainActor.run {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isExecutingAction = false
+                    }
+                    
+                    let previousAppId = proposal.appId
+                    let hasNext = advanceProposalQueue(previousAppId: previousAppId)
+                    if !hasNext {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                            proposalQueue.removeAll()
+                            currentProposalIndex = 0
+                            showStatusPill = false
+                            activeTool = nil
+                            
+                            messages = messages.map { msg in
+                                var copy = msg
+                                copy.isAttachedToProposal = false
+                                copy.isActionSummary = false
+                                return copy
+                            }
                         }
-                    }
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                        self.proposal = nil
-                        showStatusPill = false  // Hide pill when operation completes
-                        activeTool = nil
-                    }
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 800_000_000)
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
                             appSteps.removeAll()
                         }
+                        state = .chat
                     }
-                    state = .success
                 }
             }
         } catch {
@@ -75,8 +72,18 @@ extension AgentViewModel {
                 
             case .message:
                 if let content = event.content?.value as? String {
+                    messages.append(ChatMessage(role: .assistant, content: content))
+                    isExecutingAction = false
+                    
+                    let previousAppId = proposal?.appId
+                    let hasNext = advanceProposalQueue(previousAppId: previousAppId)
+                    
+                    if hasNext {
+                        state = .processing
+                        return
+                    }
+                    
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                        proposal = nil
                         proposalQueue.removeAll()
                         currentProposalIndex = 0
                         showStatusPill = false  // Hide pill when operation completes
@@ -90,10 +97,8 @@ extension AgentViewModel {
                             return copy
                         }
                     }
-                    messages.append(ChatMessage(role: .assistant, content: content))
                     
                     let shouldShowSuccess = event.actionPerformed != nil || (!appSteps.isEmpty && proposalQueue.isEmpty)
-                    isExecutingAction = false
                     
                     if shouldShowSuccess {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -447,7 +452,7 @@ extension AgentViewModel {
         proposalData.totalProposals = event.totalProposals ?? 1
         
         // Build proposal queue with dedupe
-        proposalQueue = [proposalData]
+        var nextQueue: [ProposalData] = [proposalData]
         if let remaining = event.remainingProposals {
             for rp in remaining {
                 guard let rpTool = rp["tool"]?.value as? String else { continue }
@@ -459,49 +464,16 @@ extension AgentViewModel {
                 
                 var rpData = ProposalData(tool: rpTool, args: rpArgs)
                 rpData.appId = rpAppId
-                rpData.proposalIndex = proposalQueue.count
+                rpData.proposalIndex = nextQueue.count
                 rpData.totalProposals = event.totalProposals ?? 1
-                proposalQueue.append(rpData)
+                nextQueue.append(rpData)
             }
         }
         
-        currentProposalIndex = proposalData.proposalIndex
+        startProposalQueue(nextQueue, previousAppId: previousAppId)
         
-        // Ensure app step exists
-        if !appSteps.contains(where: { $0.appId == appId }) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                appSteps.append(AppStep(appId: appId, state: .waiting, proposalIndex: proposalData.proposalIndex))
-            }
-        }
-        
-        // Mark prior app done before activating the next card
-        if let prev = previousAppId,
-           prev != appId,
-           let idx = appSteps.firstIndex(where: { $0.appId == prev }) {
-            appSteps[idx].state = .done
-        }
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-            cardTransitionDirection = previousAppId == nil ? .bottom : .trailing
-            proposal = proposalData
-            isThinking = false
-            activeTool = nil
-            
-            for index in appSteps.indices {
-                if appSteps[index].appId == appId {
-                    appSteps[index].state = .active
-                    appSteps[index].proposalIndex = proposalData.proposalIndex
-                } else if let stepIndex = appSteps[index].proposalIndex,
-                          stepIndex < proposalData.proposalIndex {
-                    appSteps[index].state = .done
-                } else if appSteps[index].state != .done {
-                    appSteps[index].state = .waiting
-                }
-            }
-            
-            if let appIdValue = proposalData.appId {
-                currentStatus = .searching(appName: appIdValue.capitalized)
-            }
+        if let appIdValue = proposalData.appId {
+            currentStatus = .searching(appName: appIdValue.capitalized)
         }
     }
     
@@ -526,5 +498,3 @@ extension AgentViewModel {
         }
     }
 }
-
-

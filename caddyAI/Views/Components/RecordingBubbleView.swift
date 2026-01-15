@@ -5,20 +5,25 @@ struct RecordingBubbleView: View {
     let cancelRecording: () -> Void
     let animation: Namespace.ID
     var amplitude: CGFloat = 0.5
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         HStack(spacing: 6) {
             // Left: Cancel button (X)
             Button(action: cancelRecording) {
                 Circle()
-                    .fill(Color.white.opacity(0.12))
+                    .fill(palette.iconBackground)
                     .overlay(
                         Circle()
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(0.25),
-                                        Color.white.opacity(0.05)
+                                        palette.iconStroke.opacity(0.9),
+                                        palette.iconStroke.opacity(0.2)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -30,7 +35,7 @@ struct RecordingBubbleView: View {
                     .overlay(
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(palette.iconSecondary)
                     )
             }
             .buttonStyle(.plain)
@@ -53,6 +58,11 @@ struct RecordingBubbleView: View {
 struct AnimatedDotRow: View {
     let count: Int
     var amplitude: CGFloat = 0.5  // Default to mid-range for backwards compatibility
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -84,8 +94,8 @@ struct AnimatedDotRow: View {
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(0.85),
-                                        Color.white.opacity(0.6)
+                                        palette.primaryText.opacity(0.85),
+                                        palette.primaryText.opacity(0.55)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom

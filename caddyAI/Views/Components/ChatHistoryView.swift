@@ -20,8 +20,12 @@ struct ChatHistoryView: View {
     let rotatingLightNamespace: Namespace.ID
     let animation: Namespace.ID
     
-    @Namespace private var statusPillAnimation
     @State private var shouldAutoScroll = true
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     // Helper to determine if a message should be visible when proposal is active
     private func shouldShowMessage(_ message: ChatMessage) -> Bool {
@@ -60,7 +64,7 @@ struct ChatHistoryView: View {
                         HStack {
                             Text(typewriterText)
                                 .font(.system(size: 15, weight: .regular, design: .default))
-                                .foregroundStyle(.white.opacity(0.85))
+                                .foregroundStyle(palette.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .animation(.easeOut(duration: 0.1), value: typewriterText)
                             Spacer()
@@ -68,87 +72,50 @@ struct ChatHistoryView: View {
                         .transition(.opacity)
                     }
                     
-                    // Status Pills - use showStatusPill flag to control visibility independently
-                    // This keeps the pill mounted so text can animate smoothly
-                    if viewModel.showStatusPill || proposal != nil || viewModel.appSteps.count > 1 {
+                    // Status Pill / Confirmation Card
+                    if viewModel.showStatusPill || proposal != nil {
                         VStack(alignment: .leading, spacing: 0) {
-                            HStack {
-                                // Use MultiStatusPillView when multiple apps are tracked
-                                if viewModel.appSteps.count > 1 {
-                                    MultiStatusPillView(
-                                        appSteps: viewModel.appSteps,
-                                        activeAppId: proposal?.appId ?? currentStatus?.appName?.lowercased()
-                                    )
-                                    .zIndex(2)
-                                } else {
-                                    // Single app - use StatusPillView
-                                    // Compute the status to display
-                                    let pillStatus: StatusPillView.Status = {
-                                        if let status = currentStatus {
-                                            switch status {
-                                            case .thinking: return .thinking
-                                            case .transcribing: return .transcribing
-                                            case .searching(let app): return .searching(app: app)
-                                            }
-                                        } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
-                                            return .searching(app: activeStep.appId.capitalized)
-                                        } else {
-                                            return .thinking  // Default fallback
-                                        }
-                                    }()
-                                    
-                                    StatusPillView(
-                                        status: pillStatus,
-                                        isCompact: proposal != nil
-                                    )
-                                    // NO .id() - keep stable view identity for smooth animations
-                                    .background(
-                                        Group {
-                                            if proposal != nil {
-                                                RotatingLightBackground(
-                                                    cornerRadius: 20,
-                                                    shape: .capsule,
-                                                    rotationSpeed: 5.0,
-                                                    glowColor: .green
-                                                )
-                                                .padding(-1)
-                                                .transition(.opacity)
-                                            }
-                                        }
-                                    )
-                                    .zIndex(2)
-                                }
-                                
-                                Spacer()
-                            }
-                            
-                            // Confirmation Card with directional transitions
                             if let proposal = proposal {
                                 ConfirmationCardView(
                                     proposal: proposal,
                                     onConfirm: onConfirmProposal,
                                     onCancel: onCancelProposal,
                                     rotatingLightNamespace: rotatingLightNamespace,
+                                    morphNamespace: animation,
                                     isExecuting: viewModel.isExecutingAction,
-                                    isFinalAction: viewModel.proposalQueue.count - viewModel.currentProposalIndex <= 1
+                                    isFinalAction: viewModel.proposalQueue.count <= 1
                                 )
                                 .id("\(proposal.appId ?? proposal.tool)-\(proposal.proposalIndex)")  // Force view recreation on proposal change
-                                .padding(.top, 14)
                                 .zIndex(1)
-                                // Asymmetric transition: slide out left, slide in from right
-                                .transition(.asymmetric(
-                                    insertion: viewModel.cardTransitionDirection == .bottom 
-                                        ? .move(edge: .bottom).combined(with: .opacity)
-                                        : .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .trailing).combined(with: .opacity)
-                                ))
+                                .transition(.opacity)
+                            } else {
+                                // Compute the status to display
+                                let pillStatus: StatusPillView.Status = {
+                                    if let status = currentStatus {
+                                        switch status {
+                                        case .thinking: return .thinking
+                                        case .transcribing: return .transcribing
+                                        case .searching(let app): return .searching(app: app)
+                                        }
+                                    } else if let activeStep = viewModel.appSteps.first(where: { $0.state == .searching || $0.state == .active }) {
+                                        return .searching(app: activeStep.appId.capitalized)
+                                    } else {
+                                        return .thinking  // Default fallback
+                                    }
+                                }()
+                                
+                                StatusPillView(
+                                    status: pillStatus,
+                                    isCompact: false,
+                                    morphNamespace: animation
+                                )
+                                .zIndex(2)
+                                .transition(.opacity)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 4)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .leading).combined(with: .opacity),
-                            removal: .opacity
-                        ))
+                        .transition(.opacity)
                     }
                     
                     Color.clear.frame(height: 10).id("bottomAnchor")

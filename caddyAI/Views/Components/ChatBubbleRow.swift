@@ -2,6 +2,11 @@ import SwiftUI
 
 struct ChatBubbleRow: View {
     let message: ChatMessage
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         let isUser = message.role == .user
@@ -13,11 +18,11 @@ struct ChatBubbleRow: View {
                     Spacer(minLength: 60)
                     Text(message.content.trimmingCharacters(in: .whitespacesAndNewlines))
                         .font(.system(size: 15, weight: .regular, design: .default))
-                        .foregroundStyle(.white.opacity(0.95))
+                        .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(GlassBackground(cornerRadius: 22))
+                        .background(GlassBackground(cornerRadius: 22, prominence: .regular, shadowed: false))
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                 }
@@ -28,7 +33,7 @@ struct ChatBubbleRow: View {
             HStack {
                 Text(message.content.trimmingCharacters(in: .whitespacesAndNewlines))
                     .font(.system(size: 15, weight: .regular, design: .default))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(palette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
@@ -36,8 +41,6 @@ struct ChatBubbleRow: View {
         }
     }
 }
-
-
 
 
 

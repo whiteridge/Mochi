@@ -57,7 +57,7 @@ struct VoiceChatBubble: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 7)
                 .background(
-                    GlassBackground(cornerRadius: 24)
+                    LiquidGlassDockBackground()
                         .matchedGeometryEffect(id: "background", in: animation)
                 )
                 .transition(.scale(scale: 1))
@@ -68,7 +68,7 @@ struct VoiceChatBubble: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 7)
                     .background(
-                        GlassBackground(cornerRadius: 24)
+                        LiquidGlassDockBackground()
                             .matchedGeometryEffect(id: "background", in: animation)
                     )
                     .transition(.scale(scale: 1))
@@ -212,14 +212,11 @@ fileprivate extension VoiceChatBubble {
                 // Glass background
                 if isSuccess {
                     // Success state: Darker glass pill
-                    GlassBackground(cornerRadius: 50)
+                    LiquidGlassDockBackground(refractionStrength: 9.5, edgeWidth: 30)
                         .transition(.opacity)
                 } else {
                     // Chat state: Dark glass window
-                    ZStack {
-                        VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                        Color.black.opacity(0.7) // Darken the glass
-                    }
+                    LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong)
                     .transition(.opacity)
                 }
                 

@@ -6,8 +6,19 @@ struct ConfirmationCardView: View {
     let onConfirm: () -> Void
     let onCancel: () -> Void
     var rotatingLightNamespace: Namespace.ID
+    var morphNamespace: Namespace.ID? = nil
     let isExecuting: Bool
     let isFinalAction: Bool
+
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
+
+    private var cardShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.45) : Color.black.opacity(0.2)
+    }
     
     @State private var showButtonGlow: Bool = false
     
@@ -27,9 +38,8 @@ struct ConfirmationCardView: View {
         .padding(22)
         .background(cardBackground)
         .overlay(glowOverlay)
-        .overlay(cardBorder)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.black.opacity(0.45), radius: 20, x: 0, y: 14)
+        .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
         .onChange(of: isExecuting) { _, newValue in
             if newValue {
                 startButtonGlow()
@@ -53,7 +63,7 @@ private extension ConfirmationCardView {
                    !summaryText.isEmpty {
                     Text(summaryText)
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(Color.white.opacity(0.7))
+                        .foregroundStyle(palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -63,11 +73,11 @@ private extension ConfirmationCardView {
             Button(action: onCancel) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(palette.iconSecondary)
                     .padding(8)
                     .background(
                         Circle()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(palette.iconBackground)
                     )
             }
             .buttonStyle(.plain)
@@ -84,13 +94,13 @@ private extension ConfirmationCardView {
                !messageText.isEmpty {
                 Text(messageText)
                     .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.primaryText)
                     .lineLimit(5)
                     .fixedSize(horizontal: false, vertical: true)
             }
             
             Divider()
-                .background(Color.white.opacity(0.08))
+                .background(palette.divider)
                 .padding(.vertical, 2)
             
             // Channel/recipient display
@@ -98,11 +108,11 @@ private extension ConfirmationCardView {
                 HStack(spacing: 8) {
                     Text("Send to")
                         .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(palette.tertiaryText)
                     
                     Text(channel)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(palette.primaryText)
                 }
             }
         }
@@ -116,7 +126,7 @@ private extension ConfirmationCardView {
             // Title
             Text(titleDisplay)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(palette.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             
             // Description (if present)
@@ -124,7 +134,7 @@ private extension ConfirmationCardView {
                !description.isEmpty {
                 Text(description)
                     .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.7))
+                    .foregroundStyle(palette.secondaryText)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -132,7 +142,7 @@ private extension ConfirmationCardView {
             // Only show metadata section if there are populated fields
             if hasAnyLinearMetadata {
                 Divider()
-                    .background(Color.white.opacity(0.08))
+                    .background(palette.divider)
                     .padding(.vertical, 2)
                 
                 linearMetadataSection
@@ -250,16 +260,11 @@ private extension ConfirmationCardView {
                 } label: {
                     Text("Schedule message")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(palette.primaryText)
                         .padding(.horizontal, 20)
                         .frame(height: 48)
                         .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.1))
-                        )
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                            LiquidGlassSurface(shape: .capsule, prominence: .subtle, shadowed: false)
                         )
                 }
                 .buttonStyle(.plain)
@@ -295,28 +300,15 @@ private extension ConfirmationCardView {
         .buttonStyle(.plain)
     }
     
+    @ViewBuilder
     var cardBackground: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.thickMaterial)
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black.opacity(0.85))
+        let background = LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong, shadowed: false)
+        if let morphNamespace {
+            background
+                .matchedGeometryEffect(id: "background", in: morphNamespace)
+        } else {
+            background
         }
-    }
-    
-    var cardBorder: some View {
-        RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .strokeBorder(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.25),
-                        Color.white.opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 1
-            )
     }
     
     var glowOverlay: some View {
@@ -478,17 +470,22 @@ private extension ConfirmationCardView {
 private struct MetadataField: View {
     let title: String
     let value: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(palette.tertiaryText)
             
             HStack(spacing: 8) {
                 Text(value)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(palette.primaryText)
                     .lineLimit(1)
                 
                 Spacer(minLength: 4)
@@ -496,22 +493,7 @@ private struct MetadataField: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.22),
-                                Color.white.opacity(0.05)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.75
-                    )
+                LiquidGlassSurface(shape: .roundedRect(14), prominence: .subtle, shadowed: false)
             )
         }
         .frame(maxWidth: .infinity)

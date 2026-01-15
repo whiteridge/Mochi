@@ -3,6 +3,11 @@ import SwiftUI
 struct ToolBadgeView: View {
     let iconName: String
     let displayName: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     var body: some View {
         HStack(spacing: 6) {
@@ -13,26 +18,26 @@ struct ToolBadgeView: View {
                     .frame(width: 20, height: 20)
                     .overlay(
                         Circle()
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                            .strokeBorder(palette.subtleBorder, lineWidth: 1)
                     )
                     .overlay(
                         Image(systemName: iconName)
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(palette.iconPrimary)
                     )
             }
             
             Text(displayName)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(palette.primaryText)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(GlassBackground(cornerRadius: 20))
+        .background(GlassBackground(cornerRadius: 20, prominence: .subtle, shadowed: false))
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                .stroke(palette.subtleBorder, lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

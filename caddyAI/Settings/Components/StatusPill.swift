@@ -4,6 +4,11 @@ struct StatusPill: View {
 	let title: String
 	let isOn: Bool
 	var action: (() -> Void)? = nil
+	@Environment(\.colorScheme) private var colorScheme
+	
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme)
+	}
 	
 	var body: some View {
 		HStack(spacing: 8) {
@@ -12,7 +17,7 @@ struct StatusPill: View {
 				.frame(width: 10, height: 10)
 			Text(title)
 				.font(.caption)
-				.foregroundStyle(.primary)
+				.foregroundStyle(palette.primaryText)
 			if let action {
 				Button(isOn ? "Review" : "Enable", action: action)
 					.buttonStyle(.link)
@@ -21,9 +26,7 @@ struct StatusPill: View {
 		.padding(.horizontal, 10)
 		.padding(.vertical, 6)
 		.background(
-			RoundedRectangle(cornerRadius: 10, style: .continuous)
-				.fill(Color.secondary.opacity(0.12))
+			LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false)
 		)
 	}
 }
-

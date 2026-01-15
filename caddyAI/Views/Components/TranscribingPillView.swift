@@ -2,6 +2,12 @@ import SwiftUI
 
 /// A pill view shown while transcribing audio - same size as recording pill
 struct TranscribingPillView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             // Invisible spacer to match the left cancel button (32x32)
@@ -12,10 +18,10 @@ struct TranscribingPillView: View {
             HStack(spacing: 3) {
                 Text("Transcribing")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(palette.secondaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                BouncingDots()
+                BouncingDots(dotColor: palette.primaryText)
             }
             .frame(width: 72, height: 22)
             
@@ -29,12 +35,13 @@ struct TranscribingPillView: View {
 /// Bouncing dots animation for loading indicator
 private struct BouncingDots: View {
     @State private var isAnimating = false
+    var dotColor: Color = .white
     
     var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<3) { index in
                 Circle()
-                    .fill(Color.white.opacity(0.85))
+                    .fill(dotColor.opacity(0.85))
                     .frame(width: 3, height: 3)
                     .offset(y: isAnimating ? -2 : 0)
                     .animation(

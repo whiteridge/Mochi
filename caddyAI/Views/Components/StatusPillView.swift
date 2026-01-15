@@ -38,6 +38,12 @@ struct StatusPillView: View {
     
     let status: Status
     var isCompact: Bool = false
+    var morphNamespace: Namespace.ID? = nil
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
@@ -85,7 +91,7 @@ struct StatusPillView: View {
             // Circular icon at left edge
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.15))
+                    .fill(palette.iconBackground)
                     .frame(width: 28, height: 28)
                 
                 Group {
@@ -98,7 +104,7 @@ struct StatusPillView: View {
                     } else {
                         Image(systemName: sfSymbolName)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(palette.iconPrimary)
                     }
                 }
                 .contentTransition(.symbolEffect(.replace))
@@ -109,40 +115,50 @@ struct StatusPillView: View {
                 if let compactName = compactText {
                     Text(compactName)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(palette.primaryText)
                         .lineLimit(1)
                 }
             } else {
                 // Full mode: show status text with smooth transitions + bouncing dots
                 Text(status.fullDisplayText)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(palette.primaryText)
                     .lineLimit(1)
                     .contentTransition(.numericText())
                     // Slower animation - response 0.6 instead of 0.4
                     .animation(.spring(response: 0.6, dampingFraction: 0.75), value: status.fullDisplayText)
                 
                 // Bouncing dots using TimelineView - always animates
-                ContinuousBouncingDotsView()
+                ContinuousBouncingDotsView(dotColor: palette.primaryText)
             }
         }
         .padding(.leading, 5)
         .padding(.trailing, isCompact ? 12 : 14)
         .padding(.vertical, 5)
-        .background(GlassBackground(cornerRadius: 20))
+        .background(pillBackground)
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                .stroke(palette.subtleBorder, lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
         .animation(.easeInOut(duration: 0.3), value: isCompact)
     }
+
+    @ViewBuilder
+    private var pillBackground: some View {
+        if let morphNamespace {
+            LiquidGlassDockBackground()
+                .matchedGeometryEffect(id: "background", in: morphNamespace)
+        } else {
+            GlassBackground(cornerRadius: 20, prominence: .subtle, shadowed: false)
+        }
+    }
 }
 
 extension StatusPillView {
-    init(text: String, appName: String?, isCompact: Bool = false) {
+    init(text: String, appName: String?, isCompact: Bool = false, morphNamespace: Namespace.ID? = nil) {
         let status: Status
         if text.lowercased().contains("thinking") || appName?.lowercased() == "thinking" {
             status = .thinking
@@ -153,7 +169,7 @@ extension StatusPillView {
         } else {
             status = .searching(app: text)
         }
-        self.init(status: status, isCompact: isCompact)
+        self.init(status: status, isCompact: isCompact, morphNamespace: morphNamespace)
     }
 }
 
@@ -161,6 +177,8 @@ extension StatusPillView {
 
 /// Bouncing dots that use TimelineView for continuous animation regardless of view updates
 struct ContinuousBouncingDotsView: View {
+    var dotColor: Color = .white
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.016)) { timeline in
             HStack(spacing: 3) {
@@ -174,7 +192,7 @@ struct ContinuousBouncingDotsView: View {
                     let bounce = sin(normalizedPhase * .pi)
                     
                     Circle()
-                        .fill(Color.white)
+                        .fill(dotColor)
                         .frame(width: 3, height: 3)
                         .offset(y: -3 * bounce)
                 }

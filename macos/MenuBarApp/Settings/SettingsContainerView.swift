@@ -102,6 +102,10 @@ private struct GeneralSettingsView: View {
 						}
 					}
 				}
+				.padding(16)
+				.background(
+					LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
+				)
 				
 				VStack(alignment: .leading, spacing: 12) {
 					Text("Appearance")
@@ -121,8 +125,13 @@ private struct GeneralSettingsView: View {
 								.frame(maxWidth: .infinity)
 								.padding()
 								.background(
-									RoundedRectangle(cornerRadius: 10, style: .continuous)
-										.fill(preferences.theme == theme ? preferences.accentColor.opacity(0.12) : Color.clear)
+									ZStack {
+										LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false)
+										if preferences.theme == theme {
+											RoundedRectangle(cornerRadius: 10, style: .continuous)
+												.fill(preferences.accentColor.opacity(0.18))
+										}
+									}
 								)
 								.overlay {
 									RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -133,6 +142,10 @@ private struct GeneralSettingsView: View {
 						}
 					}
 				}
+				.padding(16)
+				.background(
+					LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
+				)
 				
 				PermissionsCard()
 				
@@ -157,38 +170,44 @@ private struct APISettingsView: View {
 	@State private var saveMessage: String?
 	
 	var body: some View {
-		Form {
-			Section("LLM / Agent API") {
-				TextField("API key", text: $viewModel.apiKey)
-					.textFieldStyle(.roundedBorder)
-				TextField("Base URL (optional)", text: $viewModel.apiBaseURL)
-					.textFieldStyle(.roundedBorder)
-				HStack {
-					Button("Save") {
-						viewModel.saveAPISettings()
-						saveMessage = "Saved"
-					}
-					.buttonStyle(.borderedProminent)
-					
-					if let saveMessage {
-						Text(saveMessage)
-							.font(.caption)
-							.foregroundStyle(.secondary)
-					}
-				}
-			}
+		ZStack {
+			LiquidGlassSurface(shape: .roundedRect(16), prominence: .regular)
+				.padding(16)
 			
-			Section("Reset") {
-				Button(role: .destructive) {
-					viewModel.resetAll()
-					saveMessage = "Reset to defaults"
-				} label: {
-					Label("Reset setup data", systemImage: "arrow.uturn.backward.circle")
+			Form {
+				Section("LLM / Agent API") {
+					TextField("API key", text: $viewModel.apiKey)
+						.textFieldStyle(.roundedBorder)
+					TextField("Base URL (optional)", text: $viewModel.apiBaseURL)
+						.textFieldStyle(.roundedBorder)
+					HStack {
+						Button("Save") {
+							viewModel.saveAPISettings()
+							saveMessage = "Saved"
+						}
+						.buttonStyle(.borderedProminent)
+						
+						if let saveMessage {
+							Text(saveMessage)
+								.font(.caption)
+								.foregroundStyle(.secondary)
+						}
+					}
+				}
+				
+				Section("Reset") {
+					Button(role: .destructive) {
+						viewModel.resetAll()
+						saveMessage = "Reset to defaults"
+					} label: {
+						Label("Reset setup data", systemImage: "arrow.uturn.backward.circle")
+					}
 				}
 			}
+			.scrollContentBackground(.hidden)
+			.formStyle(.grouped)
+			.padding(24)
 		}
-		.padding(24)
-		.formStyle(.grouped)
 		.navigationTitle("API & Accounts")
 	}
 }
@@ -274,6 +293,10 @@ private struct PermissionsCard: View {
 				microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
 			}
 		}
+		.padding(16)
+		.background(
+			LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
+		)
 	}
 	
 	private func requestMicrophone() {
@@ -331,13 +354,8 @@ private struct IntegrationCard<Content: View>: View {
 		}
 		.padding()
 		.background(
-			RoundedRectangle(cornerRadius: 12, style: .continuous)
-				.fill(Color(NSColor.windowBackgroundColor))
+			LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
 		)
-		.overlay {
-			RoundedRectangle(cornerRadius: 12, style: .continuous)
-				.stroke(Color.gray.opacity(0.15), lineWidth: 1)
-		}
 	}
 }
 
@@ -356,8 +374,11 @@ private struct StatusBadge: View {
 		.padding(.vertical, 6)
 		.padding(.horizontal, 10)
 		.background(
-			RoundedRectangle(cornerRadius: 8, style: .continuous)
-				.fill(color.opacity(0.12))
+			ZStack {
+				LiquidGlassSurface(shape: .roundedRect(8), prominence: .subtle, shadowed: false)
+				RoundedRectangle(cornerRadius: 8, style: .continuous)
+					.fill(color.opacity(0.12))
+			}
 		)
 	}
 	
@@ -369,4 +390,3 @@ private struct StatusBadge: View {
 		}
 	}
 }
-

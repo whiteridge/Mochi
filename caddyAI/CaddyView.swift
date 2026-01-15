@@ -3,6 +3,11 @@ import SwiftUI
 struct CaddyView: View {
 	@State private var showView = false
 	@StateObject private var audioService = AudioCaptureService()
+	@Environment(\.colorScheme) private var colorScheme
+
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme)
+	}
 
 	var body: some View {
 		ZStack {
@@ -10,11 +15,11 @@ struct CaddyView: View {
 				HStack(spacing: 12) {
 					ZStack {
 						Circle()
-							.strokeBorder(.white.opacity(0.15), lineWidth: 1.5)
+							.strokeBorder(palette.subtleBorder, lineWidth: 1.5)
 							.frame(width: 28, height: 28)
 						Image(systemName: "waveform.circle.fill")
 							.symbolRenderingMode(.palette)
-							.foregroundStyle(.white.opacity(0.9), .white.opacity(0.25))
+							.foregroundStyle(palette.primaryText, palette.tertiaryText)
 							.font(.system(size: 16, weight: .semibold))
 					}
 
@@ -34,29 +39,9 @@ struct CaddyView: View {
 				.padding(.horizontal, 18)
 				.padding(.vertical, 12)
 				.background(
-					ZStack {
-						VisualEffectView(material: .hudWindow)
-							.clipShape(Capsule())
-						// Subtle glass edge and gloss
-						Capsule()
-							.stroke(.white.opacity(0.08), lineWidth: 1)
-						Capsule()
-							.fill(
-								LinearGradient(
-									colors: [
-										.white.opacity(0.12),
-										.clear
-									],
-									startPoint: .top,
-									endPoint: .center
-								)
-							)
-							.blur(radius: 6)
-							.allowsHitTesting(false)
-					}
+					LiquidGlassSurface(shape: .capsule, prominence: .regular)
 				)
 				.clipShape(Capsule())
-				.shadow(color: .black.opacity(0.45), radius: 16, x: 0, y: 12)
 				.transition(.move(edge: .bottom).combined(with: .opacity))
 			}
 		}
@@ -77,6 +62,11 @@ struct CaddyView: View {
 private struct WaveformBars: View {
 	let amplitude: CGFloat
 	@State private var phase: CGFloat = 0
+	@Environment(\.colorScheme) private var colorScheme
+
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme)
+	}
 
 	var body: some View {
 		GeometryReader { proxy in
@@ -92,7 +82,7 @@ private struct WaveformBars: View {
 					let wave = amplitude > 0 ? (sin(t * 3 + phase) + 1) / 2 : 0.1
 					let height = max(2, (base * 0.6 + wave * 0.4) * amplitude * proxy.size.height)
 					RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-						.fill(.white.opacity(0.9))
+						.fill(palette.primaryText)
 						.frame(width: barWidth, height: height)
 						.animation(.linear(duration: 0.18), value: phase)
 				}
@@ -115,5 +105,4 @@ private struct WaveformBars: View {
 		}
 	}
 }
-
 

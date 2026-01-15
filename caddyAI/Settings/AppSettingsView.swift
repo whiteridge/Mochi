@@ -112,13 +112,8 @@ private struct SettingsRowCard<Content: View>: View {
 				content
 			}
 			.background(
-				RoundedRectangle(cornerRadius: 10, style: .continuous)
-					.fill(Color(NSColor.controlBackgroundColor))
+				LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
 			)
-			.overlay {
-				RoundedRectangle(cornerRadius: 10, style: .continuous)
-					.stroke(Color.gray.opacity(0.12), lineWidth: 1)
-			}
 		}
 	}
 }
@@ -127,6 +122,11 @@ private struct SettingsRow<Control: View>: View {
 	let label: String
 	let showDivider: Bool
 	@ViewBuilder let control: Control
+	@Environment(\.colorScheme) private var colorScheme
+	
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme)
+	}
 	
 	init(label: String, showDivider: Bool = true, @ViewBuilder control: () -> Control) {
 		self.label = label
@@ -148,6 +148,7 @@ private struct SettingsRow<Control: View>: View {
 			if showDivider {
 				Divider()
 					.padding(.leading, 16)
+					.foregroundStyle(palette.divider)
 			}
 		}
 	}
@@ -189,7 +190,15 @@ private struct GeneralSettingsView: View {
 					}
 					
 					SettingsRow(label: "Activation Mode", showDivider: false) {
-						Picker("", selection: $preferences.voiceActivationMode) {
+						let activationModeBinding = Binding(
+							get: { preferences.voiceActivationMode },
+							set: { newValue in
+								DispatchQueue.main.async {
+									preferences.voiceActivationMode = newValue
+								}
+							}
+						)
+						Picker("", selection: activationModeBinding) {
 							ForEach(VoiceActivationMode.allCases) { mode in
 								Text(mode.label).tag(mode)
 							}
@@ -554,6 +563,11 @@ private struct IntegrationRow: View {
 	let onConnect: () -> Void
 	let onDisconnect: () -> Void
 	let showDivider: Bool
+	@Environment(\.colorScheme) private var colorScheme
+	
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme)
+	}
 	
 	var body: some View {
 		VStack(spacing: 0) {
@@ -620,6 +634,7 @@ private struct IntegrationRow: View {
 			if showDivider {
 				Divider()
 					.padding(.leading, 60)
+					.foregroundStyle(palette.divider)
 			}
 		}
 	}
@@ -633,8 +648,7 @@ private struct IntegrationRow: View {
 				.clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 		} else {
 			ZStack {
-				RoundedRectangle(cornerRadius: 6, style: .continuous)
-					.fill(Color.gray.opacity(0.12))
+				LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
 				Image(systemName: fallbackIcon)
 					.font(.system(size: 14))
 					.foregroundStyle(.secondary)
@@ -734,13 +748,8 @@ private struct LinkPill: View {
 			.padding(.horizontal, 14)
 			.padding(.vertical, 8)
 			.background(
-				Capsule()
-					.fill(Color(NSColor.controlBackgroundColor))
+				LiquidGlassSurface(shape: .capsule, prominence: .subtle, shadowed: false)
 			)
-			.overlay {
-				Capsule()
-					.stroke(Color.gray.opacity(0.2), lineWidth: 1)
-			}
 		}
 		.buttonStyle(.plain)
 	}
@@ -783,13 +792,8 @@ private struct ChangelogCard: View {
 		.padding(16)
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(
-			RoundedRectangle(cornerRadius: 10, style: .continuous)
-				.fill(Color(NSColor.controlBackgroundColor))
+			LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
 		)
-		.overlay {
-			RoundedRectangle(cornerRadius: 10, style: .continuous)
-				.stroke(Color.gray.opacity(0.12), lineWidth: 1)
-		}
 	}
 }
 
@@ -808,8 +812,13 @@ private struct KeyPillButton: View {
 				.padding(.horizontal, 12)
 				.padding(.vertical, 6)
 				.background(
-					RoundedRectangle(cornerRadius: 6, style: .continuous)
-						.fill(isSelected ? accentColor.opacity(0.15) : Color(NSColor.controlBackgroundColor))
+					ZStack {
+						LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
+						if isSelected {
+							RoundedRectangle(cornerRadius: 6, style: .continuous)
+								.fill(accentColor.opacity(0.18))
+						}
+					}
 				)
 				.overlay {
 					RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -838,8 +847,13 @@ private struct ThemePillButton: View {
 			.padding(.horizontal, 12)
 			.padding(.vertical, 6)
 			.background(
-				RoundedRectangle(cornerRadius: 6, style: .continuous)
-					.fill(isSelected ? accentColor.opacity(0.15) : Color(NSColor.controlBackgroundColor))
+				ZStack {
+					LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
+					if isSelected {
+						RoundedRectangle(cornerRadius: 6, style: .continuous)
+							.fill(accentColor.opacity(0.18))
+					}
+				}
 			)
 			.overlay {
 				RoundedRectangle(cornerRadius: 6, style: .continuous)

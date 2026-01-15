@@ -15,17 +15,19 @@ struct RotatingGradientFill: View {
     var intensity: Double = 0.12 // Base intensity (0.08-0.15 recommended for subtlety)
     
     @State private var rotation: Double = 0
+    @Environment(\.colorScheme) private var colorScheme
     
     // Subtle dark green color palette
     private var gradientColors: [Color] {
-        [
-            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(intensity * 0.3),
-            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(intensity * 0.6),
-            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(intensity),
-            Color(red: 0.18, green: 0.50, blue: 0.28).opacity(intensity * 1.2),
-            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(intensity),
-            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(intensity * 0.6),
-            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(intensity * 0.3),
+        let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
+        return [
+            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(adjustedIntensity * 0.3),
+            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(adjustedIntensity * 0.6),
+            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(adjustedIntensity),
+            Color(red: 0.18, green: 0.50, blue: 0.28).opacity(adjustedIntensity * 1.2),
+            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(adjustedIntensity),
+            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(adjustedIntensity * 0.6),
+            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(adjustedIntensity * 0.3),
         ]
     }
     
@@ -90,6 +92,7 @@ struct RotatingLightBackground: View {
     var glowColor: Color = .white
     
     @State private var rotation: Double = 0
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         switch shape {
@@ -103,10 +106,11 @@ struct RotatingLightBackground: View {
     @ViewBuilder
     private func rotatingBackground<S: InsettableShape>(shape: S) -> some View {
         GeometryReader { geometry in
+            let baseFill = colorScheme == .dark ? Color.black.opacity(0.25) : Color.white.opacity(0.6)
             ZStack {
                 // Base fill
                 shape
-                    .fill(Color.black.opacity(0.2))
+                    .fill(baseFill)
                 
                 // Rotating gradient border/glow
                 AngularGradient(

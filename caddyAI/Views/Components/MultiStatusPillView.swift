@@ -24,6 +24,11 @@ struct AppPillView: View {
     let appId: String
     let state: AppStepState
     let isActive: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme)
+    }
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
@@ -66,9 +71,9 @@ struct AppPillView: View {
         case .error:
             return .red.opacity(0.9)
         case .active, .searching:
-            return .white.opacity(0.2)
+            return palette.subtleBorder
         default:
-            return .white.opacity(0.1)
+            return palette.subtleBorder.opacity(0.7)
         }
     }
     
@@ -77,7 +82,7 @@ struct AppPillView: View {
             // Circular icon
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.15))
+                    .fill(palette.iconBackground)
                     .frame(width: 28, height: 28)
                 
                 Group {
@@ -90,7 +95,7 @@ struct AppPillView: View {
                     } else {
                         Image(systemName: sfSymbolName)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(palette.iconPrimary)
                     }
                 }
             }
@@ -102,17 +107,17 @@ struct AppPillView: View {
                     if state == .searching {
                         Text("Searching ")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(palette.primaryText)
                     }
                     
                     // App name
                     Text(appId.capitalized)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(palette.primaryText)
                     
                     // Bouncing dots when searching
                     if showDots {
-                        BouncingDotsView()
+                        ContinuousBouncingDotsView(dotColor: palette.primaryText)
                             .padding(.leading, 2)
                             .offset(y: 1)
                     }
@@ -124,7 +129,7 @@ struct AppPillView: View {
         .padding(.vertical, 5)
         .background(
             ZStack {
-                GlassBackground(cornerRadius: 20)
+                GlassBackground(cornerRadius: 20, prominence: .subtle, shadowed: false)
                 
                 // Glowing effect for active state
                 if isActive && (state == .searching || state == .active) {
