@@ -39,17 +39,26 @@ struct StatusPillView: View {
     @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
-        guard let app = status.appName?.lowercased() else { return nil }
-        switch app {
+        switch normalizedAppName {
         case "linear":
             return "linear-icon"
         case "slack":
             return "slack-icon"
+        case "action":
+            return nil
+        case "notion":
+            return "notion-icon"
+        case "gmail", "googlemail":
+            return "gmail-icon"
+        case "calendar", "googlecalendar", "google":
+            return "calendar-icon"
+        case "github":
+            return "github-icon"
         default:
             return nil
         }
@@ -57,16 +66,19 @@ struct StatusPillView: View {
     
     // Fallback SF Symbol for apps without custom icons
     private var sfSymbolName: String {
-        guard let app = status.appName?.lowercased() else { return "waveform" }
-        switch app {
+        switch normalizedAppName {
         case "github":
             return "chevron.left.forwardslash.chevron.right"
         case "notion":
             return "doc.text"
-        case "google":
-            return "globe"
+        case "gmail", "googlemail":
+            return "envelope"
+        case "calendar", "googlecalendar", "google":
+            return "calendar"
         case "thinking":
             return "brain"
+        case "action":
+            return "command"
         case "conductor":
             return "command"
         default:
@@ -78,9 +90,56 @@ struct StatusPillView: View {
     private var compactText: String? {
         guard isCompact else { return nil }
         if case .searching = status {
-            return status.appName?.capitalized
+            return displayAppName
         }
         return nil
+    }
+    
+    private var normalizedAppName: String {
+        guard let app = status.appName?.lowercased() else { return "" }
+        return app
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+    }
+    
+    private var displayAppName: String? {
+        guard let app = status.appName else { return nil }
+        switch normalizedAppName {
+        case "linear":
+            return "Linear"
+        case "slack":
+            return "Slack"
+        case "notion":
+            return "Notion"
+        case "gmail", "googlemail":
+            return "Gmail"
+        case "calendar", "googlecalendar", "google":
+            return "Calendar"
+        case "github":
+            return "GitHub"
+        case "action":
+            return "Conductor"
+        case "conductor":
+            return "Conductor"
+        default:
+            return app
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+                .split(separator: " ")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
+    
+    private var statusText: String {
+        switch status {
+        case .thinking:
+            return "Thinking"
+        case .searching:
+            let appName = displayAppName ?? "App"
+            return "Searching \(appName)"
+        }
     }
 
     var body: some View {
@@ -166,13 +225,13 @@ struct StatusPillView: View {
                 }
             } else {
                 // Full mode: show status text with smooth transitions + bouncing dots
-                Text(status.fullDisplayText)
+                Text(statusText)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(palette.primaryText)
                     .lineLimit(1)
                     .contentTransition(.numericText())
                     // Slower animation - response 0.6 instead of 0.4
-                    .animation(.spring(response: 0.6, dampingFraction: 0.75), value: status.fullDisplayText)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.75), value: statusText)
                 
                 // Bouncing dots using TimelineView - always animates
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)

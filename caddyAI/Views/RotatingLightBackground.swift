@@ -17,17 +17,17 @@ struct RotatingGradientFill: View {
     @State private var rotation: Double = 0
     @Environment(\.colorScheme) private var colorScheme
     
-    // Subtle dark green color palette
+    // Cool green color palette
     private var gradientColors: [Color] {
         let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
         return [
-            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(adjustedIntensity * 0.3),
-            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(adjustedIntensity * 0.6),
-            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(adjustedIntensity),
-            Color(red: 0.18, green: 0.50, blue: 0.28).opacity(adjustedIntensity * 1.2),
-            Color(red: 0.12, green: 0.35, blue: 0.18).opacity(adjustedIntensity),
-            Color(red: 0.06, green: 0.20, blue: 0.10).opacity(adjustedIntensity * 0.6),
-            Color(red: 0.04, green: 0.12, blue: 0.06).opacity(adjustedIntensity * 0.3),
+            ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.3),
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.6),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity),
+            ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.2),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity),
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.6),
+            ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.3),
         ]
     }
     

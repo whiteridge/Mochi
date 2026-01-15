@@ -3,9 +3,10 @@ import SwiftUI
 /// A pill view shown while transcribing audio - same size as recording pill
 struct TranscribingPillView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
     var body: some View {

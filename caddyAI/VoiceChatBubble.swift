@@ -39,13 +39,7 @@ struct VoiceChatBubble: View {
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
     var body: some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
-            GlassEffectContainer {
-                mainContent
-            }
-        } else {
-            mainContent
-        }
+        mainContent
     }
     
     @ViewBuilder
@@ -244,7 +238,7 @@ private struct AssistantMessageBubbleView: View {
     @EnvironmentObject private var preferences: PreferencesStore
     
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     private var messageContent: some View {

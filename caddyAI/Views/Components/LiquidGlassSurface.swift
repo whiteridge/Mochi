@@ -8,41 +8,51 @@ enum LiquidGlassProminence {
 
 struct LiquidGlassPalette {
     let colorScheme: ColorScheme
+    let glassStyle: GlassStyle
+
+    init(colorScheme: ColorScheme, glassStyle: GlassStyle = .regular) {
+        self.colorScheme = colorScheme
+        self.glassStyle = glassStyle
+    }
+
+    private var isDark: Bool {
+        colorScheme == .dark
+    }
 
     var primaryText: Color {
-        colorScheme == .dark ? Color.white.opacity(0.95) : Color.black.opacity(0.85)
+        isDark ? Color.white.opacity(0.98) : Color.black.opacity(0.92)
     }
 
     var secondaryText: Color {
-        colorScheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.6)
+        isDark ? Color.white.opacity(0.82) : Color.black.opacity(0.72)
     }
 
     var tertiaryText: Color {
-        colorScheme == .dark ? Color.white.opacity(0.5) : Color.black.opacity(0.45)
+        isDark ? Color.white.opacity(0.65) : Color.black.opacity(0.55)
     }
 
     var iconPrimary: Color {
-        colorScheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.75)
+        isDark ? Color.white.opacity(0.92) : Color.black.opacity(0.82)
     }
 
     var iconSecondary: Color {
-        colorScheme == .dark ? Color.white.opacity(0.65) : Color.black.opacity(0.55)
+        isDark ? Color.white.opacity(0.75) : Color.black.opacity(0.65)
     }
 
     var iconBackground: Color {
-        colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06)
+        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.08)
     }
 
     var iconStroke: Color {
-        colorScheme == .dark ? Color.white.opacity(0.22) : Color.black.opacity(0.12)
+        isDark ? Color.white.opacity(0.3) : Color.black.opacity(0.18)
     }
 
     var divider: Color {
-        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.12)
     }
 
     var subtleBorder: Color {
-        colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.1)
+        isDark ? Color.white.opacity(0.2) : Color.black.opacity(0.14)
     }
 }
 

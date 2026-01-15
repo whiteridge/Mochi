@@ -123,9 +123,10 @@ private struct SettingsRow<Control: View>: View {
 	let showDivider: Bool
 	@ViewBuilder let control: Control
 	@Environment(\.colorScheme) private var colorScheme
+	@EnvironmentObject private var preferences: PreferencesStore
 	
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
 	}
 	
 	init(label: String, showDivider: Bool = true, @ViewBuilder control: () -> Control) {
@@ -781,9 +782,10 @@ private struct IntegrationRow: View {
 	let onDisconnect: () -> Void
 	let showDivider: Bool
 	@Environment(\.colorScheme) private var colorScheme
+	@EnvironmentObject private var preferences: PreferencesStore
 	
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
 	}
 	
 	var body: some View {

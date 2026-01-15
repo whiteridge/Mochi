@@ -4,9 +4,10 @@ struct ToolBadgeView: View {
     let iconName: String
     let displayName: String
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     var body: some View {

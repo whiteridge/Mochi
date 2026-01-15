@@ -22,9 +22,10 @@ struct ChatHistoryView: View {
     
     @State private var shouldAutoScroll = true
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     // Helper to determine if a message should be visible when proposal is active

@@ -4,9 +4,10 @@ struct CaddyView: View {
 	@State private var showView = false
 	@StateObject private var audioService = AudioCaptureService()
 	@Environment(\.colorScheme) private var colorScheme
+	@EnvironmentObject private var preferences: PreferencesStore
 
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
 	}
 
 	var body: some View {
@@ -63,9 +64,10 @@ private struct WaveformBars: View {
 	let amplitude: CGFloat
 	@State private var phase: CGFloat = 0
 	@Environment(\.colorScheme) private var colorScheme
+	@EnvironmentObject private var preferences: PreferencesStore
 
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
 	}
 
 	var body: some View {
@@ -105,4 +107,3 @@ private struct WaveformBars: View {
 		}
 	}
 }
-

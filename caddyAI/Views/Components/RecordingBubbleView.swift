@@ -9,15 +9,15 @@ struct RecordingBubbleView: View {
     @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
     private var adaptiveIconColor: Color {
-        preferences.glassStyle == .clear ? .white : .primary
+        palette.iconPrimary
     }
 
     private var adaptiveBlendMode: BlendMode {
-        preferences.glassStyle == .clear ? .difference : .normal
+        .normal
     }
     
     var body: some View {
@@ -73,11 +73,11 @@ struct AnimatedDotRow: View {
     @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
     private var adaptiveWaveColors: [Color] {
-        let baseColor: Color = preferences.glassStyle == .clear ? .white : .primary
+        let baseColor = palette.primaryText
         return [
             baseColor.opacity(0.85),
             baseColor.opacity(0.55)
@@ -122,7 +122,6 @@ struct AnimatedDotRow: View {
                             .animation(.linear(duration: 0.1), value: amplitude)
                     }
                 }
-                .blendMode(preferences.glassStyle == .clear ? .difference : .normal)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }

@@ -361,9 +361,10 @@ private struct IntegrationConnectCard: View {
     let errorMessage: String?
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     var body: some View {

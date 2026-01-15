@@ -13,9 +13,10 @@ struct ConfirmationCardView: View {
     let activeAppId: String?
 
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
     
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
     private var cardShadowColor: Color {
@@ -48,6 +49,8 @@ struct ConfirmationCardView: View {
         .overlay(glowOverlay)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
+        .frame(maxWidth: 560)
+        .fixedSize(horizontal: false, vertical: true)
         .onChange(of: isExecuting) { _, newValue in
             if newValue {
                 startButtonGlow()
@@ -404,7 +407,7 @@ private extension ConfirmationCardView {
             } label: {
                 Text("Send")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(palette.primaryText)
                     .padding(.horizontal, 24)
                     .frame(height: 48)
                     .background(
@@ -412,7 +415,7 @@ private extension ConfirmationCardView {
                             cornerRadius: 24,
                             shape: RotatingLightBackground.ShapeType.capsule,
                             rotationSpeed: 10.0,
-                            glowColor: .green
+                            glowColor: ActionGlowPalette.glow
                         )
                         .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)
                     )
@@ -451,7 +454,7 @@ private extension ConfirmationCardView {
         } label: {
             Text(confirmButtonTitle)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundStyle(palette.primaryText)
                 .padding(.horizontal, 24)
                 .frame(height: 48)
                 .background(
@@ -460,7 +463,7 @@ private extension ConfirmationCardView {
                         cornerRadius: 24,
                         shape: RotatingLightBackground.ShapeType.capsule,
                         rotationSpeed: 10.0,
-                        glowColor: .green
+                        glowColor: ActionGlowPalette.glow
                     )
                     .matchedGeometryEffect(id: "rotatingLight", in: rotatingLightNamespace)
                 )
@@ -470,7 +473,8 @@ private extension ConfirmationCardView {
     
     @ViewBuilder
     var cardBackground: some View {
-        let background = LiquidGlassSurface(shape: .roundedRect(24), prominence: .strong, shadowed: false)
+        let cardProminence: LiquidGlassProminence = preferences.glassStyle == .clear ? .subtle : .regular
+        let background = LiquidGlassSurface(shape: .roundedRect(24), prominence: cardProminence, shadowed: false)
         if let morphNamespace {
             background
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
@@ -1178,9 +1182,10 @@ private struct CalendarTimelineView: View {
     let isAllDay: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
     private let rowHeight: CGFloat = 40
@@ -1333,9 +1338,10 @@ private struct MetadataField: View {
     let title: String
     let value: String
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     var body: some View {

@@ -25,18 +25,27 @@ struct AppPillView: View {
     let state: AppStepState
     let isActive: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
     
     // Check if this app has a custom asset icon
     private var customIconName: String? {
-        switch appId.lowercased() {
+        switch normalizedAppId {
         case "linear":
             return "linear-icon"
         case "slack":
             return "slack-icon"
+        case "notion":
+            return "notion-icon"
+        case "gmail", "googlemail":
+            return "gmail-icon"
+        case "calendar", "googlecalendar", "google":
+            return "calendar-icon"
+        case "github":
+            return "github-icon"
         default:
             return nil
         }
@@ -44,15 +53,14 @@ struct AppPillView: View {
     
     // Fallback SF Symbol for apps without custom icons
     private var sfSymbolName: String {
-        let lowered = appId.lowercased()
-        switch lowered {
+        switch normalizedAppId {
         case "github":
             return "chevron.left.forwardslash.chevron.right"
         case "notion":
             return "doc.text"
-        case "google", "google_calendar":
-            return "calendar"
-        case "calendar":
+        case "gmail", "googlemail":
+            return "envelope"
+        case "calendar", "googlecalendar", "google":
             return "calendar"
         default:
             return "sparkles"
@@ -65,12 +73,35 @@ struct AppPillView: View {
     }
     
     private var displayName: String {
+        switch normalizedAppId {
+        case "linear":
+            return "Linear"
+        case "slack":
+            return "Slack"
+        case "notion":
+            return "Notion"
+        case "gmail", "googlemail":
+            return "Gmail"
+        case "calendar", "googlecalendar", "google":
+            return "Calendar"
+        case "github":
+            return "GitHub"
+        default:
+            return appId
+                .replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+                .split(separator: " ")
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
+    
+    private var normalizedAppId: String {
         appId
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .split(separator: " ")
-            .map { $0.capitalized }
-            .joined(separator: " ")
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
     }
     
     private var borderColor: Color {
@@ -130,7 +161,7 @@ struct AppPillView: View {
                         cornerRadius: 20,
                         shape: .capsule,
                         rotationSpeed: 5.0,
-                        glowColor: .green
+                        glowColor: ActionGlowPalette.glow
                     )
                     .padding(-1)
                 }
@@ -171,4 +202,5 @@ struct AppPillView: View {
     }
     .padding()
     .background(Color.black)
+    .environmentObject(PreferencesStore())
 }
