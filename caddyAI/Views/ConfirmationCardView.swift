@@ -61,8 +61,6 @@ private extension ConfirmationCardView {
             }
             
             HStack(alignment: .top, spacing: 12) {
-                headerIcon
-                
                 VStack(alignment: .leading, spacing: 6) {
                     Text(headerAppName.uppercased())
                         .font(.system(size: 11, weight: .semibold))
@@ -177,12 +175,12 @@ private extension ConfirmationCardView {
     }
     
     var glowOverlay: some View {
-        // Use cone style - gradient emanates from bottom-left where action button is
+        // Use cone style - gradient emanates from bottom-right where action button is
         RotatingGradientFill(
             shape: .roundedRect(cornerRadius: 24),
             rotationSpeed: 6.0,
             intensity: showButtonGlow ? (isFinalAction ? 0.25 : 0.18) : 0,
-            renderStyle: .cone(origin: UnitPoint(x: 0.15, y: 0.9))  // Bottom-left near action button
+            renderStyle: .cone(origin: UnitPoint(x: 0.85, y: 0.9))  // Bottom-right near action button
         )
         .matchedGeometryEffect(id: "gradientFill", in: rotatingLightNamespace)
         .opacity(showButtonGlow ? 1 : 0)
@@ -201,42 +199,6 @@ private extension ConfirmationCardView {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "_", with: "")
             .replacingOccurrences(of: "-", with: "")
-    }
-
-    var headerCustomIconName: String? {
-        switch normalizedAppId {
-        case "linear":
-            return "linear-icon"
-        case "slack":
-            return "slack-icon"
-        case "notion":
-            return "notion-icon"
-        case "gmail", "googlemail":
-            return "gmail-icon"
-        case "calendar", "googlecalendar", "google":
-            return "calendar-icon"
-        case "github":
-            return "github-icon"
-        default:
-            return nil
-        }
-    }
-
-    var headerSymbolName: String {
-        switch normalizedAppId {
-        case "slack":
-            return "bubble.left.and.bubble.right.fill"
-        case "calendar", "googlecalendar", "google":
-            return "calendar"
-        case "gmail", "googlemail":
-            return "envelope"
-        case "github":
-            return "chevron.left.forwardslash.chevron.right"
-        case "linear":
-            return "rectangle.grid.1x2"
-        default:
-            return "sparkles"
-        }
     }
 
     var headerAppName: String {
@@ -291,27 +253,6 @@ private extension ConfirmationCardView {
         return nil
     }
 
-    var headerIcon: some View {
-        ZStack {
-            Circle()
-                .fill(palette.iconBackground)
-                .frame(width: 36, height: 36)
-            
-            Group {
-                if let customIcon = headerCustomIconName {
-                    Image(customIcon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 24, height: 24)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: headerSymbolName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(palette.iconPrimary)
-                }
-            }
-        }
-    }
     
     var isScheduledMessage: Bool {
         proposal.tool.lowercased().contains("schedule")

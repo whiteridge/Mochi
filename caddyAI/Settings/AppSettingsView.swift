@@ -10,11 +10,11 @@ struct AppSettingsView: View {
 	var body: some View {
 		NavigationSplitView {
 			sidebarView
+				.toolbar(removing: .sidebarToggle)
 		} detail: {
 			detailView
 		}
 		.navigationSplitViewStyle(.balanced)
-		.toolbar(removing: .sidebarToggle)
 		.toolbar(.hidden, for: .windowToolbar)
 		.onAppear { viewModel.loadPersistedValues() }
 	}

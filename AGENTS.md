@@ -3,6 +3,7 @@
 ## Working Agreements
 - Prefer small diffs. If a change is large, propose a plan first.
 - Don’t add new dependencies (Swift packages / Python deps) without asking.
+- Always search the documentation first when updating behavior or setup.
 
 ### Swift (macOS)
 - After Swift code changes, run:
