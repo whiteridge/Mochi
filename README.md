@@ -5,35 +5,32 @@ Native macOS overlay for fast local transcription and tool-assisted actions.
 ## Highlights
 - Always-on-top bubble with chat expansion
 - Local-first speech-to-text (FluidAudio/Parakeet)
-- OpenAI-powered intent parsing and tool calls (planned)
-- Modular action layer for integrations
+- Gemini-powered intent parsing and tool calls via local backend
+- Action confirmations for Linear, Slack, GitHub, Notion, Gmail, Google Calendar
 
 ## Architecture
 - UI: SwiftUI + NSWindow transparency for the glass effect
 - Audio: FluidAudio / Parakeet TDT v3
-- Reasoning: OpenAI Chat Completions (tools)
-- Actions: Swift tool manager (Linear, Slack, macOS)
+- Reasoning: Google Gemini 2.5 Flash (tools)
+- Backend: FastAPI agent + Composio tool layer
+- Actions: SwiftUI proposal and confirmation cards
 
 ## Status
 v0.5 MVP core. Action engine and integrations are in progress.
 
 ## Roadmap
-- Tool-use protocol + ToolManager
-- Keychain-backed settings
-- Action preview states
-- Linear, Slack, and macOS actions
+See `ROADMAP.md` for current priorities and progress.
 
 ## Tech
 - Swift 5.9+, SwiftUI
 - URLSession networking
 - ObservableObject state
+- Python 3.11, FastAPI, Composio, google-genai
 
 ## Setup
-See `SETUP.md` for step-by-step instructions.
-
-## Docs
-- `KEYBOARD_INTERACTION.md` - keyboard model and shortcuts
-- `SETUP.md` - setup wizard and integrations
+- macOS app: open `caddyAI.xcodeproj` and run the `caddyAI` scheme
+- Backend: `cd backend && pip install -r requirements.txt && uvicorn main:app --reload`
+- Env: set `GOOGLE_API_KEY` and `COMPOSIO_API_KEY` (optional `COMPOSIO_USER_ID`)
 
 ## Contributing
 Focus on stability and the action/tooling layer.

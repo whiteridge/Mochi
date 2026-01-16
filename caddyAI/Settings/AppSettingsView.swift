@@ -13,7 +13,9 @@ struct AppSettingsView: View {
 		} detail: {
 			detailView
 		}
+		.navigationSplitViewStyle(.balanced)
 		.toolbar(removing: .sidebarToggle)
+		.toolbar(.hidden, for: .windowToolbar)
 		.onAppear { viewModel.loadPersistedValues() }
 	}
 	
