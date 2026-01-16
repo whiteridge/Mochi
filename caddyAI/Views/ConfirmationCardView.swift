@@ -25,6 +25,9 @@ struct ConfirmationCardView: View {
     
     @State private var showButtonGlow: Bool = false
     @State private var previousProposalIndex: Int? = nil
+    @State private var glowEndToken: Int = 0
+
+    private let glowTransitionHold: TimeInterval = 0.45
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -42,7 +45,7 @@ struct ConfirmationCardView: View {
             if newValue {
                 startButtonGlow()
             } else {
-                endButtonGlow()
+                endButtonGlow(after: glowTransitionHold)
             }
         }
         .onAppear {
@@ -50,7 +53,7 @@ struct ConfirmationCardView: View {
         }
         .onChange(of: proposal.proposalIndex) { _, newValue in
             previousProposalIndex = newValue
-            endButtonGlow()
+            endButtonGlow(after: glowTransitionHold)
         }
     }
 }
@@ -71,13 +74,6 @@ private extension ConfirmationCardView {
                         .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    if let summaryText = proposal.summaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !summaryText.isEmpty {
-                        Text(summaryText)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(palette.tertiaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
                 
                 Spacer()
@@ -190,17 +186,27 @@ private extension ConfirmationCardView {
     @ViewBuilder
     var actionButtonsSection: some View {
         if proposal.isSlackApp {
-            SlackActionButtons(proposal: proposal, isExecuting: isExecuting, onConfirm: onConfirm)
+            SlackActionButtons(
+                proposal: proposal,
+                isExecuting: isExecuting,
+                onConfirm: onConfirm,
+                gradientNamespace: rotatingLightNamespace
+            )
         } else {
             actionButton
         }
     }
     
     var actionButton: some View {
-        return ActionGlowButton(title: confirmButtonTitle, isExecuting: isExecuting) {
-            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-            onConfirm()
-        }
+        return ActionGlowButton(
+            title: confirmButtonTitle,
+            isExecuting: isExecuting,
+            action: {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                onConfirm()
+            },
+            gradientNamespace: rotatingLightNamespace
+        )
     }
     
     @ViewBuilder
@@ -216,21 +222,37 @@ private extension ConfirmationCardView {
     }
     
     var glowOverlay: some View {
-        Group {
-            if !isExecuting {
-                RotatingGradientFill(
-                    shape: .roundedRect(cornerRadius: 24),
-                    rotationSpeed: 6.0,
-                    intensity: showButtonGlow ? (isFinalAction ? 0.25 : 0.18) : 0,
-                    renderStyle: .cone(origin: UnitPoint(x: 0.85, y: 0.9))
-                )
-                .matchedGeometryEffect(id: "gradientFill", in: rotatingLightNamespace)
-                .opacity(showButtonGlow ? 1 : 0)
-                .animation(.easeOut(duration: 0.5), value: showButtonGlow)
-                .allowsHitTesting(false)
-            } else {
-                EmptyView()
-            }
+        let isGlowActive = isExecuting || showButtonGlow
+        return GeometryReader { proxy in
+            let size = proxy.size
+            let maxRadius = max(size.width, size.height) * 1.1
+            let maskGradient = RadialGradient(
+                gradient: Gradient(stops: [
+                    .init(color: .white, location: 0),
+                    .init(color: .white.opacity(0.9), location: 0.32),
+                    .init(color: .white.opacity(0.55), location: 0.7),
+                    .init(color: .white.opacity(0.22), location: 1)
+                ]),
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: maxRadius
+            )
+
+            RotatingGradientFill(
+                shape: .roundedRect(cornerRadius: 24),
+                rotationSpeed: 4.5,
+                intensity: isFinalAction ? 0.45 : 0.38,
+                renderStyle: .cone(origin: UnitPoint(x: 0.9, y: 0.92))
+            )
+            .opacity(isGlowActive ? 1 : 0)
+            .blendMode(.plusLighter)
+            .mask(
+                maskGradient
+                    .scaleEffect(isGlowActive ? 1 : 0.14, anchor: .bottomTrailing)
+                    .blur(radius: 10)
+            )
+            .animation(.spring(response: 0.6, dampingFraction: 0.85), value: isGlowActive)
+            .allowsHitTesting(false)
         }
     }
 }
@@ -383,14 +405,25 @@ private extension ConfirmationCardView {
 
 private extension ConfirmationCardView {
     func startButtonGlow() {
+        glowEndToken += 1
         withAnimation(.easeOut(duration: 0.5)) {
             showButtonGlow = true
         }
     }
     
-    func endButtonGlow() {
-        withAnimation(.easeOut(duration: 0.35)) {
-            showButtonGlow = false
+    func endButtonGlow(after delay: TimeInterval = 0) {
+        glowEndToken += 1
+        let token = glowEndToken
+        let endAction = {
+            guard token == glowEndToken else { return }
+            withAnimation(.easeOut(duration: 0.35)) {
+                showButtonGlow = false
+            }
+        }
+        if delay <= 0 {
+            endAction()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: endAction)
         }
     }
 }

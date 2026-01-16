@@ -33,16 +33,7 @@ struct CalendarStageSection: View {
                         .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(calendarDateTimeLine)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(palette.secondaryText)
-
-                    if let hint = calendarDetails.hintText {
-                        Text(hint)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(palette.tertiaryText)
-                    }
-
+                    calendarScheduleSection
                     calendarAttendeesSection
                     calendarLocationSection
                     calendarDescriptionSection
@@ -84,15 +75,54 @@ struct CalendarStageSection: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func calendarFieldContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            content()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.leading, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
+        )
+    }
     
     // MARK: - Calendar Detail Sections
 
     @ViewBuilder
+    var calendarScheduleSection: some View {
+        calendarFieldContainer {
+            Text("Schedule")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(palette.tertiaryText)
+
+            Text(calendarDateTimeLine)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(palette.primaryText)
+
+            if let hint = calendarDetails.hintText {
+                Text(hint)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(palette.secondaryText)
+            }
+        }
+    }
+
+    @ViewBuilder
     var calendarAttendeesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        calendarFieldContainer {
             Text("People")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(palette.tertiaryText)
+
             if calendarDetails.attendees.isEmpty {
                 Text("Add participant")
                     .font(.system(size: 12, weight: .regular))
@@ -118,16 +148,16 @@ struct CalendarStageSection: View {
 
     @ViewBuilder
     var calendarLocationSection: some View {
-        if let location = calendarDetails.locationDisplay {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Location")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(palette.tertiaryText)
+        calendarFieldContainer {
+            Text("Location")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(palette.tertiaryText)
 
+            if let location = calendarDetails.locationDisplay {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(palette.tertiaryText)
+                        .foregroundStyle(palette.secondaryText)
                     
                     VStack(alignment: .leading, spacing: 2) {
                         Text(location.primary)
@@ -138,18 +168,12 @@ struct CalendarStageSection: View {
                         if let secondary = location.secondary {
                             Text(secondary)
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundStyle(palette.tertiaryText)
+                                .foregroundStyle(palette.secondaryText)
                                 .lineLimit(1)
                         }
                     }
                 }
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Location")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(palette.tertiaryText)
-
+            } else {
                 Text("Add location or conferencing")
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(palette.tertiaryText)
@@ -159,16 +183,16 @@ struct CalendarStageSection: View {
 
     @ViewBuilder
     var calendarDescriptionSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        calendarFieldContainer {
             Text("Notes")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(palette.tertiaryText)
-            
+
             if let description = calendarDetails.descriptionText {
                 ScrollableTextArea(maxHeight: 120, indicatorColor: palette.subtleBorder.opacity(0.35)) {
                     Text(description)
                         .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(palette.secondaryText)
+                        .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -192,8 +216,12 @@ struct CalendarStageSection: View {
         .padding(8)
         .frame(width: 170, height: timelineTargetHeight)
         .background(
+            LiquidGlassSurface(shape: .roundedRect(14), prominence: .subtle, shadowed: false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(palette.iconBackground)
+                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
         )
     }
     
@@ -227,14 +255,8 @@ struct CalendarStageSection: View {
         return "\(startText) - \(endText)"
     }
 
-    func calendarAttendeeColor(index: Int) -> Color {
-        let colors: [Color] = [
-            Color(nsColor: .systemBlue).opacity(0.75),
-            Color(nsColor: .systemOrange).opacity(0.75),
-            Color(nsColor: .systemGreen).opacity(0.75),
-            Color(nsColor: .systemPink).opacity(0.75)
-        ]
-        return colors[index % colors.count]
+    func calendarAttendeeColor(index _: Int) -> Color {
+        palette.iconSecondary.opacity(0.75)
     }
     
     private var notesBottomPadding: CGFloat {

@@ -21,19 +21,7 @@ struct LinearStageSection: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
-                    
-                    if hasValidPriority {
-                        Text(priorityDisplay)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(ActionGlowPalette.glow)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(ActionGlowPalette.glow.opacity(0.14))
-                            )
-                    }
-                    
+
                     Spacer(minLength: 0)
                 }
                 
@@ -56,7 +44,7 @@ struct LinearStageSection: View {
                 }
                 
                 if hasAnyLinearMetadata {
-                    MetadataGrid(items: linearMetadataItems, columns: stageMetadataColumns)
+                    LinearMetadataGrid(items: linearMetadataItems, columns: stageMetadataColumns)
                 }
             }
         }
@@ -114,13 +102,13 @@ struct LinearStageSection: View {
         hasValidValue(assigneeDisplay, excluding: ["Unassigned"])
     }
     
-    var linearMetadataItems: [(String, String)] {
-        var items: [(String, String)] = []
-        if hasValidTeam { items.append(("Team", teamDisplay)) }
-        if hasValidProject { items.append(("Project", projectDisplay)) }
-        if hasValidStatus { items.append(("Status", statusDisplay)) }
-        if hasValidPriority { items.append(("Urgency", priorityDisplay)) }
-        if hasValidAssignee { items.append(("Assignee", assigneeDisplay)) }
+    private var linearMetadataItems: [LinearMetadataItem] {
+        var items: [LinearMetadataItem] = []
+        if hasValidTeam { items.append(LinearMetadataItem(title: "Team", value: teamDisplay, accent: nil)) }
+        if hasValidProject { items.append(LinearMetadataItem(title: "Project", value: projectDisplay, accent: nil)) }
+        if hasValidStatus { items.append(LinearMetadataItem(title: "Status", value: statusDisplay, accent: statusAccentColor)) }
+        if hasValidPriority { items.append(LinearMetadataItem(title: "Urgency", value: priorityDisplay, accent: priorityAccentColor)) }
+        if hasValidAssignee { items.append(LinearMetadataItem(title: "Assignee", value: assigneeDisplay, accent: nil)) }
         return items
     }
 
@@ -163,6 +151,10 @@ struct LinearStageSection: View {
         }
         return proposal.priority?.nilIfEmpty ?? "No Priority"
     }
+
+    private var priorityAccentColor: Color {
+        accentForPriority(priorityDisplay)
+    }
     
     var statusDisplay: String {
         let stateName = proposal.args["stateName"] as? String
@@ -179,6 +171,10 @@ struct LinearStageSection: View {
             return statusValue
         }
         return "Todo"
+    }
+
+    private var statusAccentColor: Color {
+        accentForStatus(statusDisplay)
     }
     
     var assigneeDisplay: String {
@@ -225,6 +221,40 @@ struct LinearStageSection: View {
         }
         return "None"
     }
+
+    private func accentForStatus(_ status: String) -> Color {
+        let normalized = status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.contains("progress") || normalized.contains("doing") || normalized.contains("review") {
+            return Color(red: 0.34, green: 0.62, blue: 0.98)
+        }
+        if normalized.contains("blocked") || normalized.contains("stuck") || normalized.contains("on hold") {
+            return Color(red: 0.93, green: 0.38, blue: 0.41)
+        }
+        if normalized.contains("done") || normalized.contains("complete") || normalized.contains("closed") {
+            return Color(red: 0.32, green: 0.82, blue: 0.54)
+        }
+        if normalized.contains("backlog") || normalized.contains("todo") || normalized.contains("triage") {
+            return Color(red: 0.62, green: 0.66, blue: 0.72)
+        }
+        return Color(red: 0.34, green: 0.62, blue: 0.98)
+    }
+
+    private func accentForPriority(_ priority: String) -> Color {
+        let normalized = priority.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.contains("urgent") || normalized.contains("p0") {
+            return Color(red: 0.95, green: 0.31, blue: 0.36)
+        }
+        if normalized.contains("high") || normalized.contains("p1") {
+            return Color(red: 0.96, green: 0.55, blue: 0.27)
+        }
+        if normalized.contains("medium") || normalized.contains("p2") {
+            return Color(red: 0.96, green: 0.75, blue: 0.32)
+        }
+        if normalized.contains("low") || normalized.contains("p3") {
+            return Color(red: 0.45, green: 0.66, blue: 0.96)
+        }
+        return Color(red: 0.62, green: 0.66, blue: 0.72)
+    }
     
     // Helper function to detect UUID format
     private func isUUID(_ string: String) -> Bool {
@@ -233,6 +263,121 @@ struct LinearStageSection: View {
         let regex = try? NSRegularExpression(pattern: uuidPattern, options: .caseInsensitive)
         let range = NSRange(location: 0, length: string.utf16.count)
         return regex?.firstMatch(in: string, options: [], range: range) != nil
+    }
+}
+
+private struct LinearMetadataItem {
+    let title: String
+    let value: String
+    let accent: Color?
+}
+
+private struct LinearMetadataGrid: View {
+    let items: [LinearMetadataItem]
+    let columns: [GridItem]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(items, id: \.title) { item in
+                LinearMetadataGridItem(item: item)
+            }
+        }
+    }
+}
+
+private struct LinearMetadataGridItem: View {
+    let item: LinearMetadataItem
+    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
+
+	private var glowOpacity: Double {
+		colorScheme == .dark ? 0.45 : 0.28
+	}
+
+	private var glowWidth: CGFloat {
+		120
+	}
+
+	private var glowBlur: CGFloat {
+		12
+	}
+
+	private var strokeOpacity: Double {
+		colorScheme == .dark ? 0.35 : 0.22
+	}
+
+	private var barOpacity: Double {
+		colorScheme == .dark ? 0.85 : 0.65
+	}
+
+	private var barShadowOpacity: Double {
+		colorScheme == .dark ? 0.45 : 0.3
+	}
+
+	private var valueOpacity: Double {
+		colorScheme == .dark ? 0.9 : 0.85
+	}
+
+	private var valueColor: Color {
+		guard let accent = item.accent else { return palette.primaryText }
+		return accent.opacity(valueOpacity)
+	}
+
+	private var strokeColor: Color {
+		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
+		return accent.opacity(strokeOpacity)
+	}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(item.title.uppercased())
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(palette.tertiaryText)
+
+            Text(item.value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(valueColor)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.leading, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+			ZStack(alignment: .leading) {
+				LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+				Rectangle()
+					.fill(
+						LinearGradient(
+							colors: [
+								item.accent.opacity(glowOpacity),
+								item.accent.opacity(0)
+							],
+							startPoint: .leading,
+							endPoint: .trailing
+						)
+					)
+					.frame(width: glowWidth)
+					.blur(radius: glowBlur)
+			}
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(item.accent.opacity(strokeOpacity), lineWidth: 0.6)
+        )
+        .overlay(alignment: .leading) {
+			RoundedRectangle(cornerRadius: 2, style: .continuous)
+				.fill(item.accent.opacity(barOpacity))
+				.frame(width: 3)
+				.padding(.leading, 6)
+				.padding(.vertical, 10)
+				.shadow(color: item.accent.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+        }
     }
 }
 

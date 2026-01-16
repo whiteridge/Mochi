@@ -6,13 +6,14 @@ struct ActionGlowButton: View {
     let action: () -> Void
     var height: CGFloat = 48
     var horizontalPadding: CGFloat = 24
+    var gradientNamespace: Namespace.ID? = nil
 
     var body: some View {
         Button(action: action) {
             ActionGlowButtonLabel(title: title, isExecuting: isExecuting)
                 .padding(.horizontal, horizontalPadding)
                 .frame(height: height)
-                .background(ActionGlowCapsuleBackground(showRing: isExecuting))
+                .background(ActionGlowCapsuleBackground(showRing: isExecuting, gradientNamespace: gradientNamespace))
         }
         .buttonStyle(.plain)
     }

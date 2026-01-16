@@ -35,7 +35,7 @@ struct GitHubStageSection: View {
                 }
 
                 if !githubMetadataItems.isEmpty {
-                    MetadataGrid(items: githubMetadataItems, columns: stageMetadataColumns)
+                    GitHubMetadataGrid(items: githubMetadataItems, columns: stageMetadataColumns)
                 }
             }
         }
@@ -113,38 +113,84 @@ struct GitHubStageSection: View {
         isPullRequest || isIssue || isComment
     }
 
-    private var githubMetadataItems: [(String, String)] {
-        var items: [(String, String)] = []
+    private var githubMetadataItems: [GitHubMetadataItem] {
+        var items: [GitHubMetadataItem] = []
         if let repo = proposal.githubRepoFullName?.nilIfEmpty {
-            items.append(("Repo", repo))
+            items.append(GitHubMetadataItem(title: "Repo", value: repo, accent: repoAccentColor))
         }
         if let prNumber = proposal.githubPullNumber?.nilIfEmpty {
-            items.append(("PR", "#\(prNumber)"))
+            items.append(GitHubMetadataItem(title: "PR", value: "#\(prNumber)", accent: pullRequestAccentColor))
         } else if let issueNumber = proposal.githubIssueNumber?.nilIfEmpty {
-            items.append(("Issue", "#\(issueNumber)"))
+            items.append(GitHubMetadataItem(title: "Issue", value: "#\(issueNumber)", accent: issueAccentColor))
         }
         if isPullRequest {
             if let base = proposal.githubBase?.nilIfEmpty {
-                items.append(("Base", base))
+                items.append(GitHubMetadataItem(title: "Base", value: base, accent: baseAccentColor))
             }
             if let head = proposal.githubHead?.nilIfEmpty {
-                items.append(("Head", head))
+                items.append(GitHubMetadataItem(title: "Head", value: head, accent: headAccentColor))
             }
         }
         if isIssue {
             let labels = compactList(proposal.githubLabels)
             if let labels {
-                items.append(("Labels", labels))
+                items.append(GitHubMetadataItem(title: "Labels", value: labels, accent: labelsAccentColor))
             }
             let assignees = compactList(proposal.githubAssignees)
             if let assignees {
-                items.append(("Assignees", assignees))
+                items.append(GitHubMetadataItem(title: "Assignees", value: assignees, accent: assigneesAccentColor))
             }
         }
         if isRepoCreation, let visibility = proposal.githubVisibility?.nilIfEmpty {
-            items.append(("Visibility", visibility))
+            items.append(GitHubMetadataItem(title: "Visibility", value: visibility, accent: accentForVisibility(visibility)))
         }
         return items
+    }
+
+    private var repoAccentColor: Color {
+        Color(red: 0.30, green: 0.64, blue: 0.92)
+    }
+
+    private var pullRequestAccentColor: Color {
+        Color(red: 0.28, green: 0.82, blue: 0.58)
+    }
+
+    private var issueAccentColor: Color {
+        Color(red: 0.96, green: 0.56, blue: 0.30)
+    }
+
+    private var baseAccentColor: Color {
+        Color(red: 0.45, green: 0.72, blue: 0.86)
+    }
+
+    private var headAccentColor: Color {
+        Color(red: 0.36, green: 0.78, blue: 0.70)
+    }
+
+    private var labelsAccentColor: Color {
+        Color(red: 0.94, green: 0.71, blue: 0.34)
+    }
+
+    private var assigneesAccentColor: Color {
+        Color(red: 0.87, green: 0.52, blue: 0.58)
+    }
+
+    private var visibilityAccentColor: Color {
+        Color(red: 0.62, green: 0.66, blue: 0.72)
+    }
+
+    private func accentForVisibility(_ visibility: String) -> Color {
+        let normalized = visibility.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.contains("public") {
+            return Color(red: 0.32, green: 0.82, blue: 0.54)
+        }
+        if normalized.contains("private") {
+            return Color(red: 0.93, green: 0.38, blue: 0.41)
+        }
+        if normalized.contains("internal") {
+            return Color(red: 0.94, green: 0.71, blue: 0.34)
+        }
+        return visibilityAccentColor
     }
 
     private func compactList(_ values: [String]) -> String? {
@@ -154,6 +200,82 @@ struct GitHubStageSection: View {
             return cleaned.joined(separator: ", ")
         }
         return "\(cleaned[0]), \(cleaned[1]) +\(cleaned.count - 2)"
+    }
+}
+
+private struct GitHubMetadataItem {
+    let title: String
+    let value: String
+    let accent: Color
+}
+
+private struct GitHubMetadataGrid: View {
+    let items: [GitHubMetadataItem]
+    let columns: [GridItem]
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(items, id: \.title) { item in
+                GitHubMetadataGridItem(item: item)
+            }
+        }
+    }
+}
+
+private struct GitHubMetadataGridItem: View {
+    let item: GitHubMetadataItem
+    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
+
+    private var accentFill: Color {
+        item.accent.opacity(colorScheme == .dark ? 0.2 : 0.12)
+    }
+
+    private var accentStroke: Color {
+        item.accent.opacity(colorScheme == .dark ? 0.5 : 0.35)
+    }
+
+    private var accentTag: Color {
+        item.accent.opacity(colorScheme == .dark ? 0.7 : 0.55)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(item.title.uppercased())
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(palette.tertiaryText)
+
+            Text(item.value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(item.accent)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            ZStack {
+                LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(accentFill)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accentStroke, lineWidth: 0.6)
+        )
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(accentTag)
+                .frame(width: 3)
+                .padding(.leading, 6)
+                .padding(.vertical, 10)
+        }
     }
 }
 

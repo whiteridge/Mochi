@@ -35,7 +35,11 @@ struct SlackStageSection: View {
                 }
                 
                 if !slackMetadataItems.isEmpty {
-                    MetadataGrid(items: slackMetadataItems, columns: stageMetadataColumns)
+					LazyVGrid(columns: stageMetadataColumns, alignment: .leading, spacing: 12) {
+						ForEach(slackMetadataItems, id: \.title) { item in
+							SlackMetadataGridItem(item: item)
+						}
+					}
                 }
             }
         }
@@ -102,16 +106,34 @@ struct SlackStageSection: View {
         return Self.slackScheduleFormatter.string(from: date)
     }
 
-    var slackMetadataItems: [(String, String)] {
-        var items: [(String, String)] = []
+	struct SlackMetadataItem {
+		let title: String
+		let value: String
+		let tint: Color
+	}
+
+	private var slackChannelTint: Color {
+		Color(red: 0.36, green: 0.58, blue: 0.96)
+	}
+
+	private var slackRecipientTint: Color {
+		Color(red: 0.26, green: 0.74, blue: 0.62)
+	}
+
+	private var slackScheduleTint: Color {
+		Color(red: 0.98, green: 0.7, blue: 0.34)
+	}
+
+    var slackMetadataItems: [SlackMetadataItem] {
+        var items: [SlackMetadataItem] = []
         if let channel = slackChannelDisplay {
-            items.append(("Channel", channel))
+            items.append(SlackMetadataItem(title: "Channel", value: channel, tint: slackChannelTint))
         }
         if let recipient = slackRecipientDisplay {
-            items.append(("Recipient", recipient))
+            items.append(SlackMetadataItem(title: "Recipient", value: recipient, tint: slackRecipientTint))
         }
         if let schedule = slackScheduleDisplay {
-            items.append(("Schedule", schedule))
+            items.append(SlackMetadataItem(title: "Schedule", value: schedule, tint: slackScheduleTint))
         }
         return items
     }
@@ -177,12 +199,98 @@ struct SlackStageSection: View {
     }()
 }
 
+private struct SlackMetadataGridItem: View {
+	let item: SlackStageSection.SlackMetadataItem
+	@Environment(\.colorScheme) private var colorScheme
+	@EnvironmentObject private var preferences: PreferencesStore
+
+	private var palette: LiquidGlassPalette {
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+	}
+
+	private var glowOpacity: Double {
+		colorScheme == .dark ? 0.45 : 0.28
+	}
+
+	private var glowWidth: CGFloat {
+		120
+	}
+
+	private var glowBlur: CGFloat {
+		12
+	}
+
+	private var strokeOpacity: Double {
+		colorScheme == .dark ? 0.35 : 0.22
+	}
+
+	private var barOpacity: Double {
+		colorScheme == .dark ? 0.85 : 0.65
+	}
+
+	private var barShadowOpacity: Double {
+		colorScheme == .dark ? 0.45 : 0.3
+	}
+
+	private var valueOpacity: Double {
+		colorScheme == .dark ? 0.9 : 0.85
+	}
+
+	var body: some View {
+		HStack(alignment: .top, spacing: 12) {
+			RoundedRectangle(cornerRadius: 2, style: .continuous)
+				.fill(item.tint.opacity(barOpacity))
+				.frame(width: 4)
+				.padding(.vertical, 4)
+				.shadow(color: item.tint.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+
+			VStack(alignment: .leading, spacing: 4) {
+				Text(item.title.uppercased())
+					.font(.system(size: 10, weight: .medium))
+					.foregroundStyle(palette.tertiaryText)
+
+				Text(item.value)
+					.font(.system(size: 13, weight: .semibold))
+					.foregroundStyle(item.tint.opacity(valueOpacity))
+					.lineLimit(1)
+			}
+		}
+		.padding(.vertical, 8)
+		.padding(.horizontal, 10)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.background(
+			ZStack(alignment: .leading) {
+				LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+				Rectangle()
+					.fill(
+						LinearGradient(
+							colors: [
+								item.tint.opacity(glowOpacity),
+								item.tint.opacity(0)
+							],
+							startPoint: .leading,
+							endPoint: .trailing
+						)
+					)
+					.frame(width: glowWidth)
+					.blur(radius: glowBlur)
+			}
+		)
+		.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+		.overlay(
+			RoundedRectangle(cornerRadius: 12, style: .continuous)
+				.stroke(item.tint.opacity(strokeOpacity), lineWidth: 0.6)
+		)
+	}
+}
+
 // MARK: - Slack Action Buttons
 
 struct SlackActionButtons: View {
     let proposal: ProposalData
     let isExecuting: Bool
     let onConfirm: () -> Void
+    var gradientNamespace: Namespace.ID? = nil
     
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
@@ -198,10 +306,15 @@ struct SlackActionButtons: View {
     var body: some View {
         HStack(spacing: 12) {
             // Primary "Send" button
-            ActionGlowButton(title: "Send", isExecuting: isExecuting) {
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-                onConfirm()
-            }
+            ActionGlowButton(
+                title: "Send",
+                isExecuting: isExecuting,
+                action: {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                    onConfirm()
+                },
+                gradientNamespace: gradientNamespace
+            )
             
             // Secondary "Schedule message" button (only for scheduled message tool)
             if isScheduledMessage {

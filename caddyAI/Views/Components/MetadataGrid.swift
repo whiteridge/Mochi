@@ -34,6 +34,16 @@ struct MetadataGridItem: View {
                 .foregroundStyle(palette.primaryText)
                 .lineLimit(1)
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
+        )
     }
 }
