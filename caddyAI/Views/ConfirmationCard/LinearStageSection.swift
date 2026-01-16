@@ -350,33 +350,37 @@ private struct LinearMetadataGridItem: View {
         .background(
 			ZStack(alignment: .leading) {
 				LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
-				Rectangle()
-					.fill(
-						LinearGradient(
-							colors: [
-								item.accent.opacity(glowOpacity),
-								item.accent.opacity(0)
-							],
-							startPoint: .leading,
-							endPoint: .trailing
+				if let accent = item.accent {
+					Rectangle()
+						.fill(
+							LinearGradient(
+								colors: [
+									accent.opacity(glowOpacity),
+									accent.opacity(0)
+								],
+								startPoint: .leading,
+								endPoint: .trailing
+							)
 						)
-					)
-					.frame(width: glowWidth)
-					.blur(radius: glowBlur)
+						.frame(width: glowWidth)
+						.blur(radius: glowBlur)
+				}
 			}
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(item.accent.opacity(strokeOpacity), lineWidth: 0.6)
+                .stroke(strokeColor, lineWidth: 0.6)
         )
         .overlay(alignment: .leading) {
-			RoundedRectangle(cornerRadius: 2, style: .continuous)
-				.fill(item.accent.opacity(barOpacity))
-				.frame(width: 3)
-				.padding(.leading, 6)
-				.padding(.vertical, 10)
-				.shadow(color: item.accent.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+			if let accent = item.accent {
+				RoundedRectangle(cornerRadius: 2, style: .continuous)
+					.fill(accent.opacity(barOpacity))
+					.frame(width: 3)
+					.padding(.leading, 6)
+					.padding(.vertical, 10)
+					.shadow(color: accent.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+			}
         }
     }
 }

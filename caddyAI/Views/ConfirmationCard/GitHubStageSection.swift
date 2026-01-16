@@ -116,63 +116,35 @@ struct GitHubStageSection: View {
     private var githubMetadataItems: [GitHubMetadataItem] {
         var items: [GitHubMetadataItem] = []
         if let repo = proposal.githubRepoFullName?.nilIfEmpty {
-            items.append(GitHubMetadataItem(title: "Repo", value: repo, accent: repoAccentColor))
+            items.append(GitHubMetadataItem(title: "Repo", value: repo, accent: nil))
         }
         if let prNumber = proposal.githubPullNumber?.nilIfEmpty {
-            items.append(GitHubMetadataItem(title: "PR", value: "#\(prNumber)", accent: pullRequestAccentColor))
+            items.append(GitHubMetadataItem(title: "PR", value: "#\(prNumber)", accent: nil))
         } else if let issueNumber = proposal.githubIssueNumber?.nilIfEmpty {
-            items.append(GitHubMetadataItem(title: "Issue", value: "#\(issueNumber)", accent: issueAccentColor))
+            items.append(GitHubMetadataItem(title: "Issue", value: "#\(issueNumber)", accent: nil))
         }
         if isPullRequest {
             if let base = proposal.githubBase?.nilIfEmpty {
-                items.append(GitHubMetadataItem(title: "Base", value: base, accent: baseAccentColor))
+                items.append(GitHubMetadataItem(title: "Base", value: base, accent: nil))
             }
             if let head = proposal.githubHead?.nilIfEmpty {
-                items.append(GitHubMetadataItem(title: "Head", value: head, accent: headAccentColor))
+                items.append(GitHubMetadataItem(title: "Head", value: head, accent: nil))
             }
         }
         if isIssue {
             let labels = compactList(proposal.githubLabels)
             if let labels {
-                items.append(GitHubMetadataItem(title: "Labels", value: labels, accent: labelsAccentColor))
+                items.append(GitHubMetadataItem(title: "Labels", value: labels, accent: nil))
             }
             let assignees = compactList(proposal.githubAssignees)
             if let assignees {
-                items.append(GitHubMetadataItem(title: "Assignees", value: assignees, accent: assigneesAccentColor))
+                items.append(GitHubMetadataItem(title: "Assignees", value: assignees, accent: nil))
             }
         }
         if isRepoCreation, let visibility = proposal.githubVisibility?.nilIfEmpty {
             items.append(GitHubMetadataItem(title: "Visibility", value: visibility, accent: accentForVisibility(visibility)))
         }
         return items
-    }
-
-    private var repoAccentColor: Color {
-        Color(red: 0.30, green: 0.64, blue: 0.92)
-    }
-
-    private var pullRequestAccentColor: Color {
-        Color(red: 0.28, green: 0.82, blue: 0.58)
-    }
-
-    private var issueAccentColor: Color {
-        Color(red: 0.96, green: 0.56, blue: 0.30)
-    }
-
-    private var baseAccentColor: Color {
-        Color(red: 0.45, green: 0.72, blue: 0.86)
-    }
-
-    private var headAccentColor: Color {
-        Color(red: 0.36, green: 0.78, blue: 0.70)
-    }
-
-    private var labelsAccentColor: Color {
-        Color(red: 0.94, green: 0.71, blue: 0.34)
-    }
-
-    private var assigneesAccentColor: Color {
-        Color(red: 0.87, green: 0.52, blue: 0.58)
     }
 
     private var visibilityAccentColor: Color {
@@ -206,7 +178,7 @@ struct GitHubStageSection: View {
 private struct GitHubMetadataItem {
     let title: String
     let value: String
-    let accent: Color
+    let accent: Color?
 }
 
 private struct GitHubMetadataGrid: View {
@@ -232,15 +204,22 @@ private struct GitHubMetadataGridItem: View {
     }
 
     private var accentFill: Color {
-        item.accent.opacity(colorScheme == .dark ? 0.2 : 0.12)
+        guard let accent = item.accent else { return .clear }
+        return accent.opacity(colorScheme == .dark ? 0.2 : 0.12)
     }
 
     private var accentStroke: Color {
-        item.accent.opacity(colorScheme == .dark ? 0.5 : 0.35)
+        guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
+        return accent.opacity(colorScheme == .dark ? 0.5 : 0.35)
     }
 
     private var accentTag: Color {
-        item.accent.opacity(colorScheme == .dark ? 0.7 : 0.55)
+        guard let accent = item.accent else { return .clear }
+        return accent.opacity(colorScheme == .dark ? 0.7 : 0.55)
+    }
+
+    private var valueColor: Color {
+        item.accent ?? palette.primaryText
     }
 
     var body: some View {
@@ -251,7 +230,7 @@ private struct GitHubMetadataGridItem: View {
 
             Text(item.value)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(item.accent)
+                .foregroundStyle(valueColor)
                 .lineLimit(1)
         }
         .padding(.vertical, 8)
@@ -260,8 +239,10 @@ private struct GitHubMetadataGridItem: View {
         .background(
             ZStack {
                 LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(accentFill)
+                if item.accent != nil {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(accentFill)
+                }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -270,11 +251,13 @@ private struct GitHubMetadataGridItem: View {
                 .stroke(accentStroke, lineWidth: 0.6)
         )
         .overlay(alignment: .leading) {
-            Capsule()
-                .fill(accentTag)
-                .frame(width: 3)
-                .padding(.leading, 6)
-                .padding(.vertical, 10)
+            if item.accent != nil {
+                Capsule()
+                    .fill(accentTag)
+                    .frame(width: 3)
+                    .padding(.leading, 6)
+                    .padding(.vertical, 10)
+            }
         }
     }
 }

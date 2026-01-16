@@ -116,15 +116,7 @@ struct NotionStageSection: View {
 	struct NotionMetadataItem {
 		let title: String
 		let value: String
-		let tint: Color
-	}
-
-	private var notionParentTint: Color {
-		Color(red: 0.45, green: 0.6, blue: 0.9)
-	}
-
-	private var notionIconTint: Color {
-		Color(red: 0.98, green: 0.72, blue: 0.32)
+		let accent: Color?
 	}
 
 	private var notionStatusTint: Color {
@@ -133,18 +125,6 @@ struct NotionStageSection: View {
 
 	private var notionNeutralTint: Color {
 		Color(red: 0.52, green: 0.6, blue: 0.76)
-	}
-
-	private var notionTagTint: Color {
-		Color(red: 0.3, green: 0.66, blue: 0.84)
-	}
-
-	private var notionPeopleTint: Color {
-		Color(red: 0.24, green: 0.72, blue: 0.62)
-	}
-
-	private var notionDateTint: Color {
-		Color(red: 0.72, green: 0.52, blue: 0.95)
 	}
 
 	private var notionPriorityHighTint: Color {
@@ -164,22 +144,22 @@ struct NotionStageSection: View {
         
         if let parent = proposal.notionParentId?.trimmingCharacters(in: .whitespacesAndNewlines),
            !parent.isEmpty {
-            items.append(NotionMetadataItem(title: "Parent", value: parent, tint: notionParentTint))
+            items.append(NotionMetadataItem(title: "Parent", value: parent, accent: nil))
         }
         
         if let icon = proposal.notionIcon?.trimmingCharacters(in: .whitespacesAndNewlines),
            !icon.isEmpty,
            icon.count <= 3 {
-            items.append(NotionMetadataItem(title: "Icon", value: icon, tint: notionIconTint))
+            items.append(NotionMetadataItem(title: "Icon", value: icon, accent: nil))
         }
         
         items.append(contentsOf: proposal.notionPropertyPairs.map { title, value in
-			NotionMetadataItem(title: title, value: value, tint: notionTint(for: title, value: value))
+			NotionMetadataItem(title: title, value: value, accent: notionAccent(for: title, value: value))
 		})
         return Array(items.prefix(4))
     }
 
-	private func notionTint(for title: String, value: String) -> Color {
+	private func notionAccent(for title: String, value: String) -> Color? {
 		let key = title.lowercased()
 		let val = value.lowercased()
 
@@ -189,16 +169,7 @@ struct NotionStageSection: View {
 		if key.contains("priority") || key.contains("urgency") {
 			return notionPriorityTint(for: val)
 		}
-		if key.contains("due") || key.contains("date") || key.contains("deadline") {
-			return notionDateTint
-		}
-		if key.contains("owner") || key.contains("assignee") || key.contains("person") || key.contains("people") {
-			return notionPeopleTint
-		}
-		if key.contains("tag") || key.contains("label") || key.contains("category") {
-			return notionTagTint
-		}
-		return notionNeutralTint
+		return nil
 	}
 
 	private func notionStatusTint(for value: String) -> Color {
@@ -268,23 +239,35 @@ private struct NotionMetadataGridItem: View {
 		colorScheme == .dark ? 0.9 : 0.85
 	}
 
+	private var valueColor: Color {
+		guard let accent = item.accent else { return palette.primaryText }
+		return accent.opacity(valueOpacity)
+	}
+
+	private var strokeColor: Color {
+		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
+		return accent.opacity(strokeOpacity)
+	}
+
 	var body: some View {
 		HStack(alignment: .top, spacing: 12) {
-			RoundedRectangle(cornerRadius: 2, style: .continuous)
-				.fill(item.tint.opacity(barOpacity))
-				.frame(width: 4)
-				.padding(.vertical, 4)
-				.shadow(color: item.tint.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+			if let accent = item.accent {
+				RoundedRectangle(cornerRadius: 2, style: .continuous)
+					.fill(accent.opacity(barOpacity))
+					.frame(width: 4)
+					.padding(.vertical, 4)
+					.shadow(color: accent.opacity(barShadowOpacity), radius: 6, x: 0, y: 0)
+			}
 
 			VStack(alignment: .leading, spacing: 4) {
 				Text(item.title.uppercased())
 					.font(.system(size: 10, weight: .medium))
 					.foregroundStyle(palette.tertiaryText)
 
-				Text(item.value)
-					.font(.system(size: 13, weight: .semibold))
-					.foregroundStyle(item.tint.opacity(valueOpacity))
-					.lineLimit(1)
+			Text(item.value)
+				.font(.system(size: 13, weight: .semibold))
+				.foregroundStyle(valueColor)
+				.lineLimit(1)
 			}
 		}
 		.padding(.vertical, 8)
@@ -293,25 +276,27 @@ private struct NotionMetadataGridItem: View {
 		.background(
 			ZStack(alignment: .leading) {
 				LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
-				Rectangle()
-					.fill(
-						LinearGradient(
-							colors: [
-								item.tint.opacity(glowOpacity),
-								item.tint.opacity(0)
-							],
-							startPoint: .leading,
-							endPoint: .trailing
+				if let accent = item.accent {
+					Rectangle()
+						.fill(
+							LinearGradient(
+								colors: [
+									accent.opacity(glowOpacity),
+									accent.opacity(0)
+								],
+								startPoint: .leading,
+								endPoint: .trailing
+							)
 						)
-					)
-					.frame(width: glowWidth)
-					.blur(radius: glowBlur)
+						.frame(width: glowWidth)
+						.blur(radius: glowBlur)
+				}
 			}
 		)
 		.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 12, style: .continuous)
-				.stroke(item.tint.opacity(strokeOpacity), lineWidth: 0.6)
+				.stroke(strokeColor, lineWidth: 0.6)
 		)
 	}
 }
