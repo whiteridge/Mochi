@@ -1,11 +1,20 @@
 import SwiftUI
 
+private struct CalendarDetailsHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct CalendarStageSection: View {
     let proposal: ProposalData
     let stageCornerRadius: CGFloat
     
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
+    @State private var detailsHeight: CGFloat = 0
     
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
@@ -39,22 +48,16 @@ struct CalendarStageSection: View {
                     calendarDescriptionSection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: CalendarDetailsHeightKey.self, value: geo.size.height)
+                    }
+                )
 
                 calendarTimelineSection
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(palette.iconBackground)
-                    )
             }
         }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(ActionGlowPalette.glow.opacity(0.16))
-                .frame(width: 4)
-                .padding(.vertical, 12)
-                .padding(.leading, 8)
-        }
+        .onPreferenceChange(CalendarDetailsHeightKey.self) { detailsHeight = $0 }
     }
     
     // MARK: - Stage Container
@@ -162,16 +165,20 @@ struct CalendarStageSection: View {
                 .foregroundStyle(palette.tertiaryText)
             
             if let description = calendarDetails.descriptionText {
-                Text(description)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(palette.secondaryText)
-                    .lineLimit(3)
+                ScrollableTextArea(maxHeight: 120, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                    Text(description)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(palette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
                 Text("Add description...")
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(palette.tertiaryText)
             }
         }
+        .padding(.bottom, notesBottomPadding)
     }
 
     var calendarTimelineSection: some View {
@@ -182,7 +189,12 @@ struct CalendarStageSection: View {
             title: calendarDetails.title,
             isAllDay: calendarDetails.isAllDay
         )
-        .frame(width: 170)
+        .padding(8)
+        .frame(width: 170, height: timelineTargetHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(palette.iconBackground)
+        )
     }
     
     // MARK: - Calendar Display Helpers
@@ -223,6 +235,20 @@ struct CalendarStageSection: View {
             Color(nsColor: .systemPink).opacity(0.75)
         ]
         return colors[index % colors.count]
+    }
+    
+    private var notesBottomPadding: CGFloat {
+        guard let description = calendarDetails.descriptionText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !description.isEmpty else { return 0 }
+        if description.contains("\n") || description.count > 90 {
+            return 6
+        }
+        return 0
+    }
+    
+    private var timelineTargetHeight: CGFloat {
+        let minHeight: CGFloat = 160
+        return max(detailsHeight, minHeight)
     }
 
     private func calendarFormattedDate(_ date: Date, formatter: DateFormatter) -> String {

@@ -8,6 +8,7 @@ public enum VoiceChatState: Equatable {
     case processing
     case chat
     case success
+    case cancelled
 }
 
 struct ToolStatus: Equatable {
@@ -60,7 +61,8 @@ class AgentViewModel: ObservableObject {
     
     @Published var state: VoiceChatState = .idle {
         didSet {
-            if state == .success {
+            switch state {
+            case .success:
                 Task {
                     try? await Task.sleep(nanoseconds: 2 * 1_000_000_000) // 2 seconds
                     await MainActor.run {
@@ -74,6 +76,19 @@ class AgentViewModel: ObservableObject {
                         }
                     }
                 }
+            case .cancelled:
+                Task {
+                    try? await Task.sleep(nanoseconds: 2 * 1_000_000_000) // 2 seconds
+                    await MainActor.run {
+                        if state == .cancelled {
+                            withAnimation(.easeInOut(duration: 0.4)) {
+                                state = .chat
+                            }
+                        }
+                    }
+                }
+            default:
+                break
             }
         }
     }
@@ -185,27 +200,33 @@ class AgentViewModel: ObservableObject {
     func cancelProposal() {
         guard let current = proposal else { return }
         let previousAppId = current.appId
-        let hasNext = advanceProposalQueue(previousAppId: previousAppId)
+        var remainingQueue = proposalQueue
+        if let index = remainingQueue.firstIndex(where: { $0 == current }) {
+            remainingQueue.remove(at: index)
+        }
+        let hasNext = !remainingQueue.isEmpty
         
-        if !hasNext {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                proposal = nil
-                proposalQueue.removeAll()
-                currentProposalIndex = 0
-                appSteps.removeAll()
-                // Clear proposal-related flags
-                messages = messages.map { msg in
-                    var copy = msg
-                    copy.isAttachedToProposal = false
-                    return copy
-                }
-                // Clear status pill and tool indicators
-                showStatusPill = false
-                activeTool = nil
-                currentStatus = nil
-                state = .chat // Return to chat state
+        if hasNext {
+            _ = advanceProposalQueue(previousAppId: previousAppId)
+            return
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            proposal = nil
+            proposalQueue.removeAll()
+            currentProposalIndex = 0
+            appSteps.removeAll()
+            // Clear proposal-related flags
+            messages = messages.map { msg in
+                var copy = msg
+                copy.isAttachedToProposal = false
+                return copy
             }
-            messages.append(ChatMessage(role: .assistant, content: "Action cancelled."))
+            // Clear status pill and tool indicators
+            showStatusPill = false
+            activeTool = nil
+            currentStatus = nil
+            state = .cancelled
         }
     }
     

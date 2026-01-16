@@ -21,11 +21,13 @@ struct GitHubStageSection: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let bodyPreview {
-                    Text(bodyPreview)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(palette.secondaryText)
-                        .lineLimit(6)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                        Text(bodyPreview)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(palette.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 } else if showsBodyPlaceholder {
                     Text("No description provided.")
                         .font(.system(size: 12, weight: .regular))
@@ -36,13 +38,6 @@ struct GitHubStageSection: View {
                     MetadataGrid(items: githubMetadataItems, columns: stageMetadataColumns)
                 }
             }
-        }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(ActionGlowPalette.glow.opacity(0.18))
-                .frame(width: 4)
-                .padding(.vertical, 12)
-                .padding(.leading, 8)
         }
     }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct SlackStageSection: View {
     let proposal: ProposalData
@@ -15,26 +16,28 @@ struct SlackStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
-                if let messageText = proposal.messageText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !messageText.isEmpty {
-                    Text(messageText)
-                        .font(.system(size: 15, weight: .regular))
-                        .foregroundStyle(palette.primaryText)
-                        .lineLimit(5)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let messageText = slackMessageDisplay {
+                    ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                        if let markdown = slackAttributedText(from: messageText) {
+                            Text(markdown)
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundStyle(palette.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(messageText)
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundStyle(palette.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
                 
                 if !slackMetadataItems.isEmpty {
                     MetadataGrid(items: slackMetadataItems, columns: stageMetadataColumns)
                 }
             }
-        }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(ActionGlowPalette.glow.opacity(0.18))
-                .frame(width: 4)
-                .padding(.vertical, 12)
-                .padding(.leading, 8)
         }
     }
     
@@ -111,6 +114,58 @@ struct SlackStageSection: View {
             items.append(("Schedule", schedule))
         }
         return items
+    }
+
+    private var slackMessageDisplay: String? {
+        guard let messageText = proposal.messageText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !messageText.isEmpty else {
+            return nil
+        }
+        var output = messageText
+        output = output.replacingOccurrences(of: "\\r\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\t", with: "\t")
+        output = replaceSlackLinks(in: output)
+        return output
+    }
+
+    private func slackAttributedText(from text: String) -> AttributedString? {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return try? AttributedString(markdown: text, options: options)
+    }
+
+    private func replaceSlackLinks(in text: String) -> String {
+        var output = text
+        output = replaceRegex(in: output, pattern: #"<([^>|]+)\|([^>]+)>"#) { match, source in
+            let url = source.substring(with: match.range(at: 1))
+            let label = source.substring(with: match.range(at: 2))
+            return "[\(label)](\(url))"
+        }
+        output = replaceRegex(in: output, pattern: #"<(https?://[^>]+)>"#) { match, source in
+            let url = source.substring(with: match.range(at: 1))
+            return "[\(url)](\(url))"
+        }
+        return output
+    }
+
+    private func replaceRegex(
+        in text: String,
+        pattern: String,
+        replacement: (NSTextCheckingResult, NSString) -> String
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return text
+        }
+        let source = text as NSString
+        var output = text
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: source.length))
+        for match in matches.reversed() {
+            let value = replacement(match, source)
+            output = (output as NSString).replacingCharacters(in: match.range, with: value)
+        }
+        return output
     }
     
     private static let slackScheduleFormatter: DateFormatter = {

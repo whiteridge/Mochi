@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct LinearStageSection: View {
     let proposal: ProposalData
@@ -36,13 +37,22 @@ struct LinearStageSection: View {
                     Spacer(minLength: 0)
                 }
                 
-                if let description = proposal.description?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !description.isEmpty {
-                    Text(description)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(palette.secondaryText)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let description = linearDescriptionDisplay {
+                    ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                        if let markdown = linearAttributedText(from: description) {
+                            Text(markdown)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(description)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
                 
                 if hasAnyLinearMetadata {
@@ -112,6 +122,25 @@ struct LinearStageSection: View {
         if hasValidPriority { items.append(("Urgency", priorityDisplay)) }
         if hasValidAssignee { items.append(("Assignee", assigneeDisplay)) }
         return items
+    }
+
+    private var linearDescriptionDisplay: String? {
+        guard let description = proposal.description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !description.isEmpty else {
+            return nil
+        }
+        var output = description
+        output = output.replacingOccurrences(of: "\\r\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\t", with: "\t")
+        return output
+    }
+
+    private func linearAttributedText(from text: String) -> AttributedString? {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return try? AttributedString(markdown: text, options: options)
     }
     
     // Helper to check if a field has a valid, non-placeholder value

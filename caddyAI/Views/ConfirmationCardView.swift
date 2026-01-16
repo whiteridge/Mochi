@@ -24,11 +24,12 @@ struct ConfirmationCardView: View {
     }
     
     @State private var showButtonGlow: Bool = false
+    @State private var previousProposalIndex: Int? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             headerSection
-            stageSection
+            animatedStageSection
             footerSection
         }
         .padding(22)
@@ -37,7 +38,6 @@ struct ConfirmationCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
         .frame(maxWidth: 560)
-        .fixedSize(horizontal: false, vertical: true)
         .onChange(of: isExecuting) { _, newValue in
             if newValue {
                 startButtonGlow()
@@ -45,7 +45,11 @@ struct ConfirmationCardView: View {
                 endButtonGlow()
             }
         }
-        .onChange(of: proposal.proposalIndex) { _, _ in
+        .onAppear {
+            previousProposalIndex = proposal.proposalIndex
+        }
+        .onChange(of: proposal.proposalIndex) { _, newValue in
+            previousProposalIndex = newValue
             endButtonGlow()
         }
     }
@@ -67,13 +71,6 @@ private extension ConfirmationCardView {
                         .foregroundStyle(palette.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    if let target = headerTargetText?.nilIfEmpty {
-                        Text(target)
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(palette.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    
                     if let summaryText = proposal.summaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !summaryText.isEmpty {
                         Text(summaryText)
@@ -84,24 +81,54 @@ private extension ConfirmationCardView {
                 }
                 
                 Spacer()
-                
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(palette.iconSecondary)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill(palette.iconBackground)
-                        )
-                }
-                .buttonStyle(.plain)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            cancelButton
+                .padding(.top, appSteps.isEmpty ? 0 : 5)
+        }
+    }
+
+    private var cancelButton: some View {
+        Button(action: onCancel) {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(palette.iconSecondary)
+                .padding(8)
+                .background(
+                    Circle()
+                        .fill(palette.iconBackground)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var stageTransition: AnyTransition {
+        guard let previousProposalIndex, previousProposalIndex != proposal.proposalIndex else {
+            return .identity
+        }
+
+        let isForward = proposal.proposalIndex >= previousProposalIndex
+        let insertionEdge: Edge = isForward ? .trailing : .leading
+        let removalEdge: Edge = isForward ? .leading : .trailing
+
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
+
+    var animatedStageSection: some View {
+        ZStack {
+            ForEach([proposal], id: \.proposalIndex) { proposalItem in
+                stageSection(for: proposalItem)
+                    .transition(stageTransition)
             }
         }
     }
-    
+
     @ViewBuilder
-    var stageSection: some View {
+    func stageSection(for proposal: ProposalData) -> some View {
         if proposal.isSlackApp {
             SlackStageSection(
                 proposal: proposal,
@@ -189,17 +216,22 @@ private extension ConfirmationCardView {
     }
     
     var glowOverlay: some View {
-        // Use cone style - gradient emanates from bottom-right where action button is
-        RotatingGradientFill(
-            shape: .roundedRect(cornerRadius: 24),
-            rotationSpeed: 6.0,
-            intensity: showButtonGlow ? (isFinalAction ? 0.25 : 0.18) : 0,
-            renderStyle: .cone(origin: UnitPoint(x: 0.85, y: 0.9))  // Bottom-right near action button
-        )
-        .matchedGeometryEffect(id: "gradientFill", in: rotatingLightNamespace)
-        .opacity(showButtonGlow ? 1 : 0)
-        .animation(.easeOut(duration: 0.5), value: showButtonGlow)
-        .allowsHitTesting(false)
+        Group {
+            if !isExecuting {
+                RotatingGradientFill(
+                    shape: .roundedRect(cornerRadius: 24),
+                    rotationSpeed: 6.0,
+                    intensity: showButtonGlow ? (isFinalAction ? 0.25 : 0.18) : 0,
+                    renderStyle: .cone(origin: UnitPoint(x: 0.85, y: 0.9))
+                )
+                .matchedGeometryEffect(id: "gradientFill", in: rotatingLightNamespace)
+                .opacity(showButtonGlow ? 1 : 0)
+                .animation(.easeOut(duration: 0.5), value: showButtonGlow)
+                .allowsHitTesting(false)
+            } else {
+                EmptyView()
+            }
+        }
     }
 }
 
@@ -283,13 +315,6 @@ private extension ConfirmationCardView {
         return "Confirm action"
     }
 
-    var headerTargetText: String? {
-        if proposal.isLinearApp {
-            if hasValidProject { return projectDisplay }
-            if hasValidTeam { return teamDisplay }
-        }
-        return nil
-    }
 
     
     var isScheduledMessage: Bool {
@@ -352,152 +377,6 @@ private extension ConfirmationCardView {
         return "Confirm action"
     }
     
-    // MARK: - Slack Display Helpers (for header)
-    
-    var slackChannelDisplay: String? {
-        if let channelName = proposal.channel?.nilIfEmpty {
-            let name = channelName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if name.hasPrefix("#") || name.hasPrefix("@") {
-                return name
-            }
-            if name.hasPrefix("C") && name.count > 8 {
-                return nil
-            }
-            return "#\(name)"
-        }
-        return nil
-    }
-
-    var slackRecipientDisplay: String? {
-        guard let userName = proposal.userName?.nilIfEmpty else { return nil }
-        if userName.hasPrefix("@") {
-            return userName
-        }
-        if userName.hasPrefix("U") && userName.count > 8 {
-            return nil
-        }
-        return "@\(userName)"
-    }
-    
-    // MARK: - Linear Display Helpers (for header)
-    
-    var hasValidTeam: Bool {
-        hasValidValue(teamDisplay, excluding: ["Select", "Select Team"])
-    }
-    
-    var hasValidProject: Bool {
-        hasValidValue(projectDisplay, excluding: ["None"])
-    }
-    
-    var teamDisplay: String {
-        if let name = (proposal.args["teamName"] as? String)?.nilIfEmpty {
-            return name
-        }
-        if let teamId = proposal.teamId?.nilIfEmpty {
-            if isUUID(teamId) {
-                return "Select Team"
-            }
-            return teamId
-        }
-        return "Select"
-    }
-    
-    var projectDisplay: String {
-        if let name = (proposal.args["projectName"] as? String)?.nilIfEmpty {
-            return name
-        }
-        if let projectId = proposal.projectId?.nilIfEmpty {
-            if isUUID(projectId) {
-                return "None"
-            }
-            return projectId
-        }
-        return "None"
-    }
-    
-    func hasValidValue(_ value: String, excluding defaults: [String] = []) -> Bool {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        return !defaults.contains(trimmed)
-    }
-    
-    func isUUID(_ string: String) -> Bool {
-        let uuidPattern = #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#
-        let regex = try? NSRegularExpression(pattern: uuidPattern, options: .caseInsensitive)
-        let range = NSRange(location: 0, length: string.utf16.count)
-        return regex?.firstMatch(in: string, options: [], range: range) != nil
-    }
-    
-    // MARK: - Calendar Display Helpers (for header)
-    
-    var calendarDetails: CalendarProposalDetails {
-        CalendarProposalDetails(args: proposal.args)
-    }
-
-    var calendarDateTimeLine: String {
-        guard let startDate = calendarDetails.startDate else {
-            return "Date TBD"
-        }
-
-        let calendar = calendarWithTimeZone()
-        let dateText = calendarFormattedDate(startDate, formatter: Self.calendarFullDateFormatter)
-
-        if calendarDetails.isAllDay {
-            return "\(dateText) All day"
-        }
-
-        guard let endDate = calendarDetails.endDate else {
-            let timeText = calendarFormattedDate(startDate, formatter: Self.calendarTimeFormatter)
-            return "\(dateText) \(timeText)"
-        }
-
-        if calendar.isDate(startDate, inSameDayAs: endDate) {
-            let startTime = calendarFormattedDate(startDate, formatter: Self.calendarTimeFormatter)
-            let endTime = calendarFormattedDate(endDate, formatter: Self.calendarTimeFormatter)
-            return "\(dateText) \(startTime) - \(endTime)"
-        }
-
-        let startText = calendarFormattedDate(startDate, formatter: Self.calendarDateTimeFormatter)
-        let endText = calendarFormattedDate(endDate, formatter: Self.calendarDateTimeFormatter)
-        return "\(startText) - \(endText)"
-    }
-
-    func calendarFormattedDate(_ date: Date, formatter: DateFormatter) -> String {
-        formatter.timeZone = calendarDetails.timeZone ?? TimeZone.current
-        return formatter.string(from: date)
-    }
-
-    func calendarWithTimeZone() -> Calendar {
-        var calendar = Calendar.current
-        if let timeZone = calendarDetails.timeZone {
-            calendar.timeZone = timeZone
-        }
-        return calendar
-    }
-
-    static let calendarFullDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-
-    static let calendarTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
-    static let calendarDateTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 // MARK: - Private Helpers

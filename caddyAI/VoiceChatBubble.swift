@@ -158,6 +158,11 @@ fileprivate extension VoiceChatBubble {
                 gradientNamespace: rotatingLightNamespace,
                 morphNamespace: animation
             )
+        } else if viewModel.state == .cancelled {
+            CancelledPillView(
+                gradientNamespace: rotatingLightNamespace,
+                morphNamespace: animation
+            )
         } else if let proposal = viewModel.proposal {
             ConfirmationCardView(
                 proposal: proposal,
@@ -238,6 +243,11 @@ private struct AssistantMessageBubbleView: View {
         text.count > 220
     }
 
+    private var usesIntrinsicWidth: Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count <= 60 && !trimmed.contains("\n")
+    }
+
     private var messageCornerRadius: CGFloat {
         usesRoundedRect ? 18 : 999
     }
@@ -246,15 +256,25 @@ private struct AssistantMessageBubbleView: View {
         GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
     }
 
+    @ViewBuilder
     private var messageContent: some View {
-        Text(text)
+        let baseText = Text(text)
             .font(.system(size: 15, weight: .regular))
             .foregroundStyle(palette.primaryText)
             .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: maxMessageWidth, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+
+        if usesIntrinsicWidth {
+            baseText
+                .fixedSize(horizontal: true, vertical: true)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+        } else {
+            baseText
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: maxMessageWidth, alignment: .leading)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+        }
     }
     
     var body: some View {
@@ -310,7 +330,7 @@ private extension VoiceChatBubble {
         case .recording:
             logger.debug("Enter pressed: Stopping recording")
             stopRecording()
-        case .chat, .processing, .success:
+        case .chat, .processing, .success, .cancelled:
             break
         case .idle:
             logger.debug("Enter pressed in idle state: Ignoring")
@@ -331,7 +351,7 @@ private extension VoiceChatBubble {
             viewModel.state = .idle
             resetConversation(animate: false)
             NotificationCenter.default.post(name: .voiceChatShouldDismissPanel, object: nil)
-        case .chat, .processing, .success:
+        case .chat, .processing, .success, .cancelled:
             // Close the panel
             logger.debug("Escape pressed: Closing panel")
             viewModel.reset()
@@ -345,7 +365,7 @@ private extension VoiceChatBubble {
     
     func beginHotkeySession() {
         guard viewModel.state != .recording && viewModel.state != .processing else { return }
-        if viewModel.state == .idle || viewModel.state == .success {
+        if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .cancelled {
             resetConversation(animate: false)
         }
         startRecording()
@@ -375,13 +395,13 @@ private extension VoiceChatBubble {
     
     func handleHoldToTalkKeyPress() {
         logger.debug("Hold-to-talk: Key pressed")
-        // Allow recording if not currently recording (idle, success, OR chat states)
+        // Allow recording if not currently recording (idle, success, cancelled, OR chat states)
         // Block only if already recording or processing
         guard viewModel.state != .recording && viewModel.state != .processing && !voiceRecorder.isRecording else {
             logger.debug("Hold-to-talk: Ignoring press, recording or processing (state: \(String(describing: viewModel.state)))")
             return
         }
-        if viewModel.state == .idle || viewModel.state == .success {
+        if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .cancelled {
             resetConversation(animate: false)
         }
         startRecording()
@@ -410,12 +430,12 @@ private extension VoiceChatBubble {
             debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "stopping_recording", data: ["reason": "state_is_recording_or_voiceRecorder_isRecording"])
             // #endregion
             stopRecording()
-        } else if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .chat {
+        } else if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .cancelled || viewModel.state == .chat {
             // Not recording - start
             // #region agent log
-            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "starting_recording", data: ["reason": "state_is_idle_or_success_or_chat"])
+            debugLog(hypothesisId: "A", location: "VoiceChatBubble.handleToggleRequest", message: "starting_recording", data: ["reason": "state_is_idle_or_success_or_cancelled_or_chat"])
             // #endregion
-            if viewModel.state == .idle || viewModel.state == .success {
+            if viewModel.state == .idle || viewModel.state == .success || viewModel.state == .cancelled {
                 resetConversation(animate: false)
             }
             startRecording()

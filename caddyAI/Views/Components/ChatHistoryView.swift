@@ -27,7 +27,7 @@ struct ChatHistoryView: View {
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
-    
+
     // Helper to determine if a message should be visible when proposal is active
     private func shouldShowMessage(_ message: ChatMessage) -> Bool {
         if proposal != nil {
@@ -88,9 +88,7 @@ struct ChatHistoryView: View {
                                     appSteps: viewModel.appSteps,
                                     activeAppId: proposal.appId ?? viewModel.appSteps.first(where: { $0.state == .active || $0.state == .searching })?.appId
                                 )
-                                .id("\(proposal.appId ?? proposal.tool)-\(proposal.proposalIndex)")  // Force view recreation on proposal change
                                 .zIndex(1)
-                                .transition(.opacity)
                             } else {
                                 // Compute the status to display
                                 let pillStatus: StatusPillView.Status = {

@@ -101,8 +101,6 @@ struct RotatingGradientFill: View {
         case .cone(let origin):
             // Cone gradient emanating from origin point, rotating
             let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
-            let centerX = origin.x * size.width
-            let centerY = origin.y * size.height
             
             // Radial gradient for the diffuse fade from origin
             let radialGradient = RadialGradient(

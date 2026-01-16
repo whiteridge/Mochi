@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct NotionStageSection: View {
     let proposal: ProposalData
@@ -20,12 +21,22 @@ struct NotionStageSection: View {
                     .foregroundStyle(palette.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                if let contentPreview {
-                    Text(contentPreview)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(palette.secondaryText)
-                        .lineLimit(6)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let content = contentPreview {
+                    ScrollableTextArea(maxHeight: 160, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                        if let markdown = try? AttributedString(markdown: content) {
+                            Text(markdown)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(content)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 } else {
                     Text("No page content provided.")
                         .font(.system(size: 12, weight: .regular))
@@ -36,13 +47,6 @@ struct NotionStageSection: View {
                     MetadataGrid(items: notionMetadataItems, columns: stageMetadataColumns)
                 }
             }
-        }
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(ActionGlowPalette.glow.opacity(0.18))
-                .frame(width: 4)
-                .padding(.vertical, 12)
-                .padding(.leading, 8)
         }
     }
     

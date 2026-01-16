@@ -14,26 +14,50 @@ struct CalendarTimelineView: View {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
     }
 
-    private let rowHeight: CGFloat = 40
-    private let rowSpacing: CGFloat = 10
+    private let labelWidth: CGFloat = 40
+    private let columnSpacing: CGFloat = 10
+    private let rowInset: CGFloat = 6
+    private let minRowHeight: CGFloat = 28
+    private let minEventHeight: CGFloat = 20
+    private let slotCount: Int = 4
 
     var body: some View {
-        VStack(alignment: .leading, spacing: rowSpacing) {
+        GeometryReader { proxy in
+            let layout = timelineLayout(for: proxy.size)
             if isAllDay {
                 allDayPill
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                timelineGrid(layout: layout)
             }
+        }
+    }
 
-            ForEach(Array(timelineSlots.enumerated()), id: \.element.id) { index, slot in
-                HStack(alignment: .center, spacing: 10) {
+    private func timelineGrid(layout: TimelineLayout) -> some View {
+        HStack(alignment: .top, spacing: columnSpacing) {
+            VStack(alignment: .trailing, spacing: 0) {
+                ForEach(layout.slots) { slot in
                     Text(slot.label)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(palette.tertiaryText)
-                        .frame(width: 40, alignment: .trailing)
-
-                    timelineBlock(for: slot, placeholderIndex: index)
+                        .frame(height: layout.rowHeight)
+                        .frame(width: labelWidth, alignment: .trailing)
                 }
-                .frame(height: rowHeight)
             }
+
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 0) {
+                    ForEach(Array(layout.slots.enumerated()), id: \.element.id) { index, _ in
+                        placeholderBlock(index: index, rowHeight: layout.rowHeight)
+                    }
+                }
+
+                if let eventFrame = layout.eventFrame {
+                    eventBlock(height: eventFrame.height)
+                        .offset(y: eventFrame.offsetY)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -52,71 +76,111 @@ struct CalendarTimelineView: View {
             )
     }
 
-    @ViewBuilder
-    private func timelineBlock(for slot: TimelineSlot, placeholderIndex: Int) -> some View {
-        let showPlaceholder = !slot.isEvent && placeholderIndex.isMultiple(of: 2)
-        let fill = palette.iconBackground.opacity(slot.isEvent ? 0.9 : (showPlaceholder ? 0.25 : 0.12))
+    private func placeholderBlock(index: Int, rowHeight: CGFloat) -> some View {
+        let showPlaceholder = index.isMultiple(of: 2)
+        let fill = palette.iconBackground.opacity(showPlaceholder ? 0.25 : 0.12)
+        let inset = min(rowInset, rowHeight * 0.3)
 
-        ZStack(alignment: .leading) {
+        return ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(fill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(palette.subtleBorder.opacity(slot.isEvent ? 0.6 : 0.25), lineWidth: 0.5)
+                        .stroke(palette.subtleBorder.opacity(0.25), lineWidth: 0.5)
+                )
+                .padding(.vertical, inset)
+        }
+        .frame(height: max(rowHeight, 1))
+    }
+
+    private func eventBlock(height: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(palette.iconBackground.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
                 )
 
-            if slot.isEvent {
-                Rectangle()
-                    .fill(Color(nsColor: .systemBlue).opacity(0.85))
-                    .frame(width: 3)
-                    .cornerRadius(2)
-                    .padding(.leading, 6)
+            Rectangle()
+                .fill(Color(nsColor: .systemBlue).opacity(0.85))
+                .frame(width: 3)
+                .cornerRadius(2)
+                .padding(.leading, 6)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    if slot.isPrimaryEvent {
-                        Text(title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(palette.primaryText)
-                            .lineLimit(2)
-                    }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.primaryText)
+                    .lineLimit(2)
 
-                    Text("busy")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(palette.secondaryText)
-                }
-                .padding(.leading, 14)
-                .padding(.trailing, 8)
+                Text("busy")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(palette.secondaryText)
             }
+            .padding(.leading, 14)
+            .padding(.trailing, 8)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: max(height, 1))
     }
 
-    private var timelineSlots: [TimelineSlot] {
+    private func timelineLayout(for size: CGSize) -> TimelineLayout {
         let baseDate = startDate ?? Date()
+        let range = timelineRange(baseDate: baseDate)
+        let rowHeight = max(size.height / CGFloat(range.slotCount), minRowHeight)
+        let eventFrame = eventFrame(rangeStart: range.startDate, rowHeight: rowHeight, slotCount: range.slotCount)
+        return TimelineLayout(slots: range.slots, rowHeight: rowHeight, eventFrame: eventFrame)
+    }
+
+    private func timelineRange(baseDate: Date) -> TimelineRange {
         let calendar = timelineCalendar
         let startHour = calendar.component(.hour, from: baseDate)
-        var rangeStart = max(startHour - 1, 0)
-        rangeStart = min(rangeStart, 20)
+        let resolvedEnd = resolvedEndDate ?? baseDate
+        let endHour = calendar.component(.hour, from: resolvedEnd)
+        let endMinute = calendar.component(.minute, from: resolvedEnd)
+        let endHourCeil = min(endHour + (endMinute > 0 ? 1 : 0), 24)
 
-        return (0..<4).map { offset in
-            let hour = rangeStart + offset
-            let label = hourLabel(for: hour, baseDate: baseDate)
-            let isEvent = eventIntersects(hour: hour, baseDate: baseDate)
-            let isPrimaryEvent = isEvent && hour == startHour
-            return TimelineSlot(hour: hour, label: label, isEvent: isEvent, isPrimaryEvent: isPrimaryEvent)
+        var rangeStart = max(startHour - 1, 0)
+        if rangeStart + slotCount < endHourCeil {
+            rangeStart = max(endHourCeil - slotCount, 0)
         }
+        if rangeStart + slotCount > 24 {
+            rangeStart = max(24 - slotCount, 0)
+        }
+
+        let startDate = calendar.date(bySettingHour: rangeStart, minute: 0, second: 0, of: baseDate) ?? baseDate
+        let slots = (0..<slotCount).map { offset in
+            let slotDate = calendar.date(byAdding: .hour, value: offset, to: startDate) ?? startDate
+            return TimelineSlot(label: hourLabel(for: slotDate))
+        }
+
+        return TimelineRange(startDate: startDate, slots: slots, slotCount: slotCount)
     }
 
-    private func eventIntersects(hour: Int, baseDate: Date) -> Bool {
-        guard !isAllDay else { return false }
-        guard let startDate = startDate else { return false }
+    private func eventFrame(rangeStart: Date, rowHeight: CGFloat, slotCount: Int) -> EventFrame? {
+        guard !isAllDay, let startDate else { return nil }
         let endDate = resolvedEndDate ?? startDate
+        let rangeMinutes = Double(slotCount * 60)
+        let startMinutes = clampMinutes(minutesBetween(rangeStart, startDate), max: rangeMinutes)
+        let endMinutes = clampMinutes(minutesBetween(rangeStart, endDate), max: rangeMinutes)
 
-        guard let hourStart = timelineCalendar.date(bySettingHour: hour, minute: 0, second: 0, of: baseDate),
-              let hourEnd = timelineCalendar.date(byAdding: .hour, value: 1, to: hourStart) else {
-            return false
-        }
-        return startDate < hourEnd && endDate > hourStart
+        guard endMinutes > startMinutes else { return nil }
+
+        let offsetY = CGFloat(startMinutes / 60.0) * rowHeight
+        var height = CGFloat((endMinutes - startMinutes) / 60.0) * rowHeight
+        height = max(height, minEventHeight)
+
+        let maxHeight = rowHeight * CGFloat(slotCount) - offsetY
+        return EventFrame(offsetY: offsetY, height: min(height, maxHeight))
+    }
+
+    private func clampMinutes(_ minutes: Double, max maxMinutes: Double) -> Double {
+        min(max(minutes, 0), maxMinutes)
+    }
+
+    private func minutesBetween(_ start: Date, _ end: Date) -> Double {
+        end.timeIntervalSince(start) / 60.0
     }
 
     private var resolvedEndDate: Date? {
@@ -125,13 +189,10 @@ struct CalendarTimelineView: View {
         return timelineCalendar.date(byAdding: .minute, value: 30, to: startDate)
     }
 
-    private func hourLabel(for hour: Int, baseDate: Date) -> String {
-        guard let labelDate = timelineCalendar.date(bySettingHour: hour, minute: 0, second: 0, of: baseDate) else {
-            return ""
-        }
+    private func hourLabel(for date: Date) -> String {
         let formatter = Self.hourFormatter
         formatter.timeZone = timeZone ?? TimeZone.current
-        return formatter.string(from: labelDate)
+        return formatter.string(from: date)
     }
 
     private var timelineCalendar: Calendar {
@@ -142,12 +203,26 @@ struct CalendarTimelineView: View {
         return calendar
     }
 
+    private struct TimelineLayout {
+        let slots: [TimelineSlot]
+        let rowHeight: CGFloat
+        let eventFrame: EventFrame?
+    }
+
+    private struct TimelineRange {
+        let startDate: Date
+        let slots: [TimelineSlot]
+        let slotCount: Int
+    }
+
     private struct TimelineSlot: Identifiable {
         let id = UUID()
-        let hour: Int
         let label: String
-        let isEvent: Bool
-        let isPrimaryEvent: Bool
+    }
+
+    private struct EventFrame {
+        let offsetY: CGFloat
+        let height: CGFloat
     }
 
     private static let hourFormatter: DateFormatter = {
