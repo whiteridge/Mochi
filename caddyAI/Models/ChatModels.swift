@@ -283,6 +283,135 @@ struct ProposalData: Equatable {
     var scheduledTime: Int? {
         args["post_at"] as? Int ?? args["postAt"] as? Int ?? args["scheduled_time"] as? Int
     }
+
+    // MARK: - Gmail Fields
+
+    var emailTo: [String] {
+        normalizedStringList(for: ["to", "to_emails", "toEmails", "recipient", "recipients", "email", "emails"])
+    }
+
+    var emailCc: [String] {
+        normalizedStringList(for: ["cc", "cc_emails", "ccEmails"])
+    }
+
+    var emailBcc: [String] {
+        normalizedStringList(for: ["bcc", "bcc_emails", "bccEmails"])
+    }
+
+    var emailSubject: String? {
+        stringValue(for: ["subject", "title"])
+    }
+
+    var emailBody: String? {
+        stringValue(for: ["body", "message", "text", "content"])
+    }
+
+    var emailThreadId: String? {
+        stringValue(for: ["thread_id", "threadId", "thread"])
+    }
+
+    // MARK: - Notion Fields
+
+    var notionTitle: String? {
+        if let title = stringValue(for: ["title", "page_title", "name"]) {
+            return title
+        }
+        if let properties = args["properties"] as? [String: Any] {
+            return notionTitle(from: properties)
+        }
+        return nil
+    }
+
+    var notionContent: String? {
+        stringValue(for: ["content", "body", "text", "description"])
+    }
+
+    var notionIcon: String? {
+        if let icon = stringValue(for: ["icon"]) {
+            return icon
+        }
+        if let iconDict = args["icon"] as? [String: Any] {
+            return stringValue(from: iconDict)
+        }
+        return nil
+    }
+
+    var notionParentId: String? {
+        stringValue(for: ["parent_id", "parentId", "parent"])
+    }
+
+    var notionPropertyPairs: [(String, String)] {
+        guard let properties = args["properties"] as? [String: Any] else { return [] }
+        let excludedKeys = Set(["title", "name"])
+        let pairs = properties.compactMap { key, value -> (String, String)? in
+            guard !excludedKeys.contains(key.lowercased()) else { return nil }
+            guard let formatted = stringValue(from: value) else { return nil }
+            return (key, formatted)
+        }
+        return pairs.sorted { $0.0.lowercased() < $1.0.lowercased() }
+    }
+
+    // MARK: - GitHub Fields
+
+    var githubOwner: String? {
+        stringValue(for: ["owner", "org", "organization", "repo_owner", "repoOwner"])
+    }
+
+    var githubRepo: String? {
+        stringValue(for: ["repo", "repository", "repo_name", "repoName", "name"])
+    }
+
+    var githubRepoFullName: String? {
+        if let owner = githubOwner, let repo = githubRepo {
+            return "\(owner)/\(repo)"
+        }
+        if let repo = githubRepo {
+            return repo
+        }
+        return stringValue(for: ["full_name", "fullName", "repository_full_name", "repositoryFullName"])
+    }
+
+    var githubTitle: String? {
+        stringValue(for: ["title", "subject"])
+    }
+
+    var githubBody: String? {
+        stringValue(for: ["body", "description", "content", "text", "message"])
+    }
+
+    var githubHead: String? {
+        stringValue(for: ["head", "head_ref", "headRef", "head_branch", "headBranch"])
+    }
+
+    var githubBase: String? {
+        stringValue(for: ["base", "base_ref", "baseRef", "base_branch", "baseBranch"])
+    }
+
+    var githubIssueNumber: String? {
+        stringValue(for: ["issue_number", "issueNumber", "issue", "number"])
+    }
+
+    var githubPullNumber: String? {
+        stringValue(for: ["pull_number", "pullNumber", "pull_request_number", "pr_number", "prNumber"])
+    }
+
+    var githubLabels: [String] {
+        normalizedStringList(for: ["labels", "label", "label_names", "labelNames"])
+    }
+
+    var githubAssignees: [String] {
+        normalizedStringList(for: ["assignees", "assignee", "assignee_logins", "assigneeLogins"])
+    }
+
+    var githubVisibility: String? {
+        if let isPrivate = args["private"] as? Bool {
+            return isPrivate ? "Private" : "Public"
+        }
+        if let visibility = stringValue(for: ["visibility"]) {
+            return visibility.capitalized
+        }
+        return nil
+    }
     
     // MARK: - App Type Detection
     
@@ -300,10 +429,117 @@ struct ProposalData: Equatable {
             || lowerTool.contains("googlecalendar")
             || lowerTool.contains("google_calendar")
     }
+
+    var isGmailApp: Bool {
+        let lowerAppId = appId?.lowercased()
+        return lowerAppId == "gmail"
+            || lowerAppId == "googlemail"
+            || tool.lowercased().contains("gmail")
+    }
+
+    var isNotionApp: Bool {
+        appId?.lowercased() == "notion" || tool.lowercased().contains("notion")
+    }
+
+    var isGitHubApp: Bool {
+        let lowerAppId = appId?.lowercased()
+        return lowerAppId == "github" || tool.lowercased().contains("github")
+    }
     
     // Helper to check if field exists
     func hasField(_ key: String) -> Bool {
         return args[key] != nil
+    }
+
+    // MARK: - Gmail Helpers
+
+    private func stringValue(for keys: [String]) -> String? {
+        for key in keys {
+            if let value = args[key] as? String {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            } else if let value = args[key] as? Int {
+                return "\(value)"
+            } else if let value = args[key] as? Double {
+                return "\(value)"
+            } else if let value = args[key] as? Bool {
+                return value ? "true" : "false"
+            }
+        }
+        return nil
+    }
+
+    private func stringValue(from value: Any) -> String? {
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let number = value as? NSNumber {
+            return number.stringValue
+        }
+        if let array = value as? [String] {
+            let cleaned = array.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            return cleaned.isEmpty ? nil : cleaned.joined(separator: ", ")
+        }
+        if let array = value as? [Any] {
+            let parts = array.compactMap { stringValue(from: $0) }
+            return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        }
+        if let dict = value as? [String: Any] {
+            let preferredKeys = ["name", "title", "plain_text", "content", "text", "value", "id"]
+            for key in preferredKeys {
+                if let nested = dict[key], let value = stringValue(from: nested) {
+                    return value
+                }
+            }
+            if JSONSerialization.isValidJSONObject(dict),
+               let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]),
+               let string = String(data: data, encoding: .utf8) {
+                return string
+            }
+        }
+        return nil
+    }
+
+    private func notionTitle(from properties: [String: Any]) -> String? {
+        let titleKeys = ["title", "name"]
+        for key in titleKeys {
+            if let value = properties[key], let title = stringValue(from: value) {
+                return title
+            }
+        }
+        return nil
+    }
+
+    private func normalizedStringList(for keys: [String]) -> [String] {
+        for key in keys {
+            if let values = args[key] as? [String] {
+                let cleaned = values.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                if !cleaned.isEmpty {
+                    return cleaned
+                }
+            } else if let values = args[key] as? [Any] {
+                let cleaned = values.compactMap { $0 as? String }
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                if !cleaned.isEmpty {
+                    return cleaned
+                }
+            } else if let value = args[key] as? String {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    continue
+                }
+                let parts = trimmed
+                    .split { $0 == "," || $0 == ";" }
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                return parts.isEmpty ? [trimmed] : parts
+            }
+        }
+        return []
     }
     
     // Equatable conformance

@@ -250,17 +250,27 @@ class MockAgentService:
 
         await asyncio.sleep(0.3)
 
-        # The Proposal
+        # The Proposal - MAXED OUT with all Linear metadata
         yield {
             "type": "proposal",
             "tool": "LINEAR_CREATE_LINEAR_ISSUE",
             "content": {
-                "title": "Fix the navigation bug",
-                "description": "User reported navigation issues on the settings page. This was reported via voice command.",
+                "title": "Fix the navigation bug on Settings page",
+                "description": "User reported that the navigation menu disappears when scrolling on the Settings page. This affects both light and dark mode. Steps to reproduce:\n\n1. Open Settings\n2. Scroll down to 'Advanced' section\n3. Navigation menu disappears\n\nExpected: Navigation should remain visible at all times.",
                 "teamId": "b0c33658-525d-4f71-a029-775796016149",
-                "priority": 2,
+                "teamName": "Mobile App",
+                "projectId": "a1b2c3d4-5678-90ab-cdef-123456789012",
+                "projectName": "Q1 Bug Fixes",
+                "priority": 1,
+                "priorityName": "High",
+                "stateId": "state-uuid-here",
+                "stateName": "In Progress",
+                "assigneeId": "user-uuid-here",
+                "assigneeName": "Sarah Chen",
+                "labels": ["bug", "ui", "settings"],
+                "dueDate": "2024-01-25",
             },
-            "summary_text": "I'll create a Linear ticket for the navigation bug.",
+            "summary_text": "I'll create a high-priority Linear ticket for the navigation bug.",
             "app_id": "linear",
             "proposal_index": 0,
             "total_proposals": 1,
@@ -278,16 +288,20 @@ class MockAgentService:
 
         await asyncio.sleep(0.5)
 
-        # The Proposal
+        # The Proposal - MAXED OUT with all Slack metadata
         yield {
             "type": "proposal",
             "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
             "content": {
                 "channel": "C12345678",
                 "channelName": "#engineering",
-                "text": "Hey team, the build is broken. Can someone take a look?",
+                "text": "🚨 **Build Failed** 🚨\n\nThe CI pipeline failed on the `main` branch.\n\n**Failed Job:** Unit Tests\n**Commit:** `abc1234` by @sarah\n**Error:**\n```\nAssertionError: Expected 200 but got 500\n```\n\n<https://ci.example.com/build/1234|View Build Logs>",
+                "userName": "@build-bot",
+                "thread_ts": "1234567890.123456",
+                "reply_broadcast": False,
+                "mrkdwn": True,
             },
-            "summary_text": "I'll send a message to #engineering.",
+            "summary_text": "I'll send a detailed build failure notification to #engineering.",
             "app_id": "slack",
             "proposal_index": 0,
             "total_proposals": 1,
@@ -317,17 +331,23 @@ class MockAgentService:
 
         await asyncio.sleep(0.5)
 
-        # Proposal 1 (Linear) with remaining proposals
+        # Proposal 1 (Linear) with remaining proposals - MAXED OUT
         yield {
             "type": "proposal",
             "tool": "LINEAR_CREATE_LINEAR_ISSUE",
             "content": {
-                "title": "Multi-app test ticket",
-                "description": "Testing the multi-app flow.",
+                "title": "Database performance degradation on prod",
+                "description": "We're seeing slow query times (>2s) for user dashboards during peak hours.\\n\\n**Affected queries:**\\n- `getUserDashboard()`\\n- `getRecentActivity()`\\n\\n**Impact:** ~500 users affected, page load times 5x slower than normal.",
                 "teamId": "b0c33658-525d-4f71-a029-775796016149",
-                "priority": 3,
+                "teamName": "Backend",
+                "projectName": "Infrastructure",
+                "priority": 0,
+                "priorityName": "Urgent",
+                "stateName": "Triage",
+                "assigneeName": "Mike Johnson",
+                "labels": ["performance", "database", "production"],
             },
-            "summary_text": "First, I'll create the ticket in Linear.",
+            "summary_text": "First, I'll create an urgent ticket for the performance issue.",
             "app_id": "linear",
             "proposal_index": 0,
             "total_proposals": 2,
@@ -336,8 +356,8 @@ class MockAgentService:
                     "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
                     "app_id": "slack",
                     "args": {
-                        "channelName": "#updates",
-                        "text": "📋 New ticket created: Multi-app test ticket",
+                        "channelName": "#backend-alerts",
+                        "text": "🚨 **URGENT: Database Performance Issue**\\n\\nNew ticket created: Database performance degradation on prod\\n\\n• Priority: Urgent\\n• Assigned: Mike Johnson\\n• Team: Backend\\n\\n<https://linear.app/ticket/BACK-123|View in Linear>",
                     },
                 }
             ],
@@ -355,17 +375,39 @@ class MockAgentService:
 
         await asyncio.sleep(0.5)
 
-        # The Proposal
+        # The Proposal - MAXED OUT with all Calendar metadata
         yield {
             "type": "proposal",
             "tool": "GOOGLECALENDAR_CREATE_EVENT",
             "content": {
-                "summary": "Team Sync Meeting",
-                "description": "Weekly team sync to discuss progress and blockers.",
-                "start": {"dateTime": "2024-01-20T10:00:00", "timeZone": "UTC"},
-                "end": {"dateTime": "2024-01-20T11:00:00", "timeZone": "UTC"},
+                "summary": "Q1 Roadmap Planning Session",
+                "description": "## Agenda\n\n1. **Review Q4 results** (15 min)\n   - OKR completion status\n   - Lessons learned\n\n2. **Q1 Priorities** (30 min)\n   - Voice command improvements\n   - New app integrations\n   - Performance optimizations\n\n3. **Resource allocation** (15 min)\n\n---\n\n📎 Pre-read: [Q1 Roadmap Draft](https://docs.google.com/document/...)",
+                "start": {"dateTime": "2024-01-22T14:00:00", "timeZone": "America/Los_Angeles"},
+                "end": {"dateTime": "2024-01-22T15:30:00", "timeZone": "America/Los_Angeles"},
+                "location": "Conference Room A / https://meet.google.com/abc-defg-hij",
+                "attendees": [
+                    {"email": "sarah.chen@acme.com", "displayName": "Sarah Chen"},
+                    {"email": "mike.johnson@acme.com", "displayName": "Mike Johnson"},
+                    {"email": "lisa.wong@acme.com", "displayName": "Lisa Wong"},
+                    {"email": "alex.kumar@acme.com", "displayName": "Alex Kumar"},
+                ],
+                "reminders": {
+                    "useDefault": False,
+                    "overrides": [
+                        {"method": "email", "minutes": 60},
+                        {"method": "popup", "minutes": 15},
+                    ]
+                },
+                "conferenceData": {
+                    "conferenceId": "abc-defg-hij",
+                    "conferenceSolution": {"name": "Google Meet"}
+                },
+                "colorId": "9",  # Blueberry
+                "visibility": "default",
+                "guestsCanModify": False,
+                "guestsCanInviteOthers": True,
             },
-            "summary_text": "I'll create a Team Sync Meeting on the calendar.",
+            "summary_text": "I'll schedule the Q1 Roadmap Planning Session for Monday 2-3:30 PM.",
             "app_id": "google_calendar",
             "proposal_index": 0,
             "total_proposals": 1,
@@ -396,17 +438,23 @@ class MockAgentService:
 
         await asyncio.sleep(0.5)
 
-        # Proposal 1 (Linear) with remaining proposals for Slack and Calendar
+        # Proposal 1 (Linear) with remaining proposals for Slack and Calendar - MAXED OUT
         yield {
             "type": "proposal",
             "tool": "LINEAR_CREATE_LINEAR_ISSUE",
             "content": {
-                "title": "Triple-app test ticket",
-                "description": "Testing the 3-app workflow.",
+                "title": "Customer-reported: Checkout flow broken on Safari",
+                "description": "A VIP customer reported that they cannot complete checkout on Safari 17.\\n\\n**Steps to reproduce:**\\n1. Add items to cart\\n2. Click 'Proceed to Checkout'\\n3. Page hangs on payment step\\n\\n**Browser:** Safari 17.2 on macOS Sonoma\\n**Account:** enterprise-vip-123",
                 "teamId": "b0c33658-525d-4f71-a029-775796016149",
-                "priority": 2,
+                "teamName": "Frontend",
+                "projectName": "Customer Issues",
+                "priority": 0,
+                "priorityName": "Urgent",
+                "stateName": "Backlog",
+                "assigneeName": "Lisa Wong",
+                "labels": ["bug", "safari", "checkout", "customer-reported"],
             },
-            "summary_text": "First, I'll create the ticket in Linear.",
+            "summary_text": "First, I'll create an urgent ticket for the Safari checkout bug.",
             "app_id": "linear",
             "proposal_index": 0,
             "total_proposals": 3,
@@ -415,18 +463,23 @@ class MockAgentService:
                     "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
                     "app_id": "slack",
                     "args": {
-                        "channelName": "#engineering",
-                        "text": "📋 New ticket: Triple-app test ticket",
+                        "channelName": "#customer-escalations",
+                        "text": "🔥 **VIP Customer Issue - Checkout Broken**\\n\\n• **Ticket:** FRONT-456\\n• **Customer:** Enterprise VIP Account\\n• **Browser:** Safari 17.2\\n• **Assigned:** Lisa Wong\\n• **Priority:** Urgent\\n\\nPlease prioritize. Customer is waiting.\\n\\n<https://linear.app/ticket/FRONT-456|View Ticket>",
                     },
                 },
                 {
                     "tool": "GOOGLECALENDAR_CREATE_EVENT",
                     "app_id": "google_calendar",
                     "args": {
-                        "summary": "Follow-up: Triple-app test",
-                        "description": "Discuss the new ticket.",
-                        "start": {"dateTime": "2024-01-20T14:00:00", "timeZone": "UTC"},
-                        "end": {"dateTime": "2024-01-20T15:00:00", "timeZone": "UTC"},
+                        "summary": "Urgent: Safari Bug Triage",
+                        "description": "Quick sync to triage the Safari checkout bug reported by VIP customer.\\n\\n• Linear ticket: FRONT-456\\n• Must resolve before EOD",
+                        "start": {"dateTime": "2024-01-20T15:00:00", "timeZone": "America/New_York"},
+                        "end": {"dateTime": "2024-01-20T15:30:00", "timeZone": "America/New_York"},
+                        "location": "https://meet.google.com/xyz-abcd-efg",
+                        "attendees": [
+                            {"email": "lisa.wong@acme.com", "displayName": "Lisa Wong"},
+                            {"email": "tech-lead@acme.com", "displayName": "Tech Lead"},
+                        ],
                     },
                 },
             ],
@@ -466,14 +519,14 @@ class MockAgentService:
             "type": "proposal",
             "tool": "GITHUB_CREATE_PULL_REQUEST",
             "content": {
-                "owner": "your-org",
-                "repo": "your-repo",
-                "title": "feat: Add new feature",
-                "body": "This PR implements the new feature as discussed.",
-                "head": "feature-branch",
+                "owner": "acme-corp",
+                "repo": "caddyai-frontend",
+                "title": "feat: Implement voice command confirmation UI",
+                "body": "## Summary\n\nThis PR adds a new confirmation card component for voice commands.\n\n## Changes\n\n- Added `ConfirmationCardView.swift` with glassmorphism styling\n- Implemented animated status pills for multi-app workflows\n- Added haptic feedback on confirm/cancel actions\n\n## Testing\n\n- Tested with Linear, Slack, and Calendar integrations\n- Verified animations run at 60fps on M1 MacBook\n\n## Screenshots\n\nSee attached Figma designs for reference.",
+                "head": "feature/confirmation-ui",
                 "base": "main",
             },
-            "summary_text": "I'll create a PR from feature-branch to main.",
+            "summary_text": "I'll create a PR to merge feature/confirmation-ui into main.",
             "app_id": "github",
             "proposal_index": 0,
             "total_proposals": 1,
@@ -496,11 +549,12 @@ class MockAgentService:
             "type": "proposal",
             "tool": "GMAIL_SEND_EMAIL",
             "content": {
-                "to": "team@example.com",
-                "subject": "Project Update",
-                "body": "Hi team,\n\nHere's the latest update on the project.\n\nBest regards",
+                "to": "engineering-team@acme.com",
+                "cc": "product@acme.com",
+                "subject": "[Action Required] Q1 Sprint Planning - Please Review",
+                "body": "Hi Team,\n\nI hope this email finds you well. As we wrap up the current sprint, I wanted to share the priorities for Q1 planning.\n\n**Key Priorities:**\n1. Complete the voice command integration with remaining apps\n2. Improve response latency by 40%\n3. Add enterprise SSO support\n\n**Action Items:**\n- Please review the attached roadmap document by Friday\n- Add your estimates to the shared spreadsheet\n- Flag any blockers in the #planning channel\n\nLet me know if you have any questions or concerns.\n\nBest regards,\nCaddy AI Assistant",
             },
-            "summary_text": "I'll send an email to team@example.com.",
+            "summary_text": "I'll send an email to engineering-team@acme.com about Q1 planning.",
             "app_id": "gmail",
             "proposal_index": 0,
             "total_proposals": 1,
@@ -523,11 +577,16 @@ class MockAgentService:
             "type": "proposal",
             "tool": "NOTION_CREATE_PAGE",
             "content": {
-                "parent_id": "database-123",
-                "title": "Meeting Notes - Jan 16",
-                "content": "# Discussion Points\n\n- Item 1\n- Item 2\n\n# Action Items\n\n- [ ] Follow up on...",
+                "parent_id": "workspace-docs-123",
+                "title": "Weekly Team Sync - January 16, 2024",
+                "properties": {
+                    "Status": "In Progress",
+                    "Attendees": ["@alice", "@bob", "@charlie"],
+                    "Tags": ["meeting", "weekly", "engineering"]
+                },
+                "content": "# Agenda\n\n## 1. Sprint Review (15 min)\n- Demo of voice command confirmation cards\n- Review pull request feedback\n- Discuss performance metrics\n\n## 2. Blockers & Dependencies (10 min)\n- Waiting on design approval for Settings page\n- Need API keys for Gmail integration\n\n## 3. Upcoming Work (10 min)\n- [ ] Finalize multi-app workflow animations\n- [ ] Write unit tests for proposal parsing\n- [ ] Update documentation\n\n---\n\n# Notes\n\n*Notes will be added during the meeting...*",
             },
-            "summary_text": "I'll create a new Notion page for meeting notes.",
+            "summary_text": "I'll create a Weekly Team Sync page in Notion.",
             "app_id": "notion",
             "proposal_index": 0,
             "total_proposals": 1,

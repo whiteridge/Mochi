@@ -62,10 +62,6 @@ private extension ConfirmationCardView {
             
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(headerAppName.uppercased())
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.tertiaryText)
-                    
                     Text(headerActionTitle)
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(palette.primaryText)
@@ -116,6 +112,24 @@ private extension ConfirmationCardView {
             CalendarStageSection(
                 proposal: proposal,
                 stageCornerRadius: stageCornerRadius
+            )
+        } else if proposal.isGitHubApp {
+            GitHubStageSection(
+                proposal: proposal,
+                stageCornerRadius: stageCornerRadius,
+                stageMetadataColumns: stageMetadataColumns
+            )
+        } else if proposal.isGmailApp {
+            GmailStageSection(
+                proposal: proposal,
+                stageCornerRadius: stageCornerRadius,
+                stageMetadataColumns: stageMetadataColumns
+            )
+        } else if proposal.isNotionApp {
+            NotionStageSection(
+                proposal: proposal,
+                stageCornerRadius: stageCornerRadius,
+                stageMetadataColumns: stageMetadataColumns
             )
         } else {
             LinearStageSection(
@@ -231,6 +245,36 @@ private extension ConfirmationCardView {
             if tool.contains("delete") || tool.contains("remove") { return "Cancel event" }
             return "Confirm event"
         }
+        if proposal.isGitHubApp {
+            if tool.contains("pull_request") || tool.contains("pullrequest") { return "Create pull request" }
+            if tool.contains("issue") && tool.contains("create") { return "Create issue" }
+            if tool.contains("comment") { return "Add comment" }
+            if tool.contains("merge") { return "Merge pull request" }
+            if tool.contains("close") && tool.contains("issue") { return "Close issue" }
+            if tool.contains("close") && tool.contains("pull") { return "Close pull request" }
+            if tool.contains("update") && tool.contains("issue") { return "Update issue" }
+            if tool.contains("update") && tool.contains("pull") { return "Update pull request" }
+            if tool.contains("create") && (tool.contains("repo") || tool.contains("repository")) { return "Create repository" }
+            return "Confirm GitHub action"
+        }
+        if proposal.isGmailApp {
+            if tool.contains("reply") { return "Reply to email" }
+            if tool.contains("forward") { return "Forward email" }
+            if tool.contains("send") { return "Send email" }
+            if tool.contains("draft") { return "Create draft" }
+            if tool.contains("label") { return "Apply label" }
+            if tool.contains("trash") { return "Move to trash" }
+            if tool.contains("delete") { return "Delete email" }
+            return "Confirm email"
+        }
+        if proposal.isNotionApp {
+            if tool.contains("create") { return "Create page" }
+            if tool.contains("update") || tool.contains("patch") { return "Update page" }
+            if tool.contains("archive") { return "Archive page" }
+            if tool.contains("restore") { return "Restore page" }
+            if tool.contains("delete") { return "Delete page" }
+            return "Confirm page"
+        }
         if proposal.isLinearApp {
             if tool.contains("create") { return "Create issue" }
             if tool.contains("update") { return "Update issue" }
@@ -240,12 +284,6 @@ private extension ConfirmationCardView {
     }
 
     var headerTargetText: String? {
-        if proposal.isSlackApp {
-            return slackChannelDisplay ?? slackRecipientDisplay
-        }
-        if proposal.isCalendarApp {
-            return calendarDateTimeLine
-        }
         if proposal.isLinearApp {
             if hasValidProject { return projectDisplay }
             if hasValidTeam { return teamDisplay }
@@ -273,6 +311,39 @@ private extension ConfirmationCardView {
             if tool.contains("delete") || tool.contains("remove") || tool.contains("clear") { return "Delete event" }
             if tool.contains("move") { return "Move event" }
             return "Confirm event"
+        }
+
+        if proposal.isGitHubApp {
+            if tool.contains("pull_request") || tool.contains("pullrequest") { return "Create pull request" }
+            if tool.contains("issue") && tool.contains("create") { return "Create issue" }
+            if tool.contains("comment") { return "Add comment" }
+            if tool.contains("merge") { return "Merge pull request" }
+            if tool.contains("close") && tool.contains("issue") { return "Close issue" }
+            if tool.contains("close") && tool.contains("pull") { return "Close pull request" }
+            if tool.contains("update") && tool.contains("issue") { return "Update issue" }
+            if tool.contains("update") && tool.contains("pull") { return "Update pull request" }
+            if tool.contains("create") && (tool.contains("repo") || tool.contains("repository")) { return "Create repository" }
+            return "Confirm GitHub action"
+        }
+
+        if proposal.isGmailApp {
+            if tool.contains("reply") { return "Send reply" }
+            if tool.contains("forward") { return "Forward email" }
+            if tool.contains("send") { return "Send email" }
+            if tool.contains("draft") { return "Save draft" }
+            if tool.contains("label") { return "Apply label" }
+            if tool.contains("trash") { return "Move to trash" }
+            if tool.contains("delete") { return "Delete email" }
+            return "Confirm email"
+        }
+
+        if proposal.isNotionApp {
+            if tool.contains("create") { return "Create page" }
+            if tool.contains("update") || tool.contains("patch") { return "Update page" }
+            if tool.contains("archive") { return "Archive page" }
+            if tool.contains("restore") { return "Restore page" }
+            if tool.contains("delete") { return "Delete page" }
+            return "Confirm page"
         }
         
         // Linear-specific button titles
