@@ -4,7 +4,12 @@ struct SuccessPillView: View {
     // Namespace for matchedGeometryEffect to enable smooth morph from card
     var gradientNamespace: Namespace.ID
     var morphNamespace: Namespace.ID? = nil
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
+
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
 
     private var iconBackground: Color {
         preferences.glassStyle == .clear ? Color.white.opacity(0.2) : Color.white.opacity(0.18)
@@ -35,13 +40,13 @@ struct SuccessPillView: View {
                 .overlay(
                     Image(systemName: "checkmark")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(palette.primaryText)
                 )
                 .shadow(color: Color.black.opacity(0.25), radius: 3, x: 0, y: 2)
 
             Text("Actions complete")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(palette.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .shadow(color: Color.black.opacity(0.35), radius: 2, x: 0, y: 1)

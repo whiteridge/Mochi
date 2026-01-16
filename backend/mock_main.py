@@ -9,11 +9,14 @@ Usage:
     uvicorn mock_main:app --reload --port 8000
 
 Test scenarios:
-    - "test 1" -> Linear ticket proposal
-    - "test 2" -> Slack message proposal
-    - "test 3" -> Multi-app flow (Linear + Slack)
-    - "test 4" -> Triple-app flow (Linear + Slack + Calendar)
-    - "test 5" -> Calendar event flow
+    - "test 1" / "test one" -> Linear ticket proposal
+    - "test 2" / "test two" -> Slack message proposal
+    - "test 3" / "test three" -> Multi-app flow (Linear + Slack)
+    - "test 4" / "test four" -> Triple-app flow (Linear + Slack + Calendar)
+    - "test 5" / "test five" -> Calendar event
+    - "test 6" / "test six" -> GitHub PR
+    - "test 7" / "test seven" -> Gmail email
+    - "test 8" / "test eight" -> Notion page
     - anything else -> Help message
 """
 
@@ -132,18 +135,39 @@ class MockAgentService:
             async for event in self._calendar_scenario():
                 yield event
 
+        # Scenario F: GitHub (test 6 / test six)
+        elif any(k in user_input_lower for k in ["test 6", "test six", "testsix"]) or ("github" in user_input_lower and "test" not in user_input_lower):
+            print("[MOCK DEBUG] -> Matched: GitHub scenario")
+            async for event in self._github_scenario():
+                yield event
+
+        # Scenario G: Gmail (test 7 / test seven)
+        elif any(k in user_input_lower for k in ["test 7", "test seven", "testseven"]) or ("gmail" in user_input_lower and "test" not in user_input_lower):
+            print("[MOCK DEBUG] -> Matched: Gmail scenario")
+            async for event in self._gmail_scenario():
+                yield event
+
+        # Scenario H: Notion (test 8 / test eight)
+        elif any(k in user_input_lower for k in ["test 8", "test eight", "testeight"]) or ("notion" in user_input_lower and "test" not in user_input_lower):
+            print("[MOCK DEBUG] -> Matched: Notion scenario")
+            async for event in self._notion_scenario():
+                yield event
+
         # Default: Help message
         else:
             yield {
                 "type": "message",
                 "content": (
                     "🧪 **Mock Backend Active**\n\n"
-                    "This is a deterministic test server. Try saying:\n"
-                    "- `test 1` → Linear ticket creation\n"
-                    "- `test 2` → Slack message\n"
-                    "- `test 3` → Multi-app (Linear + Slack)\n"
-                    "- `test 4` → Triple-app (Linear + Slack + Calendar)\n"
-                    "- `test 5` → Calendar event"
+                    "Try saying:\n"
+                    "- `test 1` → Linear\n"
+                    "- `test 2` → Slack\n"
+                    "- `test 3` → Multi-app (Linear+Slack)\n"
+                    "- `test 4` → Triple-app (+Calendar)\n"
+                    "- `test 5` → Calendar\n"
+                    "- `test 6` → GitHub\n"
+                    "- `test 7` → Gmail\n"
+                    "- `test 8` → Notion"
                 ),
                 "action_performed": None,
             }
@@ -406,6 +430,107 @@ class MockAgentService:
                     },
                 },
             ],
+        }
+
+    async def _github_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Simulate GitHub PR creation flow."""
+        # Early summary
+        yield {
+            "type": "early_summary",
+            "content": "I'll create a pull request on GitHub.",
+            "app_id": "github",
+            "involved_apps": ["github"],
+        }
+
+        # Tool status
+        yield {
+            "type": "tool_status",
+            "tool": "GITHUB_LIST_REPOS",
+            "status": "searching",
+            "app_id": "github",
+        }
+
+        await asyncio.sleep(0.6)
+
+        yield {
+            "type": "tool_status",
+            "tool": "GITHUB_LIST_REPOS",
+            "status": "done",
+            "app_id": "github",
+        }
+
+        await asyncio.sleep(0.3)
+
+        # The Proposal
+        yield {
+            "type": "proposal",
+            "tool": "GITHUB_CREATE_PULL_REQUEST",
+            "content": {
+                "owner": "your-org",
+                "repo": "your-repo",
+                "title": "feat: Add new feature",
+                "body": "This PR implements the new feature as discussed.",
+                "head": "feature-branch",
+                "base": "main",
+            },
+            "summary_text": "I'll create a PR from feature-branch to main.",
+            "app_id": "github",
+            "proposal_index": 0,
+            "total_proposals": 1,
+        }
+
+    async def _gmail_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Simulate Gmail email composition flow."""
+        # Early summary
+        yield {
+            "type": "early_summary",
+            "content": "I'll draft an email for you.",
+            "app_id": "gmail",
+            "involved_apps": ["gmail"],
+        }
+
+        await asyncio.sleep(0.5)
+
+        # The Proposal
+        yield {
+            "type": "proposal",
+            "tool": "GMAIL_SEND_EMAIL",
+            "content": {
+                "to": "team@example.com",
+                "subject": "Project Update",
+                "body": "Hi team,\n\nHere's the latest update on the project.\n\nBest regards",
+            },
+            "summary_text": "I'll send an email to team@example.com.",
+            "app_id": "gmail",
+            "proposal_index": 0,
+            "total_proposals": 1,
+        }
+
+    async def _notion_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Simulate Notion page creation flow."""
+        # Early summary
+        yield {
+            "type": "early_summary",
+            "content": "I'll create a page in Notion.",
+            "app_id": "notion",
+            "involved_apps": ["notion"],
+        }
+
+        await asyncio.sleep(0.5)
+
+        # The Proposal
+        yield {
+            "type": "proposal",
+            "tool": "NOTION_CREATE_PAGE",
+            "content": {
+                "parent_id": "database-123",
+                "title": "Meeting Notes - Jan 16",
+                "content": "# Discussion Points\n\n- Item 1\n- Item 2\n\n# Action Items\n\n- [ ] Follow up on...",
+            },
+            "summary_text": "I'll create a new Notion page for meeting notes.",
+            "app_id": "notion",
+            "proposal_index": 0,
+            "total_proposals": 1,
         }
 
 

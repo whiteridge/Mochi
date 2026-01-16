@@ -21,16 +21,27 @@ struct ActionGlowButton: View {
 private struct ActionGlowButtonLabel: View {
     let title: String
     let isExecuting: Bool
+    
+    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var preferences: PreferencesStore
+    
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
+    
+    private var labelColor: Color {
+        palette.primaryText
+    }
 
     var body: some View {
         ZStack {
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(labelColor)
                 .offset(y: isExecuting ? 12 : 0)
                 .opacity(isExecuting ? 0 : 1)
 
-            ActionBouncingDotsView(dotColor: .white, dotSize: 4)
+            ActionBouncingDotsView(dotColor: labelColor, dotSize: 4)
                 .offset(y: isExecuting ? 0 : -12)
                 .opacity(isExecuting ? 1 : 0)
         }

@@ -8,6 +8,14 @@ Native macOS overlay for fast local transcription and tool-assisted actions.
 - Gemini-powered intent parsing and tool calls via local backend
 - Action confirmations for Linear, Slack, GitHub, Notion, Gmail, Google Calendar
 
+## Implemented apps
+- Linear
+- Slack
+- GitHub
+- Notion
+- Gmail
+- Google Calendar
+
 ## Architecture
 - UI: SwiftUI + NSWindow transparency for the glass effect
 - Audio: FluidAudio / Parakeet TDT v3
