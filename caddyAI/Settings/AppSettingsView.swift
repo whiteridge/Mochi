@@ -13,6 +13,7 @@ struct AppSettingsView: View {
 		} detail: {
 			detailView
 		}
+		.toolbar(removing: .sidebarToggle)
 		.onAppear { viewModel.loadPersistedValues() }
 	}
 	
