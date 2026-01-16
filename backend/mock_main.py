@@ -444,7 +444,7 @@ class MockAgentService:
             "tool": "LINEAR_CREATE_LINEAR_ISSUE",
             "content": {
                 "title": "Customer-reported: Checkout flow broken on Safari",
-                "description": "A VIP customer reported that they cannot complete checkout on Safari 17.\\n\\n**Steps to reproduce:**\\n1. Add items to cart\\n2. Click 'Proceed to Checkout'\\n3. Page hangs on payment step\\n\\n**Browser:** Safari 17.2 on macOS Sonoma\\n**Account:** enterprise-vip-123",
+                "description": "A VIP customer reported that they cannot complete checkout on Safari 17.\n\n**Steps to reproduce:**\n1. Add items to cart\n2. Click 'Proceed to Checkout'\n3. Page hangs on payment step\n\n**Browser:** Safari 17.2 on macOS Sonoma\n**Account:** enterprise-vip-123",
                 "teamId": "b0c33658-525d-4f71-a029-775796016149",
                 "teamName": "Frontend",
                 "projectName": "Customer Issues",
@@ -464,7 +464,7 @@ class MockAgentService:
                     "app_id": "slack",
                     "args": {
                         "channelName": "#customer-escalations",
-                        "text": "🔥 **VIP Customer Issue - Checkout Broken**\\n\\n• **Ticket:** FRONT-456\\n• **Customer:** Enterprise VIP Account\\n• **Browser:** Safari 17.2\\n• **Assigned:** Lisa Wong\\n• **Priority:** Urgent\\n\\nPlease prioritize. Customer is waiting.\\n\\n<https://linear.app/ticket/FRONT-456|View Ticket>",
+                        "text": "🔥 **VIP Customer Issue - Checkout Broken**\n\n**Ticket:** FRONT-456\n**Customer:** Enterprise VIP Account\n**Browser:** Safari 17.2\n**Assigned:** Lisa Wong\n**Priority:** Urgent\n\nPlease prioritize. Customer is waiting.\n\n<https://linear.app/ticket/FRONT-456|View Ticket>",
                     },
                 },
                 {

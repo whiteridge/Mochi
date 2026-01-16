@@ -21,9 +21,9 @@ struct NotionStageSection: View {
                     .foregroundStyle(palette.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 
-                if let content = contentPreview {
+                if let content = notionContentDisplay {
                     ScrollableTextArea(maxHeight: 160, indicatorColor: palette.subtleBorder.opacity(0.35)) {
-                        if let markdown = try? AttributedString(markdown: content) {
+                        if let markdown = notionAttributedText(from: content) {
                             Text(markdown)
                                 .font(.system(size: 14, weight: .regular))
                                 .foregroundStyle(palette.secondaryText)
@@ -91,6 +91,22 @@ struct NotionStageSection: View {
             return content
         }
         return nil
+    }
+
+    private var notionContentDisplay: String? {
+        guard let content = contentPreview else { return nil }
+        var output = content
+        output = output.replacingOccurrences(of: "\\r\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\n", with: "\n")
+        output = output.replacingOccurrences(of: "\\t", with: "\t")
+        return output
+    }
+
+    private func notionAttributedText(from text: String) -> AttributedString? {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return try? AttributedString(markdown: text, options: options)
     }
     
     private var notionMetadataItems: [(String, String)] {
