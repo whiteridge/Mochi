@@ -221,6 +221,7 @@ struct StatusPillView: View {
                 
                 // Bouncing dots using TimelineView - always animates
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)
+                    .padding(.trailing, 6)
             }
         }
     }

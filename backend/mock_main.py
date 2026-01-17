@@ -329,6 +329,28 @@ class MockAgentService:
             "active_app": "linear",
         }
 
+        # Simulate searching each app before proposals
+        for app_id, tool in [
+            ("linear", "LINEAR_PRECHECK"),
+            ("slack", "SLACK_PRECHECK"),
+        ]:
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "searching",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(2.0)
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "done",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(0.2)
+
         await asyncio.sleep(0.5)
 
         # Proposal 1 (Linear) with remaining proposals - MAXED OUT
@@ -435,6 +457,29 @@ class MockAgentService:
             ],
             "active_app": "linear",
         }
+
+        # Simulate searching each app before proposals
+        for app_id, tool in [
+            ("linear", "LINEAR_PRECHECK"),
+            ("slack", "SLACK_PRECHECK"),
+            ("google_calendar", "CALENDAR_PRECHECK"),
+        ]:
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "searching",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(2.0)
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "done",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(0.2)
 
         await asyncio.sleep(0.5)
 

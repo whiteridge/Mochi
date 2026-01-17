@@ -12,6 +12,23 @@ from .common import (
 )
 
 
+def _tool_status_name_for_app(app_id: str) -> str:
+    normalized = app_id.lower().replace("-", "_").replace(" ", "_")
+    if normalized in {"google_calendar", "calendar"}:
+        return "CALENDAR_PRECHECK"
+    if normalized in {"gmail", "googlemail"}:
+        return "GMAIL_PRECHECK"
+    if normalized == "github":
+        return "GITHUB_PRECHECK"
+    if normalized == "notion":
+        return "NOTION_PRECHECK"
+    if normalized == "slack":
+        return "SLACK_PRECHECK"
+    if normalized == "linear":
+        return "LINEAR_PRECHECK"
+    return f"{app_id.upper()}_PRECHECK"
+
+
 class AgentDispatcher:
     """Handles the agent streaming loop (reads, writes, proposals)."""
 
@@ -79,6 +96,8 @@ class AgentDispatcher:
             app_write_executing: set[str] = set()
             # Track executed/queued writes to prevent duplicate proposals across iterations/confirmations
             executed_write_keys = set()
+            # Track apps that have emitted tool_status events (real or synthetic)
+            apps_with_tool_status: set[str] = set()
 
             # Early summary tracking (for fast first message)
             early_summary_sent = False
@@ -318,6 +337,7 @@ class AgentDispatcher:
                         pending_read_actions.extend(read_actions_to_execute[1:])
 
                     # Emit tool_status before execution (one per iteration)
+                    apps_with_tool_status.add(app_id)
                     yield {
                         "type": "tool_status",
                         "tool": tool_name,
@@ -363,6 +383,7 @@ class AgentDispatcher:
 
                     # Emit completion/error status to allow UI transitions and next app
                     app_read_status[app_id] = status_after_read
+                    apps_with_tool_status.add(app_id)
                     yield {
                         "type": "tool_status",
                         "tool": tool_name,
@@ -418,6 +439,7 @@ class AgentDispatcher:
                 elif not found_function_call:
                     # If no new function call and nothing pending, send a cleanup status for last app
                     if last_searching_app_id:
+                        apps_with_tool_status.add(last_searching_app_id)
                         yield {
                             "type": "tool_status",
                             "tool": "noop",
@@ -435,6 +457,34 @@ class AgentDispatcher:
             if proposal_queue:
                 total_proposals = len(proposal_queue)
                 print(f"DEBUG: Emitting {total_proposals} queued proposal(s)")
+
+                # If this is a multi-app write flow, emit synthetic tool_status events
+                proposal_app_ids: List[str] = []
+                for proposal in proposal_queue:
+                    app_id = proposal["app_id"]
+                    if app_id not in proposal_app_ids:
+                        proposal_app_ids.append(app_id)
+
+                if len(proposal_app_ids) > 1:
+                    for app_id in proposal_app_ids:
+                        if app_id in apps_with_tool_status:
+                            continue
+                        synthetic_tool = _tool_status_name_for_app(app_id)
+                        apps_with_tool_status.add(app_id)
+                        yield {
+                            "type": "tool_status",
+                            "tool": synthetic_tool,
+                            "status": "searching",
+                            "app_id": app_id,
+                            "involved_apps": involved_apps,
+                        }
+                        yield {
+                            "type": "tool_status",
+                            "tool": synthetic_tool,
+                            "status": "done",
+                            "app_id": app_id,
+                            "involved_apps": involved_apps,
+                        }
 
                 # Emit multi_app_status to show all involved apps in UI
                 yield {
