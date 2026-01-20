@@ -244,6 +244,7 @@ struct UnifiedPillView: View {
                     .animation(.spring(response: 0.6, dampingFraction: 0.75), value: statusText)
                 
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)
+                    .padding(.trailing, 4)
             }
             .transition(.opacity.combined(with: .scale(scale: 0.8)))
         }

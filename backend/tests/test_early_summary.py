@@ -6,7 +6,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 # Test early summary helpers
-from backend.agent.common import map_tool_to_app, make_early_summary
+from backend.agent.common import looks_like_tool_request, map_tool_to_app, make_early_summary
 
 
 class TestMapToolToApp:
@@ -84,6 +84,22 @@ class TestMakeEarlySummary:
         """Google Calendar app should get specific summary."""
         summary = make_early_summary("google_calendar")
         assert "Google Calendar" in summary
+
+
+class TestLooksLikeToolRequest:
+    """Tests for the looks_like_tool_request helper function."""
+
+    def test_detects_write_intent(self):
+        assert looks_like_tool_request("Create a bug report for the crash")
+        assert looks_like_tool_request("Schedule a meeting tomorrow")
+        assert looks_like_tool_request("Send a message to #general")
+
+    def test_detects_read_intent(self):
+        assert looks_like_tool_request("Summarize #general")
+        assert looks_like_tool_request("Find the last PR comment")
+
+    def test_ignores_non_action_text(self):
+        assert not looks_like_tool_request("I like the new design")
 
 
 class TestComposioServiceCaching:

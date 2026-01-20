@@ -7,6 +7,7 @@ from google.genai import types
 from .common import (
     detect_apps_from_input,
     format_app_name,
+    looks_like_tool_request,
     make_early_summary,
     map_tool_to_app,
 )
@@ -27,6 +28,16 @@ def _tool_status_name_for_app(app_id: str) -> str:
     if normalized == "linear":
         return "LINEAR_PRECHECK"
     return f"{app_id.upper()}_PRECHECK"
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "resource_exhausted" in message
+        or "rate limit" in message
+        or "quota" in message
+        or "429" in message
+    )
 
 
 class AgentDispatcher:
@@ -61,7 +72,20 @@ class AgentDispatcher:
         try:
             # Initial message
             print(f"DEBUG: Sending user input to Gemini: {user_input[:100]}...")
-            response = chat.send_message(user_input)
+            try:
+                response = chat.send_message(user_input)
+            except Exception as exc:  # noqa: BLE001 - surface rate limits to client
+                if _is_rate_limit_error(exc):
+                    yield {
+                        "type": "message",
+                        "content": (
+                            "I'm temporarily rate-limited by the model provider. "
+                            "Please retry in a minute."
+                        ),
+                        "action_performed": None,
+                    }
+                    return
+                raise
 
             # DEBUG: Log function calls and thoughts in response
             if hasattr(response, "candidates") and response.candidates:
@@ -102,6 +126,8 @@ class AgentDispatcher:
             # Early summary tracking (for fast first message)
             early_summary_sent = False
             early_summary_text = None
+            tool_nudge_sent = False
+            should_nudge_for_tools = False
 
             # MULTI-APP SUPPORT: Track involved apps and queue proposals
             involved_apps = []  # List of app_ids found (including pre-detected)
@@ -146,6 +172,10 @@ class AgentDispatcher:
                     }
                     early_summary_sent = True
                     print(f"DEBUG: Emitted combined early summary for {pre_detected_apps}")
+
+                should_nudge_for_tools = bool(pre_detected_apps) and looks_like_tool_request(
+                    user_input
+                )
 
             # CONFIRMED TOOL EXECUTION: Execute the specific confirmed action first
             if confirmed_tool:
@@ -194,7 +224,26 @@ class AgentDispatcher:
                         name=tool_name,
                         response={"result": str(result_data)},
                     )
-                    response = chat.send_message([function_response])
+                    try:
+                        response = chat.send_message([function_response])
+                    except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+                        if _is_rate_limit_error(send_error):
+                            content = (
+                                f"{app_display} action completed. "
+                                "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
+                                "Please retry in a minute."
+                            )
+                        else:
+                            content = (
+                                f"{app_display} action completed, but I couldn't continue the follow-up "
+                                "due to a model error. Please retry."
+                            )
+                        yield {
+                            "type": "message",
+                            "content": content,
+                            "action_performed": f"{app_display} action executed",
+                        }
+                        return
 
                 except Exception as exec_error:  # noqa: BLE001 - emit error to stream
                     print(f"DEBUG: ❌ Confirmed tool execution error: {exec_error}", flush=True)
@@ -379,7 +428,25 @@ class AgentDispatcher:
                         status_after_read = "error"
 
                     # Send single read result back; remaining reads will run in later iterations
-                    response = chat.send_message([function_response])
+                    try:
+                        response = chat.send_message([function_response])
+                    except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+                        if _is_rate_limit_error(send_error):
+                            content = (
+                                "I fetched the requested data, but I'm temporarily rate-limited "
+                                "and couldn't continue. Please retry in a minute."
+                            )
+                        else:
+                            content = (
+                                "I fetched the requested data, but couldn't continue due to a model error. "
+                                "Please retry."
+                            )
+                        yield {
+                            "type": "message",
+                            "content": content,
+                            "action_performed": None,
+                        }
+                        return
 
                     # Emit completion/error status to allow UI transitions and next app
                     app_read_status[app_id] = status_after_read
@@ -437,6 +504,32 @@ class AgentDispatcher:
                     pending_write_actions = []
                     break
                 elif not found_function_call:
+                    if should_nudge_for_tools and not tool_nudge_sent:
+                        tool_nudge_sent = True
+                        print(
+                            "DEBUG: No function call detected; nudging Gemini to use tools",
+                            flush=True,
+                        )
+                        nudge_text = (
+                            "Use the available tools to complete the user's request. "
+                            "If IDs are required, call list/search tools to resolve them first. "
+                            "Respond with function calls only."
+                        )
+                        try:
+                            response = chat.send_message(nudge_text)
+                        except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
+                            if _is_rate_limit_error(send_error):
+                                yield {
+                                    "type": "message",
+                                    "content": (
+                                        "I'm temporarily rate-limited by the model provider. "
+                                        "Please retry in a minute."
+                                    ),
+                                    "action_performed": None,
+                                }
+                                return
+                            raise
+                        continue
                     # If no new function call and nothing pending, send a cleanup status for last app
                     if last_searching_app_id:
                         apps_with_tool_status.add(last_searching_app_id)

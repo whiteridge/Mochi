@@ -15,12 +15,32 @@ struct SuccessPillView: View {
         preferences.glassStyle == .clear ? Color.white.opacity(0.2) : Color.white.opacity(0.18)
     }
 
+    private var glowIntensity: Double {
+        colorScheme == .dark ? 0.32 : 0.52
+    }
+
+    private var glowOpacity: Double {
+        colorScheme == .dark ? 0.8 : 0.95
+    }
+
     @ViewBuilder
     private var backgroundLayer: some View {
-        ActionGlowCapsuleBackground(
-            rotationSpeed: 8.0,
-            gradientNamespace: gradientNamespace
-        )
+        ZStack {
+            LiquidGlassSurface(shape: .capsule, prominence: .regular, shadowed: true)
+
+            RotatingGradientFill(
+                shape: .capsule,
+                rotationSpeed: 0.9,
+                intensity: glowIntensity,
+                renderStyle: .cone(origin: .center)
+            )
+            .blendMode(colorScheme == .dark ? .plusLighter : .screen)
+            .opacity(glowOpacity)
+            .clipShape(Capsule())
+
+            Capsule()
+                .stroke(palette.subtleBorder, lineWidth: 1)
+        }
     }
 
     @ViewBuilder

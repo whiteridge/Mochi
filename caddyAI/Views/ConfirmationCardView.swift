@@ -35,12 +35,8 @@ struct ConfirmationCardView: View {
             footerSection
         }
         .padding(22)
-        .background {
-            ZStack {
-                cardBackground
-                glowOverlay
-            }
-        }
+        .background(cardBackground)
+        .overlay(glowOverlay)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
         .frame(maxWidth: 560)
@@ -234,6 +230,10 @@ private extension ConfirmationCardView {
             let driftX = CGFloat(cos(phase)) * 0.035
             let driftY = CGFloat(sin(phase)) * 0.03
             let coneOrigin = UnitPoint(x: 0.5 + driftX, y: 0.5 + driftY)
+            let baseIntensity = colorScheme == .dark
+                ? (isFinalAction ? 0.22 : 0.18)
+                : (isFinalAction ? 0.52 : 0.44)
+            let baseOpacity = colorScheme == .dark ? 0.55 : 0.9
             let maskGradient = RadialGradient(
                 gradient: Gradient(stops: [
                     .init(color: .white.opacity(0.85), location: 0),
@@ -249,14 +249,14 @@ private extension ConfirmationCardView {
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
                 rotationSpeed: 1.8,
-                intensity: isFinalAction ? 0.18 : 0.14,
+                intensity: baseIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )
-            .opacity(isGlowActive ? 0.55 : 0)
-            .blendMode(.plusLighter)
+            .opacity(isGlowActive ? baseOpacity : 0)
+            .blendMode(colorScheme == .dark ? .plusLighter : .screen)
             .mask(
                 maskGradient
-                    .blur(radius: 20)
+                    .blur(radius: colorScheme == .dark ? 16 : 12)
             )
             .animation(.easeInOut(duration: 0.45), value: isGlowActive)
             .allowsHitTesting(false)
