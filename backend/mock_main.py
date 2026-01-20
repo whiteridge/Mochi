@@ -386,50 +386,51 @@ class MockAgentService:
         }
 
     async def _calendar_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
-        """Simulate Google Calendar event creation flow."""
+        """Simulate Google Calendar upcoming events flow."""
         # Early summary
         yield {
             "type": "early_summary",
-            "content": "I'll schedule a meeting for you.",
+            "content": "I'll fetch your upcoming events for the next 6 hours.",
             "app_id": "google_calendar",
             "involved_apps": ["google_calendar"],
         }
 
+        # Tool status: searching upcoming events
+        yield {
+            "type": "tool_status",
+            "tool": "GOOGLECALENDAR_EVENTS_LIST",
+            "status": "searching",
+            "app_id": "google_calendar",
+        }
+
+        await asyncio.sleep(0.6)
+
+        # Tool status: done
+        yield {
+            "type": "tool_status",
+            "tool": "GOOGLECALENDAR_EVENTS_LIST",
+            "status": "done",
+            "app_id": "google_calendar",
+        }
+
         await asyncio.sleep(0.5)
 
-        # The Proposal - MAXED OUT with all Calendar metadata
+        # The Proposal - upcoming events snapshot
         yield {
             "type": "proposal",
-            "tool": "GOOGLECALENDAR_CREATE_EVENT",
+            "tool": "GOOGLECALENDAR_EVENTS_LIST",
             "content": {
-                "summary": "Q1 Roadmap Planning Session",
-                "description": "## Agenda\n\n1. **Review Q4 results** (15 min)\n   - OKR completion status\n   - Lessons learned\n\n2. **Q1 Priorities** (30 min)\n   - Voice command improvements\n   - New app integrations\n   - Performance optimizations\n\n3. **Resource allocation** (15 min)\n\n---\n\n📎 Pre-read: [Q1 Roadmap Draft](https://docs.google.com/document/...)",
-                "start": {"dateTime": "2024-01-22T14:00:00", "timeZone": "America/Los_Angeles"},
-                "end": {"dateTime": "2024-01-22T15:30:00", "timeZone": "America/Los_Angeles"},
-                "location": "Conference Room A / https://meet.google.com/abc-defg-hij",
-                "attendees": [
-                    {"email": "sarah.chen@acme.com", "displayName": "Sarah Chen"},
-                    {"email": "mike.johnson@acme.com", "displayName": "Mike Johnson"},
-                    {"email": "lisa.wong@acme.com", "displayName": "Lisa Wong"},
-                    {"email": "alex.kumar@acme.com", "displayName": "Alex Kumar"},
-                ],
-                "reminders": {
-                    "useDefault": False,
-                    "overrides": [
-                        {"method": "email", "minutes": 60},
-                        {"method": "popup", "minutes": 15},
-                    ]
-                },
-                "conferenceData": {
-                    "conferenceId": "abc-defg-hij",
-                    "conferenceSolution": {"name": "Google Meet"}
-                },
-                "colorId": "9",  # Blueberry
-                "visibility": "default",
-                "guestsCanModify": False,
-                "guestsCanInviteOthers": True,
+                "summary": "Upcoming events (next 6 hours)",
+                "description": (
+                    "- 9:00 AM-9:30 AM  Daily Standup\n"
+                    "- 11:00 AM-12:00 PM  Product Sync\n"
+                    "- 1:30 PM-2:00 PM  Design Review"
+                ),
+                "start": {"dateTime": "2024-01-22T09:00:00", "timeZone": "America/Los_Angeles"},
+                "end": {"dateTime": "2024-01-22T15:00:00", "timeZone": "America/Los_Angeles"},
+                "calendar_id": "primary",
             },
-            "summary_text": "I'll schedule the Q1 Roadmap Planning Session for Monday 2-3:30 PM.",
+            "summary_text": "Here's what's coming up in the next 6 hours.",
             "app_id": "google_calendar",
             "proposal_index": 0,
             "total_proposals": 1,

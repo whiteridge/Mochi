@@ -20,29 +20,16 @@ struct LiquidGlassDockBackground: View {
                 // Use native glassEffect on macOS 26+ / iOS 26+
                 if #available(macOS 26.0, iOS 26.0, *) {
                     let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-                    if preferences.glassStyle == .regular {
-                        Color.clear
-                            .background(.regularMaterial, in: .capsule)
-                            .overlay(
-                                Capsule().fill(paneFill)
-                            )
-                            .shadow(
-                                color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.25 : 0.15) : .clear,
-                                radius: shadowed ? 10 : 0,
-                                x: 0,
-                                y: shadowed ? 4 : 0
-                            )
-                    } else {
-                        Color.clear
-                            .background(AnyShapeStyle(paneFill), in: .capsule)
-                            .glassEffect(.clear, in: .capsule)
-                            .shadow(
-                                color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.25 : 0.15) : .clear,
-                                radius: shadowed ? 10 : 0,
-                                x: 0,
-                                y: shadowed ? 4 : 0
-                            )
-                    }
+                    Color.clear
+                        .background(AnyShapeStyle(paneFill), in: .capsule)
+                        .glassEffect(.clear, in: .capsule)
+                        .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
+                        .shadow(
+                            color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.25 : 0.15) : .clear,
+                            radius: shadowed ? 10 : 0,
+                            x: 0,
+                            y: shadowed ? 4 : 0
+                        )
                 } else {
                     // Fallback for older OS versions
                     legacyGlassView(size: size)
@@ -65,27 +52,6 @@ struct LiquidGlassDockBackground: View {
             ? AnyShapeStyle(fallbackFill)
             : AnyShapeStyle(.ultraThinMaterial)
         let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-
-        if preferences.glassStyle == .regular {
-            ZStack {
-                if reduceTransparency {
-                    shape.fill(paneFill)
-                } else {
-                    shape.fill(.regularMaterial)
-                }
-                shape.fill(paneFill)
-            }
-            .overlay(
-                shape
-                    .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.08), lineWidth: rimWidth)
-            )
-            .shadow(
-                color: shadowed ? Color.black.opacity(colorScheme == .dark ? 0.35 : 0.2) : .clear,
-                radius: shadowed ? (colorScheme == .dark ? 14 : 10) : 0,
-                x: 0,
-                y: shadowed ? (colorScheme == .dark ? 6 : 4) : 0
-            )
-        } else {
 
         let glassLayer = ZStack {
             shape.fill(tint)
@@ -111,6 +77,7 @@ struct LiquidGlassDockBackground: View {
         )
 
         glassLayer
+            .overlay(GlassCloudOverlay(shape, isEnabled: preferences.glassStyle == .regular))
             .overlay(
                 shape
                     .strokeBorder(rimGradient, lineWidth: rimWidth)
@@ -127,7 +94,6 @@ struct LiquidGlassDockBackground: View {
                 x: 0,
                 y: shadowed ? (colorScheme == .dark ? 6 : 4) : 0
             )
-        }
     }
     
     // MARK: - Legacy Styling Properties

@@ -57,8 +57,10 @@ struct GitHubStageSection: View {
 
     @ViewBuilder
     private var stageBackground: some View {
+        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
+                .opacity(stageOpacity)
             if preferences.glassStyle == .clear {
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
                     .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))
@@ -223,6 +225,7 @@ private struct GitHubMetadataGridItem: View {
     }
 
     var body: some View {
+        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -239,6 +242,7 @@ private struct GitHubMetadataGridItem: View {
         .background(
             ZStack {
                 LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+                    .opacity(boxOpacity)
                 if item.accent != nil {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(accentFill)

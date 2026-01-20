@@ -36,7 +36,7 @@ struct ConfirmationCardView: View {
         }
         .padding(22)
         .background(cardBackground)
-        .overlay(glowOverlay)
+        .background(glowOverlay)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
         .frame(maxWidth: 560)
@@ -248,7 +248,7 @@ private extension ConfirmationCardView {
 
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
-                rotationSpeed: 1.2,
+                rotationSpeed: 1.4,
                 intensity: baseIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )

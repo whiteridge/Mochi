@@ -4,6 +4,7 @@ Native macOS overlay for fast local transcription and tool-assisted actions.
 
 ## Highlights
 - Always-on-top bubble with chat expansion
+- Draggable pill and confirmation card (click-drag to reposition)
 - Local-first speech-to-text (FluidAudio/Parakeet)
 - Gemini-powered intent parsing and tool calls via local backend
 - Action confirmations for Linear, Slack, GitHub, Notion, Gmail, Google Calendar

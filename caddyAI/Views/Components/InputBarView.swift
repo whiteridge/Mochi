@@ -28,23 +28,12 @@ struct InputBarView: View {
     @available(macOS 26.0, iOS 26.0, *)
     private var nativeContent: some View {
         let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-        return Group {
-            if preferences.glassStyle == .regular {
-                inputContent
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(.regularMaterial, in: .capsule)
-                    .overlay(
-                        Capsule().fill(paneFill)
-                    )
-            } else {
-                inputContent
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(AnyShapeStyle(paneFill), in: .capsule)
-                    .glassEffect(.clear.interactive(), in: .capsule)
-            }
-        }
+        return inputContent
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AnyShapeStyle(paneFill), in: .capsule)
+            .glassEffect(.clear.interactive(), in: .capsule)
+            .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
     }
     
     // MARK: - Legacy Glass Effect

@@ -36,6 +36,8 @@ struct VoiceChatBubble: View {
     @Namespace private var rotatingLightNamespace
 
     @StateObject private var voiceRecorder = VoiceRecorder()
+    @State private var dragOffset: CGSize = .zero
+    @GestureState private var dragTranslation: CGSize = .zero
     private let transcriptionService = ParakeetTranscriptionService()
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
@@ -50,19 +52,19 @@ struct VoiceChatBubble: View {
             rotatingLightBackgroundLayer
             
             // Content layers - use UnifiedPillView for recording/thinking/searching
-            if let pillMode = unifiedPillMode {
-                UnifiedPillView(
-                    mode: pillMode,
-                    morphNamespace: animation,
-                    stopRecording: stopRecording,
-                    cancelRecording: cancelVoiceSession
-                )
-                .transition(.scale(scale: 1))
-            } else if viewModel.state == .idle {
-                EmptyView()
-            } else {
-                compactFlowContent
-            }
+            contentLayer
+                .overlay(alignment: .bottom) {
+                    if let errorMessage = viewModel.errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.pink)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, -20)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .offset(currentDragOffset)
+                .simultaneousGesture(dragGesture)
         }
         .padding(.bottom, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -102,17 +104,6 @@ struct VoiceChatBubble: View {
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
         .animation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0), value: viewModel.isExecutingAction)
-        // Error overlay
-        .overlay(alignment: .bottom) {
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.pink)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, -20)
-                    .multilineTextAlignment(.center)
-            }
-        }
     }
     
     @ViewBuilder
@@ -122,6 +113,41 @@ struct VoiceChatBubble: View {
         // - success state: rendered in SuccessPill
         // So this layer is empty - the rotating light is handled by the content views
         EmptyView()
+    }
+
+    @ViewBuilder
+    private var contentLayer: some View {
+        if let pillMode = unifiedPillMode {
+            UnifiedPillView(
+                mode: pillMode,
+                morphNamespace: animation,
+                stopRecording: stopRecording,
+                cancelRecording: cancelVoiceSession
+            )
+            .transition(.scale(scale: 1))
+        } else if viewModel.state == .idle {
+            EmptyView()
+        } else {
+            compactFlowContent
+        }
+    }
+
+    private var currentDragOffset: CGSize {
+        CGSize(
+            width: dragOffset.width + dragTranslation.width,
+            height: dragOffset.height + dragTranslation.height
+        )
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation
+            }
+            .onEnded { value in
+                dragOffset.width += value.translation.width
+                dragOffset.height += value.translation.height
+            }
     }
     
     // MARK: - Unified Pill Mode
@@ -281,33 +307,23 @@ private struct AssistantMessageBubbleView: View {
         if #available(macOS 26.0, iOS 26.0, *) {
             if usesRoundedRect {
                 Group {
-                    if preferences.glassStyle == .regular {
-                        messageContent
-                            .background(.regularMaterial, in: .rect(cornerRadius: messageCornerRadius))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: messageCornerRadius, style: .continuous)
-                                    .fill(paneFill)
+                    messageContent
+                        .background(AnyShapeStyle(paneFill), in: .rect(cornerRadius: messageCornerRadius))
+                        .glassEffect(.clear, in: .rect(cornerRadius: messageCornerRadius))
+                        .overlay(
+                            GlassCloudOverlay(
+                                RoundedRectangle(cornerRadius: messageCornerRadius, style: .continuous),
+                                isEnabled: preferences.glassStyle == .regular
                             )
-                    } else {
-                        messageContent
-                            .background(AnyShapeStyle(paneFill), in: .rect(cornerRadius: messageCornerRadius))
-                            .glassEffect(.clear, in: .rect(cornerRadius: messageCornerRadius))
-                    }
+                        )
                 }
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
             } else {
                 Group {
-                    if preferences.glassStyle == .regular {
-                        messageContent
-                            .background(.regularMaterial, in: .capsule)
-                            .overlay(
-                                Capsule().fill(paneFill)
-                            )
-                    } else {
-                        messageContent
-                            .background(AnyShapeStyle(paneFill), in: .capsule)
-                            .glassEffect(.clear, in: .capsule)
-                    }
+                    messageContent
+                        .background(AnyShapeStyle(paneFill), in: .capsule)
+                        .glassEffect(.clear, in: .capsule)
+                        .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
                 }
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
             }

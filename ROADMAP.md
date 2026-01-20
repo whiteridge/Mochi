@@ -10,6 +10,7 @@ This roadmap lists the remaining work to reach a stable v1 of caddyAI. It is org
 - [x] Ensure all pills and bubbles use the same palette rules (thinking/searching, recording, assistant bubble, error bubble).
 - [x] Make confirmation card layout consistent and compact (header pills, app icons, multi-card sequencing).
 - [x] Smooth morphing animations across state transitions with consistent timing.
+- [x] Allow click-drag repositioning of the pill and confirmation card.
 
 ## Next (Core actions and confirmation pipeline)
 - [ ] Implement and stabilize tool-use protocol + ToolManager routing.

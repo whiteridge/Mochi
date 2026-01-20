@@ -67,8 +67,10 @@ struct CalendarStageSection: View {
     
     @ViewBuilder
     private var stageBackground: some View {
+        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
+                .opacity(stageOpacity)
             if preferences.glassStyle == .clear {
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
                     .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))
@@ -78,7 +80,8 @@ struct CalendarStageSection: View {
 
     @ViewBuilder
     private func calendarFieldContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        return VStack(alignment: .leading, spacing: 6) {
             content()
         }
         .padding(.vertical, 8)
@@ -87,6 +90,7 @@ struct CalendarStageSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+                .opacity(boxOpacity)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
@@ -206,7 +210,8 @@ struct CalendarStageSection: View {
     }
 
     var calendarTimelineSection: some View {
-        CalendarTimelineView(
+        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        return CalendarTimelineView(
             startDate: calendarDetails.startDate,
             endDate: calendarDetails.endDate,
             timeZone: calendarDetails.timeZone,
@@ -217,6 +222,7 @@ struct CalendarStageSection: View {
         .frame(width: 170, height: timelineTargetHeight)
         .background(
             LiquidGlassSurface(shape: .roundedRect(14), prominence: .subtle, shadowed: false)
+                .opacity(boxOpacity)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(

@@ -70,8 +70,10 @@ struct NotionStageSection: View {
     
     @ViewBuilder
     private var stageBackground: some View {
+        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
+                .opacity(stageOpacity)
             if preferences.glassStyle == .clear {
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
                     .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))
@@ -250,6 +252,7 @@ private struct NotionMetadataGridItem: View {
 	}
 
 	var body: some View {
+		let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
 		HStack(alignment: .top, spacing: 12) {
 			if let accent = item.accent {
 				RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -276,6 +279,7 @@ private struct NotionMetadataGridItem: View {
 		.background(
 			ZStack(alignment: .leading) {
 				LiquidGlassSurface(shape: .roundedRect(12), prominence: .subtle, shadowed: false)
+					.opacity(boxOpacity)
 				if let accent = item.accent {
 					Rectangle()
 						.fill(

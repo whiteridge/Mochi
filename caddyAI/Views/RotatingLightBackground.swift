@@ -49,15 +49,19 @@ struct RotatingGradientFill: View {
     
     // Cone gradient stops - broad, soft sweep with no hard dark gaps
     private func coneGradientStops(adjustedIntensity: Double) -> [Gradient.Stop] {
-        [
-            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.35), location: 0),
-            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.45), location: 0.2),
-            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.6), location: 0.4),
-            .init(color: ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 0.85), location: 0.56),
-            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.7), location: 0.7),
-            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.5), location: 0.86),
-            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.4), location: 1)
+        let baseStops: [Gradient.Stop] = [
+            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3), location: 0),
+            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.55), location: 0.14),
+            .init(color: ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 0.9), location: 0.25),
+            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.6), location: 0.36),
+            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3), location: 0.5)
         ]
+
+        let repeatedStops = baseStops.dropFirst().map { stop in
+            Gradient.Stop(color: stop.color, location: stop.location + 0.5)
+        }
+
+        return baseStops + repeatedStops
     }
     
     private func rotationAngle(for date: Date) -> Double {
