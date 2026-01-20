@@ -7,10 +7,10 @@ enum ActionGlowPalette {
     static let regularFillTop = Color(red: 0.26, green: 0.84, blue: 0.62)
     static let regularFillBottom = Color(red: 0.14, green: 0.52, blue: 0.38)
     static let solidFill = Color(red: 0.10, green: 0.54, blue: 0.38)
-    static let gradientDark = Color(red: 0.04, green: 0.14, blue: 0.12)
-    static let gradientMid = Color(red: 0.07, green: 0.26, blue: 0.21)
-    static let gradientBright = Color(red: 0.12, green: 0.42, blue: 0.31)
-    static let gradientHighlight = Color(red: 0.20, green: 0.62, blue: 0.46)
+    static let gradientDark = Color(red: 0.14, green: 0.42, blue: 0.14)
+    static let gradientMid = Color(red: 0.24, green: 0.62, blue: 0.22)
+    static let gradientBright = Color(red: 0.36, green: 0.78, blue: 0.28)
+    static let gradientHighlight = Color(red: 0.55, green: 0.92, blue: 0.32)
 
     static var fillGradient: LinearGradient {
         LinearGradient(

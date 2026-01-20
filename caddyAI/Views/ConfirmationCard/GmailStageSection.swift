@@ -57,8 +57,10 @@ struct GmailStageSection: View {
 
     @ViewBuilder
     private var stageBackground: some View {
+        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
+                .opacity(stageOpacity)
             if preferences.glassStyle == .clear {
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
                     .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))

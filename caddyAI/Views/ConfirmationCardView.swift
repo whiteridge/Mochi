@@ -25,7 +25,6 @@ struct ConfirmationCardView: View {
     
     @State private var showButtonGlow: Bool = false
     @State private var previousProposalIndex: Int? = nil
-    @State private var glowExpansion: CGFloat = 0.14
     @State private var glowPhase: Double = 0
     @State private var isGlowMotionActive: Bool = false
     
@@ -37,7 +36,7 @@ struct ConfirmationCardView: View {
         }
         .padding(22)
         .background(cardBackground)
-        .overlay(glowOverlay)
+        .background(glowOverlay)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
         .frame(maxWidth: 560)
@@ -226,36 +225,40 @@ private extension ConfirmationCardView {
         let isGlowActive = isExecuting || showButtonGlow
         return GeometryReader { proxy in
             let size = proxy.size
-            let maxRadius = max(size.width, size.height) * 1.1
+            let maxRadius = max(size.width, size.height) * 2.0
             let phase = glowPhase * Double.pi * 2
-            let driftX = CGFloat(cos(phase)) * 0.05
-            let driftY = CGFloat(sin(phase)) * 0.04
-            let coneOrigin = UnitPoint(x: 0.9 + driftX, y: 0.9 + driftY)
+            let driftX = CGFloat(cos(phase)) * 0.035
+            let driftY = CGFloat(sin(phase)) * 0.03
+            let coneOrigin = UnitPoint(x: 0.5 + driftX, y: 0.5 + driftY)
+            let baseIntensity = colorScheme == .dark
+                ? (isFinalAction ? 0.22 : 0.18)
+                : (isFinalAction ? 0.52 : 0.44)
+            let baseOpacity = colorScheme == .dark ? 0.55 : 0.9
             let maskGradient = RadialGradient(
                 gradient: Gradient(stops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white.opacity(0.9), location: 0.32),
-                    .init(color: .white.opacity(0.55), location: 0.7),
-                    .init(color: .white.opacity(0.22), location: 1)
+                    .init(color: .white.opacity(0.85), location: 0),
+                    .init(color: .white.opacity(0.82), location: 0.4),
+                    .init(color: .white.opacity(0.8), location: 0.8),
+                    .init(color: .white.opacity(0.78), location: 1)
                 ]),
-                center: .bottomTrailing,
+                center: .center,
                 startRadius: 0,
                 endRadius: maxRadius
             )
 
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
-                rotationSpeed: 4.5,
-                intensity: isFinalAction ? 0.45 : 0.38,
+                rotationSpeed: 1.4,
+                intensity: baseIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )
-            .opacity(isGlowActive ? 1 : 0)
-            .blendMode(.plusLighter)
+            .opacity(isGlowActive ? baseOpacity : 0)
+            .blendMode(colorScheme == .dark ? .plusLighter : .screen)
             .mask(
                 maskGradient
-                    .scaleEffect(glowExpansion, anchor: .bottomTrailing)
-                    .blur(radius: 10)
+                    .blur(radius: colorScheme == .dark ? 16 : 12)
             )
+            .animation(.easeInOut(duration: 0.45), value: isGlowActive)
             .allowsHitTesting(false)
         }
     }
@@ -409,17 +412,13 @@ private extension ConfirmationCardView {
 
 private extension ConfirmationCardView {
     func startButtonGlow() {
-        glowExpansion = 0.18
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.easeInOut(duration: 0.45)) {
             showButtonGlow = true
-        }
-        withAnimation(.easeOut(duration: 0.55)) {
-            glowExpansion = 1
         }
     }
     
     func endButtonGlow() {
-        withAnimation(.easeOut(duration: 0.18)) {
+        withAnimation(.easeInOut(duration: 0.3)) {
             showButtonGlow = false
         }
     }

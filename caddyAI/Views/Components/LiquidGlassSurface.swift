@@ -12,8 +12,8 @@ enum GlassBackdropStyle {
         switch glassStyle {
         case .regular:
             return isDark
-                ? Color.black.opacity(0.5)
-                : Color.white.opacity(0.82)
+                ? Color.black.opacity(0.55)
+                : Color.white.opacity(0.85)
         case .clear:
             return isDark
                 ? Color.black.opacity(0.32)
@@ -105,105 +105,57 @@ struct LiquidGlassSurface: View {
         case .roundedRect(let radius):
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
             let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-            if preferences.glassStyle == .regular {
-                Color.clear
-                    .background(.regularMaterial, in: .rect(cornerRadius: radius))
-                    .overlay(shape.fill(paneFill))
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
+            Color.clear
+                .background(AnyShapeStyle(paneFill), in: .rect(cornerRadius: radius))
+                .glassEffect(.clear, in: .rect(cornerRadius: radius))
+                .overlay {
+                    if let tint {
+                        shape.fill(tint)
                     }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            } else {
-                Color.clear
-                    .background(AnyShapeStyle(paneFill), in: .rect(cornerRadius: radius))
-                    .glassEffect(.clear, in: .rect(cornerRadius: radius))
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
-                    }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            }
+                    GlassCloudOverlay(shape, isEnabled: preferences.glassStyle == .regular)
+                }
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
         case .capsule:
             let shape = Capsule()
             let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-            if preferences.glassStyle == .regular {
-                Color.clear
-                    .background(.regularMaterial, in: .capsule)
-                    .overlay(shape.fill(paneFill))
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
+            Color.clear
+                .background(AnyShapeStyle(paneFill), in: .capsule)
+                .glassEffect(.clear, in: .capsule)
+                .overlay {
+                    if let tint {
+                        shape.fill(tint)
                     }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            } else {
-                Color.clear
-                    .background(AnyShapeStyle(paneFill), in: .capsule)
-                    .glassEffect(.clear, in: .capsule)
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
-                    }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            }
+                    GlassCloudOverlay(shape, isEnabled: preferences.glassStyle == .regular)
+                }
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
         case .circle:
             let shape = Circle()
             let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
-            if preferences.glassStyle == .regular {
-                Color.clear
-                    .background(.regularMaterial, in: .circle)
-                    .overlay(shape.fill(paneFill))
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
+            Color.clear
+                .background(AnyShapeStyle(paneFill), in: .circle)
+                .glassEffect(.clear, in: .circle)
+                .overlay {
+                    if let tint {
+                        shape.fill(tint)
                     }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            } else {
-                Color.clear
-                    .background(AnyShapeStyle(paneFill), in: .circle)
-                    .glassEffect(.clear, in: .circle)
-                    .overlay {
-                        if let tint {
-                            shape.fill(tint)
-                        }
-                    }
-                    .shadow(
-                        color: shadowed ? shadowColor : .clear,
-                        radius: shadowed ? shadowRadius : 0,
-                        x: 0,
-                        y: shadowed ? shadowY : 0
-                    )
-            }
+                    GlassCloudOverlay(shape, isEnabled: preferences.glassStyle == .regular)
+                }
+                .shadow(
+                    color: shadowed ? shadowColor : .clear,
+                    radius: shadowed ? shadowRadius : 0,
+                    x: 0,
+                    y: shadowed ? shadowY : 0
+                )
         }
     }
     
@@ -243,11 +195,7 @@ struct LiquidGlassSurface: View {
 
     @ViewBuilder
     private func legacySurfaceImpl<S: InsettableShape>(for shape: S) -> some View {
-        if preferences.glassStyle == .regular {
-            frostedLegacySurface(for: shape)
-        } else {
-            liquidLegacySurface(for: shape)
-        }
+        liquidLegacySurface(for: shape)
     }
 
     @ViewBuilder
@@ -301,6 +249,7 @@ struct LiquidGlassSurface: View {
             shape.fill(metrics.bottomShade).opacity(metrics.bottomShadeOpacity)
             shape.fill(paneFill)
         }
+        .overlay(GlassCloudOverlay(shape, isEnabled: preferences.glassStyle == .regular))
         .overlay(
             shape.strokeBorder(metrics.rimGradient, lineWidth: metrics.rimWidth)
         )
@@ -318,6 +267,105 @@ struct LiquidGlassSurface: View {
         .opacity(metrics.overallOpacity)
         .animation(.easeInOut(duration: 0.2), value: colorScheme)
     }
+}
+
+struct GlassCloudOverlay<S: Shape>: View {
+	let shape: S
+	let isEnabled: Bool
+
+	@Environment(\.colorScheme) private var colorScheme
+	@Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+	init(_ shape: S, isEnabled: Bool) {
+		self.shape = shape
+		self.isEnabled = isEnabled
+	}
+
+	var body: some View {
+		if isEnabled && !reduceTransparency {
+			ZStack {
+				shape.fill(cloudGradient)
+					.blur(radius: cloudBlur)
+					.opacity(cloudOpacity)
+
+				GlassGrainOverlay(
+					color: grainColor,
+					intensity: grainIntensity,
+					scale: grainScale
+				)
+				.clipShape(shape)
+				.opacity(grainOpacity)
+			}
+			.compositingGroup()
+			.allowsHitTesting(false)
+		}
+	}
+
+	private var cloudGradient: LinearGradient {
+		LinearGradient(
+			colors: [
+				Color.white.opacity(colorScheme == .dark ? 0.18 : 0.28),
+				Color.white.opacity(colorScheme == .dark ? 0.08 : 0.14),
+				Color.clear
+			],
+			startPoint: .topLeading,
+			endPoint: .bottomTrailing
+		)
+	}
+
+	private var cloudOpacity: Double {
+		colorScheme == .dark ? 0.35 : 0.3
+	}
+
+	private var cloudBlur: CGFloat {
+		18
+	}
+
+	private var grainColor: Color {
+		colorScheme == .dark ? Color.white : Color.black
+	}
+
+	private var grainIntensity: Double {
+		colorScheme == .dark ? 0.1 : 0.08
+	}
+
+	private var grainOpacity: Double {
+		0.35
+	}
+
+	private var grainScale: CGFloat {
+		6
+	}
+}
+
+private struct GlassGrainOverlay: View {
+	let color: Color
+	let intensity: Double
+	let scale: CGFloat
+
+	var body: some View {
+		Canvas { context, size in
+			let step = max(scale, 4)
+			var y: CGFloat = 0
+			while y < size.height {
+				var x: CGFloat = 0
+				while x < size.width {
+					let value = noise(x: x, y: y)
+					let alpha = intensity * (0.4 + value * 0.6)
+					let rect = CGRect(x: x, y: y, width: step, height: step)
+					context.fill(Path(rect), with: .color(color.opacity(alpha)))
+					x += step
+				}
+				y += step
+			}
+		}
+		.blendMode(.softLight)
+	}
+
+	private func noise(x: CGFloat, y: CGFloat) -> Double {
+		let seed = sin(Double(x * 12.9898 + y * 78.233)) * 43758.5453
+		return seed - floor(seed)
+	}
 }
 
 private struct LiquidGlassMetrics {

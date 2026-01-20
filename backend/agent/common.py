@@ -118,3 +118,38 @@ def detect_apps_from_input(user_input: str) -> List[str]:
         detected.append("google_calendar")
 
     return detected
+
+
+def looks_like_tool_request(user_input: str) -> bool:
+    """Heuristic to decide whether the input likely needs tool calls."""
+    user_lower = user_input.lower()
+    intent_keywords = [
+        "create",
+        "make",
+        "add",
+        "schedule",
+        "book",
+        "plan",
+        "send",
+        "message",
+        "notify",
+        "email",
+        "post",
+        "update",
+        "edit",
+        "change",
+        "delete",
+        "remove",
+        "assign",
+        "file",
+        "open",
+        "close",
+        "summarize",
+        "check",
+        "look",
+        "find",
+        "search",
+        "list",
+        "fetch",
+    ]
+    return any(keyword in user_lower for keyword in intent_keywords)

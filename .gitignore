@@ -127,3 +127,5 @@ services/__pycache__/
 utlis/__pycache__/
 
 .DS_Store
+
+.codex/

@@ -22,59 +22,75 @@ struct RotatingGradientFill: View {
     var renderStyle: RenderStyle = .fill
     var coneAngle: Double = 90 // Width of cone in degrees (for .cone style)
     
-    @State private var rotation: Double = 0
     @Environment(\.colorScheme) private var colorScheme
+    
+    private var adjustedIntensity: Double {
+        intensity * (colorScheme == .dark ? 1.0 : 0.85)
+    }
+    
+    private var adjustedRotationSpeed: Double {
+        guard rotationSpeed > 0 else { return 0 }
+        let multiplier = colorScheme == .dark ? 1.0 : 0.75
+        return rotationSpeed * multiplier
+    }
     
     // Cool green color palette
     private var gradientColors: [Color] {
-        let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
         return [
-            ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.3),
-            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.6),
-            ActionGlowPalette.gradientBright.opacity(adjustedIntensity),
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.5),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.85),
             ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.2),
             ActionGlowPalette.gradientBright.opacity(adjustedIntensity),
-            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.6),
-            ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.3),
+            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.7),
+            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.9),
+            ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.1),
         ]
     }
     
-    // Cone gradient colors - bright in center, fading to edges
-    private func coneGradientColors(adjustedIntensity: Double) -> [Color] {
-        return [
-            Color.clear,
-            Color.clear,
-            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3),
-            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
-            ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.2),
-            ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
-            ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3),
-            Color.clear,
-            Color.clear,
+    // Cone gradient stops - broad, soft sweep with no hard dark gaps
+    private func coneGradientStops(adjustedIntensity: Double) -> [Gradient.Stop] {
+        let baseStops: [Gradient.Stop] = [
+            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3), location: 0),
+            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.55), location: 0.14),
+            .init(color: ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 0.9), location: 0.25),
+            .init(color: ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.6), location: 0.36),
+            .init(color: ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.3), location: 0.5)
         ]
+
+        let repeatedStops = baseStops.dropFirst().map { stop in
+            Gradient.Stop(color: stop.color, location: stop.location + 0.5)
+        }
+
+        return baseStops + repeatedStops
     }
     
+    private func rotationAngle(for date: Date) -> Double {
+        guard adjustedRotationSpeed > 0 else { return 0 }
+        let time = date.timeIntervalSinceReferenceDate
+        let progress = (time / adjustedRotationSpeed).truncatingRemainder(dividingBy: 1)
+        return progress * 360
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            switch shape {
-            case .capsule:
-                gradientLayer(in: Capsule(), size: geometry.size)
-            case .roundedRect(let cornerRadius):
-                gradientLayer(
-                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
-                    size: geometry.size
-                )
-            }
-        }
-        .onAppear {
-            withAnimation(.linear(duration: rotationSpeed).repeatForever(autoreverses: false)) {
-                rotation = 360
+            TimelineView(.animation) { timeline in
+                let angle = rotationAngle(for: timeline.date)
+                switch shape {
+                case .capsule:
+                    gradientLayer(in: Capsule(), size: geometry.size, rotationAngle: angle)
+                case .roundedRect(let cornerRadius):
+                    gradientLayer(
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                        size: geometry.size,
+                        rotationAngle: angle
+                    )
+                }
             }
         }
     }
 
     @ViewBuilder
-    private func gradientLayer<S: InsettableShape>(in shape: S, size: CGSize) -> some View {
+    private func gradientLayer<S: InsettableShape>(in shape: S, size: CGSize, rotationAngle: Double) -> some View {
         let diagonal = sqrt(pow(size.width, 2) + pow(size.height, 2))
         
         switch renderStyle {
@@ -82,7 +98,7 @@ struct RotatingGradientFill: View {
             let gradient = AngularGradient(
                 gradient: Gradient(colors: gradientColors),
                 center: .center,
-                angle: .degrees(rotation)
+                angle: .degrees(rotationAngle)
             )
             .frame(width: diagonal, height: diagonal)
             .position(x: size.width / 2, y: size.height / 2)
@@ -92,7 +108,7 @@ struct RotatingGradientFill: View {
             let gradient = AngularGradient(
                 gradient: Gradient(colors: gradientColors),
                 center: .center,
-                angle: .degrees(rotation)
+                angle: .degrees(rotationAngle)
             )
             .frame(width: diagonal, height: diagonal)
             .position(x: size.width / 2, y: size.height / 2)
@@ -100,16 +116,15 @@ struct RotatingGradientFill: View {
             
         case .cone(let origin):
             // Cone gradient emanating from origin point, rotating
-            let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
+            let adjustedIntensity = self.adjustedIntensity
             
             // Radial gradient for the diffuse fade from origin
             let radialGradient = RadialGradient(
                 colors: [
-                    ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 1.5),
-                    ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.8),
-                    ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.4),
-                    ActionGlowPalette.gradientDark.opacity(adjustedIntensity * 0.15),
-                    Color.clear
+                    ActionGlowPalette.gradientHighlight.opacity(adjustedIntensity * 0.9),
+                    ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.6),
+                    ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.45),
+                    ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.32)
                 ],
                 center: origin,
                 startRadius: 0,
@@ -118,9 +133,9 @@ struct RotatingGradientFill: View {
             
             // Angular gradient for the cone shape, rotating
             let angularGradient = AngularGradient(
-                gradient: Gradient(colors: coneGradientColors(adjustedIntensity: adjustedIntensity)),
+                gradient: Gradient(stops: coneGradientStops(adjustedIntensity: adjustedIntensity)),
                 center: origin,
-                angle: .degrees(rotation - 45) // Offset to point upward-right initially
+                angle: .degrees(rotationAngle - 45) // Offset to point upward-right initially
             )
             
             ZStack {
@@ -129,13 +144,14 @@ struct RotatingGradientFill: View {
                     .clipShape(shape)
                     .blendMode(.plusLighter)
                 
-                angularGradient
-                    .clipShape(shape)
-                    .blendMode(.plusLighter)
-                    .blur(radius: 20)
-            }
+            angularGradient
+                .clipShape(shape)
+                .blendMode(.plusLighter)
+                .blur(radius: 28)
+                .opacity(0.85)
         }
     }
+}
 }
 
 // Helper to erase shape type
@@ -166,6 +182,12 @@ struct RotatingLightBackground: View {
     
     @State private var rotation: Double = 0
     @Environment(\.colorScheme) private var colorScheme
+    
+    private var adjustedRotationSpeed: Double {
+        guard rotationSpeed > 0 else { return 0 }
+        let multiplier = colorScheme == .dark ? 1.0 : 0.75
+        return rotationSpeed * multiplier
+    }
     
     var body: some View {
         switch shape {
@@ -213,7 +235,7 @@ struct RotatingLightBackground: View {
             }
         }
         .onAppear {
-            withAnimation(.linear(duration: rotationSpeed).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: adjustedRotationSpeed).repeatForever(autoreverses: false)) {
                 rotation = 360
             }
         }

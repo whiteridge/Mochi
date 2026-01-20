@@ -114,24 +114,12 @@ struct UnifiedPillView: View {
     private var nativeBody: some View {
         let paneFill = GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
         
-        return Group {
-            if preferences.glassStyle == .regular {
-                pillContent
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
-                    .background {
-                        Capsule()
-                            .fill(.regularMaterial)
-                            .overlay(Capsule().fill(paneFill))
-                    }
-            } else {
-                pillContent
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
-                    .background(AnyShapeStyle(paneFill), in: .capsule)
-                    .glassEffect(.clear, in: .capsule)
-            }
-        }
+        return pillContent
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .background(AnyShapeStyle(paneFill), in: .capsule)
+            .glassEffect(.clear, in: .capsule)
+            .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
         .matchedGeometryEffect(id: "background", in: morphNamespace)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
     }
@@ -166,8 +154,10 @@ struct UnifiedPillView: View {
                 .frame(minWidth: 72, alignment: .center)
             
             // Right button: Action button (stop for recording, dots indicator for thinking)
-            rightButton
-                .matchedGeometryEffect(id: "actionButton", in: morphNamespace)
+            if mode.isRecording {
+                rightButton
+                    .matchedGeometryEffect(id: "actionButton", in: morphNamespace)
+            }
         }
     }
     
@@ -244,6 +234,7 @@ struct UnifiedPillView: View {
                     .animation(.spring(response: 0.6, dampingFraction: 0.75), value: statusText)
                 
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)
+                    .padding(.trailing, 4)
             }
             .transition(.opacity.combined(with: .scale(scale: 0.8)))
         }
@@ -251,17 +242,11 @@ struct UnifiedPillView: View {
     
     @ViewBuilder
     private var rightButton: some View {
-        if mode.isRecording {
-            // Stop button
-            VoiceActionButton(
-                size: 32,
-                isRecording: true,
-                action: { stopRecording?() }
-            )
-        } else {
-            // Spacer to maintain layout balance (optional - can be empty)
-            Color.clear
-                .frame(width: 32, height: 32)
-        }
+        // Stop button
+        VoiceActionButton(
+            size: 32,
+            isRecording: true,
+            action: { stopRecording?() }
+        )
     }
 }

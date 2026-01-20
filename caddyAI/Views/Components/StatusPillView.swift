@@ -162,7 +162,7 @@ struct StatusPillView: View {
     private var legacyBody: some View {
         pillContent
             .padding(.leading, 5)
-            .padding(.trailing, isCompact ? 12 : 14)
+            .padding(.trailing, isCompact ? 12 : 16)
             .padding(.vertical, 5)
             .background(pillBackground)
             .clipShape(Capsule())
@@ -221,6 +221,7 @@ struct StatusPillView: View {
                 
                 // Bouncing dots using TimelineView - always animates
                 ContinuousBouncingDotsView(dotColor: palette.primaryText)
+                    .padding(.trailing, 4)
             }
         }
     }

@@ -62,13 +62,15 @@ struct CalendarTimelineView: View {
     }
 
     private var allDayPill: some View {
-        Text("All day")
+        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        return Text("All day")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(palette.primaryText)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 LiquidGlassSurface(shape: .capsule, prominence: .subtle, shadowed: false)
+                    .opacity(boxOpacity)
             )
             .overlay(
                 Capsule()
