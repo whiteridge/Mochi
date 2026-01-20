@@ -166,8 +166,10 @@ struct UnifiedPillView: View {
                 .frame(minWidth: 72, alignment: .center)
             
             // Right button: Action button (stop for recording, dots indicator for thinking)
-            rightButton
-                .matchedGeometryEffect(id: "actionButton", in: morphNamespace)
+            if mode.isRecording {
+                rightButton
+                    .matchedGeometryEffect(id: "actionButton", in: morphNamespace)
+            }
         }
     }
     
@@ -252,17 +254,11 @@ struct UnifiedPillView: View {
     
     @ViewBuilder
     private var rightButton: some View {
-        if mode.isRecording {
-            // Stop button
-            VoiceActionButton(
-                size: 32,
-                isRecording: true,
-                action: { stopRecording?() }
-            )
-        } else {
-            // Spacer to maintain layout balance (optional - can be empty)
-            Color.clear
-                .frame(width: 32, height: 32)
-        }
+        // Stop button
+        VoiceActionButton(
+            size: 32,
+            isRecording: true,
+            action: { stopRecording?() }
+        )
     }
 }

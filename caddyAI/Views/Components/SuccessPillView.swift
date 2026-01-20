@@ -30,7 +30,7 @@ struct SuccessPillView: View {
 
             RotatingGradientFill(
                 shape: .capsule,
-                rotationSpeed: 0.9,
+                rotationSpeed: 0.6,
                 intensity: glowIntensity,
                 renderStyle: .cone(origin: .center)
             )

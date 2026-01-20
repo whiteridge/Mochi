@@ -24,9 +24,18 @@ struct RotatingGradientFill: View {
     
     @Environment(\.colorScheme) private var colorScheme
     
+    private var adjustedIntensity: Double {
+        intensity * (colorScheme == .dark ? 1.0 : 0.85)
+    }
+    
+    private var adjustedRotationSpeed: Double {
+        guard rotationSpeed > 0 else { return 0 }
+        let multiplier = colorScheme == .dark ? 1.0 : 0.75
+        return rotationSpeed * multiplier
+    }
+    
     // Cool green color palette
     private var gradientColors: [Color] {
-        let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
         return [
             ActionGlowPalette.gradientMid.opacity(adjustedIntensity * 0.5),
             ActionGlowPalette.gradientBright.opacity(adjustedIntensity * 0.85),
@@ -52,9 +61,9 @@ struct RotatingGradientFill: View {
     }
     
     private func rotationAngle(for date: Date) -> Double {
-        guard rotationSpeed > 0 else { return 0 }
+        guard adjustedRotationSpeed > 0 else { return 0 }
         let time = date.timeIntervalSinceReferenceDate
-        let progress = (time / rotationSpeed).truncatingRemainder(dividingBy: 1)
+        let progress = (time / adjustedRotationSpeed).truncatingRemainder(dividingBy: 1)
         return progress * 360
     }
 
@@ -103,7 +112,7 @@ struct RotatingGradientFill: View {
             
         case .cone(let origin):
             // Cone gradient emanating from origin point, rotating
-            let adjustedIntensity = colorScheme == .dark ? intensity : intensity * 0.6
+            let adjustedIntensity = self.adjustedIntensity
             
             // Radial gradient for the diffuse fade from origin
             let radialGradient = RadialGradient(
@@ -170,6 +179,12 @@ struct RotatingLightBackground: View {
     @State private var rotation: Double = 0
     @Environment(\.colorScheme) private var colorScheme
     
+    private var adjustedRotationSpeed: Double {
+        guard rotationSpeed > 0 else { return 0 }
+        let multiplier = colorScheme == .dark ? 1.0 : 0.75
+        return rotationSpeed * multiplier
+    }
+    
     var body: some View {
         switch shape {
         case .capsule:
@@ -216,7 +231,7 @@ struct RotatingLightBackground: View {
             }
         }
         .onAppear {
-            withAnimation(.linear(duration: rotationSpeed).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: adjustedRotationSpeed).repeatForever(autoreverses: false)) {
                 rotation = 360
             }
         }

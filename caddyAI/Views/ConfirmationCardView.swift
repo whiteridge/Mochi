@@ -248,7 +248,7 @@ private extension ConfirmationCardView {
 
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
-                rotationSpeed: 1.8,
+                rotationSpeed: 1.2,
                 intensity: baseIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )
