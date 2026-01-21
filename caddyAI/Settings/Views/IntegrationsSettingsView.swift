@@ -461,7 +461,7 @@ struct IntegrationRow: View {
 	@EnvironmentObject private var preferences: PreferencesStore
 	
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: .regular)
 	}
 	
 	var body: some View {
@@ -543,7 +543,7 @@ struct IntegrationRow: View {
 				.clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 		} else {
 			ZStack {
-				LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
+				LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false, glassStyleOverride: .regular)
 				Image(systemName: fallbackIcon)
 					.font(.system(size: 14))
 					.foregroundStyle(.secondary)

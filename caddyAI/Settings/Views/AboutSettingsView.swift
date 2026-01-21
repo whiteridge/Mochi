@@ -113,7 +113,7 @@ struct LinkPill: View {
 			.padding(.horizontal, 14)
 			.padding(.vertical, 8)
 			.background(
-				LiquidGlassSurface(shape: .capsule, prominence: .subtle, shadowed: false)
+				LiquidGlassSurface(shape: .capsule, prominence: .subtle, shadowed: false, glassStyleOverride: .regular)
 			)
 		}
 		.buttonStyle(.plain)
@@ -157,7 +157,7 @@ struct ChangelogCard: View {
 		.padding(16)
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(
-			LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
+			LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular, glassStyleOverride: .regular)
 		)
 	}
 }
