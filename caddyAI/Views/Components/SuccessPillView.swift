@@ -6,7 +6,6 @@ struct SuccessPillView: View {
     var morphNamespace: Namespace.ID? = nil
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
-    @State private var isAnimating = true
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
@@ -37,14 +36,6 @@ struct SuccessPillView: View {
         return preferences.glassStyle == .regular ? .plusLighter : .screen
     }
 
-    private var rotationSpeed: Double {
-        isAnimating ? 1.4 : 0
-    }
-
-    private var activeGlowOpacity: Double {
-        isAnimating ? glowOpacity : 0
-    }
-
     @ViewBuilder
     private var backgroundLayer: some View {
         ZStack {
@@ -52,12 +43,12 @@ struct SuccessPillView: View {
 
             RotatingGradientFill(
                 shape: .capsule,
-                rotationSpeed: rotationSpeed,
+                rotationSpeed: 1.4,
                 intensity: glowIntensity,
                 renderStyle: .cone(origin: .center)
             )
             .blendMode(glowBlendMode)
-            .opacity(activeGlowOpacity)
+            .opacity(glowOpacity)
             .clipShape(Capsule())
             .allowsHitTesting(false)
 
@@ -97,12 +88,5 @@ struct SuccessPillView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
         .background(morphingBackground)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                withAnimation(.easeOut(duration: 0.35)) {
-                    isAnimating = false
-                }
-            }
-        }
     }
 }
