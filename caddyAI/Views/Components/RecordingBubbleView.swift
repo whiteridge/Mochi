@@ -19,6 +19,18 @@ struct RecordingBubbleView: View {
     private var adaptiveBlendMode: BlendMode {
         .normal
     }
+
+    private var bubbleShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.28)
+    }
+
+    private var bubbleShadowRadius: CGFloat {
+        colorScheme == .dark ? 10 : 14
+    }
+
+    private var bubbleShadowY: CGFloat {
+        colorScheme == .dark ? 5 : 9
+    }
     
     var body: some View {
         HStack(spacing: 6) {
@@ -62,6 +74,7 @@ struct RecordingBubbleView: View {
             )
             .matchedGeometryEffect(id: "actionButton", in: animation)
         }
+        .shadow(color: bubbleShadowColor, radius: bubbleShadowRadius, x: 0, y: bubbleShadowY)
     }
 }
 

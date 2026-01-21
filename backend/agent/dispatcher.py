@@ -1,7 +1,7 @@
 """Stream dispatcher for agent tool execution."""
 
 import json
-from typing import Dict, Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 from google.genai import types
 
 from .common import (
@@ -38,6 +38,25 @@ def _is_rate_limit_error(exc: Exception) -> bool:
         or "quota" in message
         or "429" in message
     )
+
+
+def _build_tool_response_payload(result_data: Any, max_chars: int = 12000) -> Dict[str, Any]:
+    """Build a JSON-safe, size-limited response payload for Gemini tool results."""
+    try:
+        safe_data = json.loads(json.dumps(result_data, ensure_ascii=True, default=str))
+    except (TypeError, ValueError):
+        safe_data = str(result_data)
+
+    if isinstance(safe_data, (dict, list)):
+        serialized = json.dumps(safe_data, ensure_ascii=True)
+        if len(serialized) > max_chars:
+            return {"result": serialized[:max_chars] + "...[truncated]", "truncated": True}
+        return {"result": safe_data}
+
+    if isinstance(safe_data, str) and len(safe_data) > max_chars:
+        return {"result": safe_data[:max_chars] + "...[truncated]", "truncated": True}
+
+    return {"result": safe_data}
 
 
 class AgentDispatcher:
@@ -134,6 +153,101 @@ class AgentDispatcher:
             called_apps: set[str] = set()  # Apps with actual tool calls
             proposal_queue = []  # Queue of proposal dicts
 
+            def queue_pending_write_actions() -> None:
+                if not pending_write_actions:
+                    return
+                print(f"DEBUG: Emitting {len(pending_write_actions)} queued proposal(s)")
+
+                for (
+                    tool_name,
+                    args,
+                    app_id,
+                    is_linear_write,
+                    is_slack_write,
+                    is_notion_write,
+                    is_github_write,
+                    is_gmail_write,
+                    is_calendar_write,
+                ) in pending_write_actions:
+                    enriched_args = args
+                    if is_linear_write:
+                        enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
+                    elif is_slack_write:
+                        enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
+                    elif is_notion_write:
+                        enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
+                    elif is_github_write:
+                        enriched_args = self.github_service.enrich_proposal(user_id, args, tool_name)
+                    elif is_gmail_write:
+                        enriched_args = self.gmail_service.enrich_proposal(user_id, args, tool_name)
+                    elif is_calendar_write:
+                        enriched_args = self.google_calendar_service.enrich_proposal(user_id, args, tool_name)
+
+                    proposal_queue.append(
+                        {
+                            "tool": tool_name,
+                            "args": enriched_args,
+                            "app_id": app_id,
+                            "summary_text": make_early_summary(app_id),
+                        }
+                    )
+
+                pending_write_actions.clear()
+
+            def emit_proposal_queue() -> Generator[Dict, None, None]:
+                if not proposal_queue:
+                    return
+
+                total_proposals = len(proposal_queue)
+                print(f"DEBUG: Emitting {total_proposals} queued proposal(s)")
+
+                proposal_app_ids: List[str] = []
+                for proposal in proposal_queue:
+                    app_id = proposal["app_id"]
+                    if app_id not in proposal_app_ids:
+                        proposal_app_ids.append(app_id)
+
+                if len(proposal_app_ids) > 1:
+                    for app_id in proposal_app_ids:
+                        if app_id in apps_with_tool_status:
+                            continue
+                        synthetic_tool = _tool_status_name_for_app(app_id)
+                        apps_with_tool_status.add(app_id)
+                        yield {
+                            "type": "tool_status",
+                            "tool": synthetic_tool,
+                            "status": "searching",
+                            "app_id": app_id,
+                            "involved_apps": involved_apps,
+                        }
+                        yield {
+                            "type": "tool_status",
+                            "tool": synthetic_tool,
+                            "status": "done",
+                            "app_id": app_id,
+                            "involved_apps": involved_apps,
+                        }
+
+                yield {
+                    "type": "multi_app_status",
+                    "apps": [{"app_id": app, "state": "waiting"} for app in involved_apps],
+                    "active_app": proposal_queue[0]["app_id"],
+                }
+
+                first_proposal = proposal_queue[0]
+                yield {
+                    "type": "proposal",
+                    "tool": first_proposal["tool"],
+                    "content": first_proposal["args"],
+                    "summary_text": first_proposal["summary_text"],
+                    "app_id": first_proposal["app_id"],
+                    "proposal_index": 0,
+                    "total_proposals": total_proposals,
+                    "remaining_proposals": [
+                        {"tool": p["tool"], "app_id": p["app_id"], "args": p["args"]} for p in proposal_queue[1:]
+                    ],
+                }
+
             # PRE-DETECT APPS: Scan user input to prepare combined summary for multi-app requests
             # NOTE: We don't emit tool_status here - pills appear sequentially from actual Gemini tool calls
             pre_detected_apps = []
@@ -220,13 +334,18 @@ class AgentDispatcher:
                     app_read_status[app_id] = "done"
 
                     # Feed result back to Gemini to continue the conversation
+                    response_payload = _build_tool_response_payload(result_data)
                     function_response = types.Part.from_function_response(
                         name=tool_name,
-                        response={"result": str(result_data)},
+                        response=response_payload,
                     )
                     try:
                         response = chat.send_message([function_response])
                     except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+                        print(
+                            f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                            flush=True,
+                        )
                         if _is_rate_limit_error(send_error):
                             content = (
                                 f"{app_display} action completed. "
@@ -413,9 +532,10 @@ class AgentDispatcher:
                             result_data = result
                             result_success = bool(getattr(result, "successful", True))
 
+                        response_payload = _build_tool_response_payload(result_data)
                         function_response = types.Part.from_function_response(
                             name=tool_name,
-                            response={"result": str(result_data)},
+                            response=response_payload,
                         )
                         status_after_read = "done" if result_success else "error"
 
@@ -431,6 +551,10 @@ class AgentDispatcher:
                     try:
                         response = chat.send_message([function_response])
                     except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+                        print(
+                            f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                            flush=True,
+                        )
                         if _is_rate_limit_error(send_error):
                             content = (
                                 "I fetched the requested data, but I'm temporarily rate-limited "
@@ -441,6 +565,11 @@ class AgentDispatcher:
                                 "I fetched the requested data, but couldn't continue due to a model error. "
                                 "Please retry."
                             )
+                        if pending_write_actions:
+                            queue_pending_write_actions()
+                        if proposal_queue:
+                            yield from emit_proposal_queue()
+                            return
                         yield {
                             "type": "message",
                             "content": content,
@@ -462,46 +591,7 @@ class AgentDispatcher:
 
                 # If we have write actions queued and no more reads pending, emit proposals
                 if pending_write_actions and not read_actions_to_execute and not pending_read_actions:
-                    print(f"DEBUG: Emitting {len(pending_write_actions)} queued proposal(s)")
-
-                    for (
-                        tool_name,
-                        args,
-                        app_id,
-                        is_linear_write,
-                        is_slack_write,
-                        is_notion_write,
-                        is_github_write,
-                        is_gmail_write,
-                        is_calendar_write,
-                    ) in pending_write_actions:
-                        # Enrich proposal with human-readable names
-                        enriched_args = args
-                        if is_linear_write:
-                            enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
-                        elif is_slack_write:
-                            enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
-                        elif is_notion_write:
-                            enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
-                        elif is_github_write:
-                            enriched_args = self.github_service.enrich_proposal(user_id, args, tool_name)
-                        elif is_gmail_write:
-                            enriched_args = self.gmail_service.enrich_proposal(user_id, args, tool_name)
-                        elif is_calendar_write:
-                            enriched_args = self.google_calendar_service.enrich_proposal(
-                                user_id, args, tool_name
-                            )
-
-                        proposal_queue.append(
-                            {
-                                "tool": tool_name,
-                                "args": enriched_args,
-                                "app_id": app_id,
-                                "summary_text": make_early_summary(app_id),
-                            }
-                        )
-
-                    pending_write_actions = []
+                    queue_pending_write_actions()
                     break
                 elif not found_function_call:
                     if should_nudge_for_tools and not tool_nudge_sent:
@@ -548,58 +638,7 @@ class AgentDispatcher:
 
             # MULTI-APP: Emit queued proposals with index/total for progress tracking
             if proposal_queue:
-                total_proposals = len(proposal_queue)
-                print(f"DEBUG: Emitting {total_proposals} queued proposal(s)")
-
-                # If this is a multi-app write flow, emit synthetic tool_status events
-                proposal_app_ids: List[str] = []
-                for proposal in proposal_queue:
-                    app_id = proposal["app_id"]
-                    if app_id not in proposal_app_ids:
-                        proposal_app_ids.append(app_id)
-
-                if len(proposal_app_ids) > 1:
-                    for app_id in proposal_app_ids:
-                        if app_id in apps_with_tool_status:
-                            continue
-                        synthetic_tool = _tool_status_name_for_app(app_id)
-                        apps_with_tool_status.add(app_id)
-                        yield {
-                            "type": "tool_status",
-                            "tool": synthetic_tool,
-                            "status": "searching",
-                            "app_id": app_id,
-                            "involved_apps": involved_apps,
-                        }
-                        yield {
-                            "type": "tool_status",
-                            "tool": synthetic_tool,
-                            "status": "done",
-                            "app_id": app_id,
-                            "involved_apps": involved_apps,
-                        }
-
-                # Emit multi_app_status to show all involved apps in UI
-                yield {
-                    "type": "multi_app_status",
-                    "apps": [{"app_id": app, "state": "waiting"} for app in involved_apps],
-                    "active_app": proposal_queue[0]["app_id"],
-                }
-
-                # Emit first proposal with queue metadata
-                first_proposal = proposal_queue[0]
-                yield {
-                    "type": "proposal",
-                    "tool": first_proposal["tool"],
-                    "content": first_proposal["args"],
-                    "summary_text": first_proposal["summary_text"],
-                    "app_id": first_proposal["app_id"],
-                    "proposal_index": 0,
-                    "total_proposals": total_proposals,
-                    "remaining_proposals": [
-                        {"tool": p["tool"], "app_id": p["app_id"], "args": p["args"]} for p in proposal_queue[1:]
-                    ],
-                }
+                yield from emit_proposal_queue()
                 return
 
             if write_action_executed:

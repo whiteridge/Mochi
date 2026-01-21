@@ -24,7 +24,7 @@ struct MetadataGridItem: View {
     }
     
     var body: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -45,7 +45,7 @@ struct MetadataGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
+                .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
         )
     }
 }

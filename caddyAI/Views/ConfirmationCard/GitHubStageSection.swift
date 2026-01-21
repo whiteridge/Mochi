@@ -51,13 +51,13 @@ struct GitHubStageSection: View {
             .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+                    .stroke(palette.subtleBorder.opacity(0.45), lineWidth: 0.45)
             )
     }
 
     @ViewBuilder
     private var stageBackground: some View {
-        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
+        let stageOpacity = preferences.glassStyle == .regular ? 0.75 : 0.9
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
                 .opacity(stageOpacity)
@@ -211,8 +211,8 @@ private struct GitHubMetadataGridItem: View {
     }
 
     private var accentStroke: Color {
-        guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
-        return accent.opacity(colorScheme == .dark ? 0.5 : 0.35)
+        guard let accent = item.accent else { return palette.subtleBorder.opacity(0.35) }
+        return accent.opacity(colorScheme == .dark ? 0.38 : 0.28)
     }
 
     private var accentTag: Color {
@@ -225,7 +225,7 @@ private struct GitHubMetadataGridItem: View {
     }
 
     var body: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -252,7 +252,7 @@ private struct GitHubMetadataGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(accentStroke, lineWidth: 0.6)
+                .stroke(accentStroke, lineWidth: 0.45)
         )
         .overlay(alignment: .leading) {
             if item.accent != nil {

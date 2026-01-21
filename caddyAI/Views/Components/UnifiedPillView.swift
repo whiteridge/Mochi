@@ -99,6 +99,18 @@ struct UnifiedPillView: View {
             return "Searching \(appName)"
         }
     }
+
+    private var bubbleShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.28)
+    }
+
+    private var bubbleShadowRadius: CGFloat {
+        colorScheme == .dark ? 10 : 14
+    }
+
+    private var bubbleShadowY: CGFloat {
+        colorScheme == .dark ? 5 : 9
+    }
     
     // MARK: - Body
     
@@ -120,8 +132,9 @@ struct UnifiedPillView: View {
             .background(AnyShapeStyle(paneFill), in: .capsule)
             .glassEffect(.clear, in: .capsule)
             .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
-        .matchedGeometryEffect(id: "background", in: morphNamespace)
-        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
+            .matchedGeometryEffect(id: "background", in: morphNamespace)
+            .shadow(color: bubbleShadowColor, radius: bubbleShadowRadius, x: 0, y: bubbleShadowY)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
     }
     
     private var legacyBody: some View {
@@ -137,7 +150,7 @@ struct UnifiedPillView: View {
                 Capsule()
                     .stroke(palette.subtleBorder, lineWidth: 0.5)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .shadow(color: bubbleShadowColor, radius: bubbleShadowRadius, x: 0, y: bubbleShadowY)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
     }
     

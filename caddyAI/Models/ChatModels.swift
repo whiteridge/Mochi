@@ -271,7 +271,10 @@ struct ProposalData: Equatable {
     
     /// The message text for Slack
     var messageText: String? {
-        args["text"] as? String ?? args["message"] as? String
+        args["text"] as? String
+            ?? args["markdown_text"] as? String
+            ?? args["markdownText"] as? String
+            ?? args["message"] as? String
     }
     
     /// The target user name for Slack DMs or ephemeral messages

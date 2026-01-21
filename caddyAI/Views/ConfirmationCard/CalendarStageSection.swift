@@ -61,13 +61,13 @@ struct CalendarStageSection: View {
             .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+                    .stroke(palette.subtleBorder.opacity(0.45), lineWidth: 0.45)
             )
     }
     
     @ViewBuilder
     private var stageBackground: some View {
-        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
+        let stageOpacity = preferences.glassStyle == .regular ? 0.75 : 0.9
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
                 .opacity(stageOpacity)
@@ -80,7 +80,7 @@ struct CalendarStageSection: View {
 
     @ViewBuilder
     private func calendarFieldContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         return VStack(alignment: .leading, spacing: 6) {
             content()
         }
@@ -95,7 +95,7 @@ struct CalendarStageSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
+                .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
         )
     }
     
@@ -210,7 +210,7 @@ struct CalendarStageSection: View {
     }
 
     var calendarTimelineSection: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         return CalendarTimelineView(
             startDate: calendarDetails.startDate,
             endDate: calendarDetails.endDate,
@@ -227,7 +227,7 @@ struct CalendarStageSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.5)
+                .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
         )
     }
     

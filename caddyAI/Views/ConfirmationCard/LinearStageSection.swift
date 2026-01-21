@@ -60,13 +60,13 @@ struct LinearStageSection: View {
             .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+                    .stroke(palette.subtleBorder.opacity(0.45), lineWidth: 0.45)
             )
     }
     
     @ViewBuilder
     private var stageBackground: some View {
-        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
+        let stageOpacity = preferences.glassStyle == .regular ? 0.75 : 0.9
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
                 .opacity(stageOpacity)
@@ -309,7 +309,7 @@ private struct LinearMetadataGridItem: View {
 	}
 
 	private var strokeOpacity: Double {
-		colorScheme == .dark ? 0.35 : 0.22
+		colorScheme == .dark ? 0.28 : 0.18
 	}
 
 	private var barOpacity: Double {
@@ -330,12 +330,12 @@ private struct LinearMetadataGridItem: View {
 	}
 
 	private var strokeColor: Color {
-		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
+		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.35) }
 		return accent.opacity(strokeOpacity)
 	}
 
     var body: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -374,7 +374,7 @@ private struct LinearMetadataGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(strokeColor, lineWidth: 0.6)
+                .stroke(strokeColor, lineWidth: 0.45)
         )
         .overlay(alignment: .leading) {
 			if let accent = item.accent {

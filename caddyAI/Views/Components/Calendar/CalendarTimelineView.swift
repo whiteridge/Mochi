@@ -62,7 +62,7 @@ struct CalendarTimelineView: View {
     }
 
     private var allDayPill: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.8 : 1.0
+        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
         return Text("All day")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(palette.primaryText)
@@ -74,7 +74,7 @@ struct CalendarTimelineView: View {
             )
             .overlay(
                 Capsule()
-                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+                    .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
             )
     }
 

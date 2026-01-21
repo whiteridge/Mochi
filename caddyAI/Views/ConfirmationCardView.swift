@@ -20,7 +20,11 @@ struct ConfirmationCardView: View {
     }
 
     private var cardShadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.45) : Color.black.opacity(0.2)
+        colorScheme == .dark ? Color.black.opacity(0.55) : Color.black.opacity(0.28)
+    }
+
+    private var cardShadowLiftColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.32) : Color.black.opacity(0.18)
     }
     
     @State private var showButtonGlow: Bool = false
@@ -35,10 +39,11 @@ struct ConfirmationCardView: View {
             footerSection
         }
         .padding(22)
-        .background(cardBackground)
         .background(glowOverlay)
+        .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: cardShadowColor, radius: 20, x: 0, y: 14)
+        .shadow(color: cardShadowColor, radius: 24, x: 0, y: 18)
+        .shadow(color: cardShadowLiftColor, radius: 8, x: 0, y: 4)
         .frame(maxWidth: 560)
         .onChange(of: isExecuting) { _, newValue in
             if newValue {
@@ -233,7 +238,19 @@ private extension ConfirmationCardView {
             let baseIntensity = colorScheme == .dark
                 ? (isFinalAction ? 0.22 : 0.18)
                 : (isFinalAction ? 0.52 : 0.44)
+            let styleBoost = preferences.glassStyle == .regular
+                ? (colorScheme == .dark ? 1.35 : 1.18)
+                : 1.0
+            let glowIntensity = min(baseIntensity * styleBoost, 1.0)
             let baseOpacity = colorScheme == .dark ? 0.55 : 0.9
+            let glowOpacity = min(
+                baseOpacity + (preferences.glassStyle == .regular ? 0.08 : 0),
+                1.0
+            )
+            let glowBlendMode: BlendMode = colorScheme == .dark
+                ? .plusLighter
+                : (preferences.glassStyle == .regular ? .plusLighter : .screen)
+            let rotationSpeed = isGlowActive ? 1.4 : 0
             let maskGradient = RadialGradient(
                 gradient: Gradient(stops: [
                     .init(color: .white.opacity(0.85), location: 0),
@@ -248,12 +265,12 @@ private extension ConfirmationCardView {
 
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
-                rotationSpeed: 1.4,
-                intensity: baseIntensity,
+                rotationSpeed: rotationSpeed,
+                intensity: glowIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )
-            .opacity(isGlowActive ? baseOpacity : 0)
-            .blendMode(colorScheme == .dark ? .plusLighter : .screen)
+            .opacity(isGlowActive ? glowOpacity : 0)
+            .blendMode(glowBlendMode)
             .mask(
                 maskGradient
                     .blur(radius: colorScheme == .dark ? 16 : 12)

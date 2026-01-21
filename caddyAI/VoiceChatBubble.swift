@@ -41,6 +41,22 @@ struct VoiceChatBubble: View {
     private let transcriptionService = ParakeetTranscriptionService()
     private let logger = Logger(subsystem: "com.matteofari.caddyAI", category: "VoiceChatBubble")
 
+    private var palette: LiquidGlassPalette {
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+    }
+
+    private var errorBubbleShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.55) : Color.black.opacity(0.28)
+    }
+
+    private var errorBubbleShadowRadius: CGFloat {
+        colorScheme == .dark ? 10 : 12
+    }
+
+    private var errorBubbleShadowY: CGFloat {
+        colorScheme == .dark ? 6 : 8
+    }
+
     var body: some View {
         mainContent
     }
@@ -57,8 +73,17 @@ struct VoiceChatBubble: View {
                     if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
                             .font(.caption)
-                            .foregroundStyle(.pink)
+                            .foregroundStyle(Color(nsColor: .systemPink))
                             .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                GlassBackground(cornerRadius: 12, prominence: .subtle, shadowed: false)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
+                            )
+                            .shadow(color: errorBubbleShadowColor, radius: errorBubbleShadowRadius, x: 0, y: errorBubbleShadowY)
                             .padding(.bottom, -20)
                             .multilineTextAlignment(.center)
                     }
@@ -282,6 +307,18 @@ private struct AssistantMessageBubbleView: View {
         GlassBackdropStyle.paneFill(for: preferences.glassStyle, colorScheme: colorScheme)
     }
 
+    private var messageShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.28)
+    }
+
+    private var messageShadowRadius: CGFloat {
+        colorScheme == .dark ? 10 : 14
+    }
+
+    private var messageShadowY: CGFloat {
+        colorScheme == .dark ? 5 : 9
+    }
+
     @ViewBuilder
     private var messageContent: some View {
         let baseText = Text(text)
@@ -318,6 +355,7 @@ private struct AssistantMessageBubbleView: View {
                         )
                 }
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
+                .shadow(color: messageShadowColor, radius: messageShadowRadius, x: 0, y: messageShadowY)
             } else {
                 Group {
                     messageContent
@@ -326,6 +364,7 @@ private struct AssistantMessageBubbleView: View {
                         .overlay(GlassCloudOverlay(Capsule(), isEnabled: preferences.glassStyle == .regular))
                 }
                 .matchedGeometryEffect(id: "background", in: morphNamespace)
+                .shadow(color: messageShadowColor, radius: messageShadowRadius, x: 0, y: messageShadowY)
             }
         } else {
             messageContent
@@ -333,6 +372,7 @@ private struct AssistantMessageBubbleView: View {
                     GlassBackground(cornerRadius: messageCornerRadius, prominence: .subtle, shadowed: false)
                         .matchedGeometryEffect(id: "background", in: morphNamespace)
                 )
+                .shadow(color: messageShadowColor, radius: messageShadowRadius, x: 0, y: messageShadowY)
         }
     }
 }

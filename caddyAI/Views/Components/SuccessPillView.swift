@@ -6,6 +6,7 @@ struct SuccessPillView: View {
     var morphNamespace: Namespace.ID? = nil
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
+    @State private var isAnimating = true
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
@@ -16,27 +17,49 @@ struct SuccessPillView: View {
     }
 
     private var glowIntensity: Double {
-        colorScheme == .dark ? 0.32 : 0.9
+        let base = colorScheme == .dark ? 0.32 : 0.9
+        let boost = preferences.glassStyle == .regular
+            ? (colorScheme == .dark ? 1.4 : 1.2)
+            : 1.0
+        return min(base * boost, 1.0)
     }
 
     private var glowOpacity: Double {
-        colorScheme == .dark ? 0.8 : 1.0
+        let base = colorScheme == .dark ? 0.8 : 1.0
+        let boost = preferences.glassStyle == .regular ? 0.1 : 0.0
+        return min(base + boost, 1.0)
+    }
+
+    private var glowBlendMode: BlendMode {
+        if colorScheme == .dark {
+            return .plusLighter
+        }
+        return preferences.glassStyle == .regular ? .plusLighter : .screen
+    }
+
+    private var rotationSpeed: Double {
+        isAnimating ? 1.4 : 0
+    }
+
+    private var activeGlowOpacity: Double {
+        isAnimating ? glowOpacity : 0
     }
 
     @ViewBuilder
     private var backgroundLayer: some View {
         ZStack {
+            LiquidGlassSurface(shape: .capsule, prominence: .regular, shadowed: true)
+
             RotatingGradientFill(
                 shape: .capsule,
-                rotationSpeed: 0.75,
+                rotationSpeed: rotationSpeed,
                 intensity: glowIntensity,
                 renderStyle: .cone(origin: .center)
             )
-            .blendMode(colorScheme == .dark ? .plusLighter : .screen)
-            .opacity(glowOpacity)
+            .blendMode(glowBlendMode)
+            .opacity(activeGlowOpacity)
             .clipShape(Capsule())
-
-            LiquidGlassSurface(shape: .capsule, prominence: .regular, shadowed: true)
+            .allowsHitTesting(false)
 
             Capsule()
                 .stroke(palette.subtleBorder, lineWidth: 1)
@@ -74,5 +97,12 @@ struct SuccessPillView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
         .background(morphingBackground)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    isAnimating = false
+                }
+            }
+        }
     }
 }

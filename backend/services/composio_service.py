@@ -21,6 +21,21 @@ READ_ONLY_CACHEABLE_TOOLS = {
 }
 
 
+def _compact_dict(source: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+    return {key: source.get(key) for key in keys if key in source}
+
+
+def _slim_slack_channel(channel: Dict[str, Any]) -> Dict[str, Any]:
+    return _compact_dict(
+        channel,
+        ["id", "name", "name_normalized", "is_private", "is_member", "is_archived", "is_channel"],
+    )
+
+
+def _slim_linear_team(team: Dict[str, Any]) -> Dict[str, Any]:
+    return _compact_dict(team, ["id", "key", "name"])
+
+
 class ComposioService:
     """Service for interacting with Composio SDK."""
     
@@ -392,6 +407,42 @@ class ComposioService:
                 print(f"DEBUG: Error handling Slack pagination: {e}")
                 # Fallback to returning original result
                 pass
+
+        if slug.lower() in {"slack_list_all_channels", "slack_list_conversations"}:
+            try:
+                data = result.get("data", {}) if isinstance(result, dict) else getattr(result, "data", {})
+                channels = data.get("channels") or data.get("conversations") or []
+                slim_channels = [
+                    _slim_slack_channel(channel) for channel in channels if isinstance(channel, dict)
+                ]
+                if isinstance(result, dict):
+                    if "data" not in result:
+                        result["data"] = {}
+                    result["data"]["channels"] = slim_channels
+                    result["data"].pop("conversations", None)
+                    result["data"].pop("response_metadata", None)
+                else:
+                    if hasattr(result, "data") and isinstance(result.data, dict):
+                        result.data["channels"] = slim_channels
+                        result.data.pop("conversations", None)
+                        result.data.pop("response_metadata", None)
+            except Exception as e:
+                print(f"DEBUG: Error slimming Slack channel list: {e}")
+
+        if slug.lower() in {"linear_get_all_linear_teams", "linear_list_linear_teams"}:
+            try:
+                data = result.get("data", {}) if isinstance(result, dict) else getattr(result, "data", {})
+                teams = data.get("teams", [])
+                slim_teams = [_slim_linear_team(team) for team in teams if isinstance(team, dict)]
+                if isinstance(result, dict):
+                    if "data" not in result:
+                        result["data"] = {}
+                    result["data"]["teams"] = slim_teams
+                else:
+                    if hasattr(result, "data") and isinstance(result.data, dict):
+                        result.data["teams"] = slim_teams
+            except Exception as e:
+                print(f"DEBUG: Error slimming Linear teams: {e}")
         
         # Handle post-processing for slack_fetch_conversation_history
         if slug.lower() == "slack_fetch_conversation_history":

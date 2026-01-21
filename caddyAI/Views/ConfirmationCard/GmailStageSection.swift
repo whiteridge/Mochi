@@ -51,13 +51,13 @@ struct GmailStageSection: View {
             .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .stroke(palette.subtleBorder.opacity(0.6), lineWidth: 0.5)
+                    .stroke(palette.subtleBorder.opacity(0.45), lineWidth: 0.45)
             )
     }
 
     @ViewBuilder
     private var stageBackground: some View {
-        let stageOpacity = preferences.glassStyle == .regular ? 0.85 : 1.0
+        let stageOpacity = preferences.glassStyle == .regular ? 0.75 : 0.9
         ZStack {
             LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
                 .opacity(stageOpacity)
