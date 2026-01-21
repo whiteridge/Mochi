@@ -8,7 +8,7 @@ struct StatusPill: View {
 	@EnvironmentObject private var preferences: PreferencesStore
 	
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: .regular)
 	}
 	
 	var body: some View {
@@ -27,7 +27,7 @@ struct StatusPill: View {
 		.padding(.horizontal, 10)
 		.padding(.vertical, 6)
 		.background(
-			LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false)
+			LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false, glassStyleOverride: .regular)
 		)
 	}
 }

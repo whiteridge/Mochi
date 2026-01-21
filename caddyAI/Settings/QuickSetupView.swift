@@ -364,7 +364,7 @@ private struct IntegrationConnectCard: View {
     @EnvironmentObject private var preferences: PreferencesStore
 
     private var palette: LiquidGlassPalette {
-        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+        LiquidGlassPalette(colorScheme: colorScheme, glassStyle: .regular)
     }
     
     var body: some View {
@@ -378,7 +378,12 @@ private struct IntegrationConnectCard: View {
                             .aspectRatio(contentMode: .fit)
                     } else {
                         ZStack {
-                            LiquidGlassSurface(shape: .roundedRect(10), prominence: .subtle, shadowed: false)
+                            LiquidGlassSurface(
+                                shape: .roundedRect(10),
+                                prominence: .subtle,
+                                shadowed: false,
+                                glassStyleOverride: .regular
+                            )
                             Image(systemName: fallbackIcon)
                                 .font(.system(size: 22))
                                 .foregroundStyle(palette.secondaryText)
@@ -441,7 +446,7 @@ private struct IntegrationConnectCard: View {
         }
         .padding(16)
         .background(
-            LiquidGlassSurface(shape: .roundedRect(14), prominence: .regular)
+            LiquidGlassSurface(shape: .roundedRect(14), prominence: .regular, glassStyleOverride: .regular)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)

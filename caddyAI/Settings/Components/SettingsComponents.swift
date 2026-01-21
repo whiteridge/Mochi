@@ -17,7 +17,7 @@ struct SettingsRowCard<Content: View>: View {
 				content
 			}
 			.background(
-				LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular)
+				LiquidGlassSurface(shape: .roundedRect(12), prominence: .regular, glassStyleOverride: .regular)
 			)
 		}
 	}
@@ -34,7 +34,7 @@ struct SettingsRow<Control: View>: View {
 	@EnvironmentObject private var preferences: PreferencesStore
 	
 	private var palette: LiquidGlassPalette {
-		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
+		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: .regular)
 	}
 	
 	init(label: String, showDivider: Bool = true, @ViewBuilder control: () -> Control) {

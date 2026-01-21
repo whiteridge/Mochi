@@ -182,7 +182,7 @@ struct KeyPillButton: View {
 				.padding(.vertical, 6)
 				.background(
 					ZStack {
-						LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
+						LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false, glassStyleOverride: .regular)
 						if isSelected {
 							RoundedRectangle(cornerRadius: 6, style: .continuous)
 								.fill(accentColor.opacity(0.18))
@@ -219,7 +219,7 @@ struct ThemePillButton: View {
 			.padding(.vertical, 6)
 			.background(
 				ZStack {
-					LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false)
+					LiquidGlassSurface(shape: .roundedRect(6), prominence: .subtle, shadowed: false, glassStyleOverride: .regular)
 					if isSelected {
 						RoundedRectangle(cornerRadius: 6, style: .continuous)
 							.fill(accentColor.opacity(0.18))
