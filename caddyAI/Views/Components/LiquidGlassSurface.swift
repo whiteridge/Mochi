@@ -12,8 +12,8 @@ enum GlassBackdropStyle {
         switch glassStyle {
         case .regular:
             return isDark
-                ? Color.black.opacity(0.55)
-                : Color.white.opacity(0.85)
+                ? Color(red: 0.05, green: 0.07, blue: 0.09).opacity(0.9)
+                : Color.white.opacity(0.9)
         case .clear:
             return isDark
                 ? Color.black.opacity(0.32)
@@ -306,41 +306,41 @@ struct GlassCloudOverlay<S: Shape>: View {
 		}
 	}
 
-	private var cloudGradient: LinearGradient {
-		LinearGradient(
-			colors: [
-				Color.white.opacity(colorScheme == .dark ? 0.24 : 0.34),
-				Color.white.opacity(colorScheme == .dark ? 0.14 : 0.2),
-				Color.clear
-			],
-			startPoint: .topLeading,
-			endPoint: .bottomTrailing
-		)
-	}
+    private var cloudGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(colorScheme == .dark ? 0.26 : 0.36),
+                Color.white.opacity(colorScheme == .dark ? 0.16 : 0.22),
+                Color.clear
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
 
-	private var cloudOpacity: Double {
-		colorScheme == .dark ? 0.48 : 0.42
-	}
+    private var cloudOpacity: Double {
+        colorScheme == .dark ? 0.55 : 0.48
+    }
 
-	private var cloudBlur: CGFloat {
-		colorScheme == .dark ? 30 : 22
-	}
+    private var cloudBlur: CGFloat {
+        colorScheme == .dark ? 32 : 24
+    }
 
 	private var grainColor: Color {
 		colorScheme == .dark ? Color.white : Color.black
 	}
 
-	private var grainIntensity: Double {
-		colorScheme == .dark ? 0.06 : 0.05
-	}
+    private var grainIntensity: Double {
+        colorScheme == .dark ? 0.035 : 0.03
+    }
 
-	private var grainOpacity: Double {
-		0.2
-	}
+    private var grainOpacity: Double {
+        0.12
+    }
 
-	private var grainScale: CGFloat {
-		2.2
-	}
+    private var grainScale: CGFloat {
+        2.8
+    }
 }
 
 private struct GlassGrainOverlay: View {
@@ -348,10 +348,10 @@ private struct GlassGrainOverlay: View {
 	let intensity: Double
 	let scale: CGFloat
 
-	var body: some View {
-		Canvas { context, size in
-			let step = max(scale, 2)
-			var y: CGFloat = 0
+    var body: some View {
+        Canvas { context, size in
+            let step = max(scale, 2)
+            var y: CGFloat = 0
 			while y < size.height {
 				var x: CGFloat = 0
 				while x < size.width {
@@ -361,11 +361,12 @@ private struct GlassGrainOverlay: View {
 					context.fill(Path(rect), with: .color(color.opacity(alpha)))
 					x += step
 				}
-				y += step
-			}
-		}
-		.blendMode(.softLight)
-	}
+                y += step
+            }
+        }
+        .blendMode(.softLight)
+        .blur(radius: 0.35)
+    }
 
 	private func noise(x: CGFloat, y: CGFloat) -> Double {
 		let seed = sin(Double(x * 12.9898 + y * 78.233)) * 43758.5453
