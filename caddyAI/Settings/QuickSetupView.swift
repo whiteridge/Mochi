@@ -150,15 +150,15 @@ struct QuickSetupView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(preferences.accentColor)
+                    .buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor), prominence: .regular))
                     .disabled(!hasAnyConnection)
                     
                     Button("Skip for now") {
                         preferences.hasCompletedSetup = true
                         onComplete()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SettingsGlassButtonStyle())
+                    .controlSize(.small)
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
                 }
@@ -425,7 +425,7 @@ private struct IntegrationConnectCard: View {
                     Button("Connect") {
                         action()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
                     .controlSize(.regular)
                 }
             }

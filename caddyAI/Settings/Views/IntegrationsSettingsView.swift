@@ -144,9 +144,8 @@ struct IntegrationsSettingsView: View {
 								Text(showSaved ? "Saved" : "Save")
 									.frame(width: 50)
 							}
-							.buttonStyle(.borderedProminent)
+							.buttonStyle(SettingsGlassButtonStyle(kind: .accent(showSaved ? .green : preferences.accentColor)))
 							.controlSize(.small)
-							.tint(showSaved ? .green : preferences.accentColor)
 						}
 					}
 				}
@@ -162,7 +161,7 @@ struct IntegrationsSettingsView: View {
 								.textFieldStyle(.roundedBorder)
 							HStack(spacing: 12) {
 								Button("Save & Connect") { viewModel.connectSlack() }
-									.buttonStyle(.bordered)
+									.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
 									.controlSize(.small)
 								if let status = viewModel.slackTestMessage {
 									StatusLabel(text: status, success: viewModel.slackTestSuccess ?? false)
@@ -182,7 +181,7 @@ struct IntegrationsSettingsView: View {
 								.textFieldStyle(.roundedBorder)
 							HStack(spacing: 12) {
 								Button("Save & Connect") { viewModel.connectLinear() }
-									.buttonStyle(.bordered)
+									.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
 									.controlSize(.small)
 								if let status = viewModel.linearTestMessage {
 									StatusLabel(text: status, success: viewModel.linearTestSuccess ?? false)
@@ -503,9 +502,8 @@ struct IntegrationRow: View {
 					Button("Connect") {
 						onConnect()
 					}
-					.buttonStyle(.borderedProminent)
+					.buttonStyle(SettingsGlassButtonStyle(kind: .accent(accentColor)))
 					.controlSize(.small)
-					.tint(accentColor)
 				}
 			}
 			.padding(.horizontal, 16)

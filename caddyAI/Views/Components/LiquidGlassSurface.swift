@@ -288,21 +288,11 @@ struct GlassCloudOverlay<S: Shape>: View {
 
 	var body: some View {
 		if isEnabled && !reduceTransparency {
-			ZStack {
-				shape.fill(cloudGradient)
-					.blur(radius: cloudBlur)
-					.opacity(cloudOpacity)
-
-				GlassGrainOverlay(
-					color: grainColor,
-					intensity: grainIntensity,
-					scale: grainScale
-				)
-				.clipShape(shape)
-				.opacity(grainOpacity)
-			}
-			.compositingGroup()
-			.allowsHitTesting(false)
+			shape.fill(cloudGradient)
+				.blur(radius: cloudBlur)
+				.opacity(cloudOpacity)
+				.compositingGroup()
+				.allowsHitTesting(false)
 		}
 	}
 
@@ -326,52 +316,6 @@ struct GlassCloudOverlay<S: Shape>: View {
         colorScheme == .dark ? 32 : 24
     }
 
-	private var grainColor: Color {
-		colorScheme == .dark ? Color.white : Color.black
-	}
-
-    private var grainIntensity: Double {
-        colorScheme == .dark ? 0.035 : 0.03
-    }
-
-    private var grainOpacity: Double {
-        0.12
-    }
-
-    private var grainScale: CGFloat {
-        2.8
-    }
-}
-
-private struct GlassGrainOverlay: View {
-	let color: Color
-	let intensity: Double
-	let scale: CGFloat
-
-    var body: some View {
-        Canvas { context, size in
-            let step = max(scale, 2)
-            var y: CGFloat = 0
-			while y < size.height {
-				var x: CGFloat = 0
-				while x < size.width {
-					let value = noise(x: x, y: y)
-					let alpha = intensity * (0.4 + value * 0.6)
-					let rect = CGRect(x: x, y: y, width: step, height: step)
-					context.fill(Path(rect), with: .color(color.opacity(alpha)))
-					x += step
-				}
-                y += step
-            }
-        }
-        .blendMode(.softLight)
-        .blur(radius: 0.35)
-    }
-
-	private func noise(x: CGFloat, y: CGFloat) -> Double {
-		let seed = sin(Double(x * 12.9898 + y * 78.233)) * 43758.5453
-		return seed - floor(seed)
-	}
 }
 
 private struct LiquidGlassMetrics {

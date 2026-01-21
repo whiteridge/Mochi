@@ -329,7 +329,7 @@ class MockAgentService:
             "active_app": "linear",
         }
 
-        # Simulate searching each app before proposals
+        # Simulate searching each app before proposals (skip "done" to avoid thinking between searches)
         for app_id, tool in [
             ("linear", "LINEAR_PRECHECK"),
             ("slack", "SLACK_PRECHECK"),
@@ -342,14 +342,6 @@ class MockAgentService:
                 "involved_apps": apps,
             }
             await asyncio.sleep(2.0)
-            yield {
-                "type": "tool_status",
-                "tool": tool,
-                "status": "done",
-                "app_id": app_id,
-                "involved_apps": apps,
-            }
-            await asyncio.sleep(0.2)
 
         await asyncio.sleep(0.5)
 
@@ -459,7 +451,7 @@ class MockAgentService:
             "active_app": "linear",
         }
 
-        # Simulate searching each app before proposals
+        # Simulate searching each app before proposals (skip "done" to avoid thinking between searches)
         for app_id, tool in [
             ("linear", "LINEAR_PRECHECK"),
             ("slack", "SLACK_PRECHECK"),
@@ -473,14 +465,6 @@ class MockAgentService:
                 "involved_apps": apps,
             }
             await asyncio.sleep(2.0)
-            yield {
-                "type": "tool_status",
-                "tool": tool,
-                "status": "done",
-                "app_id": app_id,
-                "involved_apps": apps,
-            }
-            await asyncio.sleep(0.2)
 
         await asyncio.sleep(0.5)
 

@@ -78,8 +78,7 @@ struct AboutSettingsView: View {
 						} label: {
 							Text("Reset")
 						}
-						.buttonStyle(.bordered)
-						.tint(.red)
+						.buttonStyle(SettingsGlassButtonStyle(kind: .destructive(.red)))
 						.controlSize(.small)
 					}
 				}

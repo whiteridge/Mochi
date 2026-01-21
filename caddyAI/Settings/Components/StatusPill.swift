@@ -21,7 +21,8 @@ struct StatusPill: View {
 				.foregroundStyle(palette.primaryText)
 			if let action {
 				Button(isOn ? "Review" : "Enable", action: action)
-					.buttonStyle(.link)
+					.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
+					.controlSize(.mini)
 			}
 		}
 		.padding(.horizontal, 10)

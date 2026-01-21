@@ -52,7 +52,7 @@ struct OnboardingView: View {
 				Button("Back") {
 					step = max(step - 1, 0)
 				}
-				.buttonStyle(.bordered)
+				.buttonStyle(SettingsGlassButtonStyle())
 				.disabled(step == 0)
 				
 				Spacer()
@@ -60,7 +60,7 @@ struct OnboardingView: View {
 				Button(primaryButtonTitle) {
 					advance()
 				}
-				.buttonStyle(.borderedProminent)
+				.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor), prominence: .regular))
 			}
 		}
 		.padding(24)

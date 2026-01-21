@@ -120,9 +120,8 @@ struct GeneralSettingsView: View {
 							Button("Enable") {
 								requestMicrophone()
 							}
-							.buttonStyle(.borderedProminent)
+							.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
 							.controlSize(.small)
-							.tint(preferences.accentColor)
 						}
 					}
 					
@@ -134,9 +133,8 @@ struct GeneralSettingsView: View {
 							Button("Enable") {
 								openAccessibilityPrefs()
 							}
-							.buttonStyle(.borderedProminent)
+							.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor)))
 							.controlSize(.small)
-							.tint(preferences.accentColor)
 						}
 					}
 				}
