@@ -34,7 +34,6 @@ struct ConfirmationCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            headerSection
             animatedStageSection
             footerSection
         }
@@ -66,18 +65,6 @@ struct ConfirmationCardView: View {
 // MARK: - Sections
 
 private extension ConfirmationCardView {
-    var headerSection: some View {
-        ZStack(alignment: .topTrailing) {
-            if !appSteps.isEmpty {
-                MultiStatusPillView(appSteps: appSteps, activeAppId: activeAppId)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            cancelButton
-                .padding(.top, appSteps.isEmpty ? 0 : 5)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var cancelButton: some View {
         Button(action: onCancel) {
             Image(systemName: "xmark")
@@ -157,8 +144,13 @@ private extension ConfirmationCardView {
     }
     
     var footerSection: some View {
-        HStack {
-            Spacer()
+        HStack(spacing: 14) {
+            if !appSteps.isEmpty {
+                MultiStatusPillView(appSteps: appSteps, activeAppId: activeAppId)
+            }
+
+            Spacer(minLength: 0)
+            cancelButton
             actionButtonsSection
         }
     }
@@ -268,88 +260,9 @@ private extension ConfirmationCardView {
     }
 }
 
-// MARK: - Header Helpers
+// MARK: - Button Titles
 
 private extension ConfirmationCardView {
-    
-    var normalizedAppId: String {
-        let base = proposal.appId ?? proposal.tool
-        return base.lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "_", with: "")
-            .replacingOccurrences(of: "-", with: "")
-    }
-
-    var headerAppName: String {
-        switch normalizedAppId {
-        case "linear":
-            return "Linear"
-        case "slack":
-            return "Slack"
-        case "notion":
-            return "Notion"
-        case "gmail", "googlemail":
-            return "Gmail"
-        case "calendar", "googlecalendar", "google":
-            return "Calendar"
-        case "github":
-            return "GitHub"
-        default:
-            return proposal.appId ?? "App"
-        }
-    }
-
-    var headerActionTitle: String {
-        let tool = proposal.tool.lowercased()
-        if proposal.isSlackApp {
-            return isScheduledMessage ? "Schedule message" : "Send message"
-        }
-        if proposal.isCalendarApp {
-            if tool.contains("create") { return "Create event" }
-            if tool.contains("update") { return "Update event" }
-            if tool.contains("delete") || tool.contains("remove") { return "Cancel event" }
-            return "Confirm event"
-        }
-        if proposal.isGitHubApp {
-            if tool.contains("pull_request") || tool.contains("pullrequest") { return "Create pull request" }
-            if tool.contains("issue") && tool.contains("create") { return "Create issue" }
-            if tool.contains("comment") { return "Add comment" }
-            if tool.contains("merge") { return "Merge pull request" }
-            if tool.contains("close") && tool.contains("issue") { return "Close issue" }
-            if tool.contains("close") && tool.contains("pull") { return "Close pull request" }
-            if tool.contains("update") && tool.contains("issue") { return "Update issue" }
-            if tool.contains("update") && tool.contains("pull") { return "Update pull request" }
-            if tool.contains("create") && (tool.contains("repo") || tool.contains("repository")) { return "Create repository" }
-            return "Confirm GitHub action"
-        }
-        if proposal.isGmailApp {
-            if tool.contains("reply") { return "Reply to email" }
-            if tool.contains("forward") { return "Forward email" }
-            if tool.contains("send") { return "Send email" }
-            if tool.contains("draft") { return "Create draft" }
-            if tool.contains("label") { return "Apply label" }
-            if tool.contains("trash") { return "Move to trash" }
-            if tool.contains("delete") { return "Delete email" }
-            return "Confirm email"
-        }
-        if proposal.isNotionApp {
-            if tool.contains("create") { return "Create page" }
-            if tool.contains("update") || tool.contains("patch") { return "Update page" }
-            if tool.contains("archive") { return "Archive page" }
-            if tool.contains("restore") { return "Restore page" }
-            if tool.contains("delete") { return "Delete page" }
-            return "Confirm page"
-        }
-        if proposal.isLinearApp {
-            if tool.contains("create") { return "Create issue" }
-            if tool.contains("update") { return "Update issue" }
-            return "Confirm issue"
-        }
-        return "Confirm action"
-    }
-
-
-    
     var isScheduledMessage: Bool {
         proposal.tool.lowercased().contains("schedule")
     }
