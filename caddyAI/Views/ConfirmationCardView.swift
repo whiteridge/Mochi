@@ -238,7 +238,6 @@ private extension ConfirmationCardView {
             let glowBlendMode: BlendMode = colorScheme == .dark
                 ? .plusLighter
                 : (preferences.glassStyle == .regular ? .plusLighter : .screen)
-            let rotationSpeed = isGlowActive ? 1.4 : 0
             let maskGradient = RadialGradient(
                 gradient: Gradient(stops: [
                     .init(color: .white.opacity(0.85), location: 0),
@@ -253,7 +252,7 @@ private extension ConfirmationCardView {
 
             RotatingGradientFill(
                 shape: .roundedRect(cornerRadius: 24),
-                rotationSpeed: rotationSpeed,
+                rotationSpeed: 1.4,
                 intensity: glowIntensity,
                 renderStyle: .cone(origin: coneOrigin)
             )
