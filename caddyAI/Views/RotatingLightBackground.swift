@@ -25,7 +25,7 @@ struct RotatingGradientFill: View {
     @Environment(\.colorScheme) private var colorScheme
     
     private var adjustedIntensity: Double {
-        intensity * (colorScheme == .dark ? 1.0 : 0.85)
+        intensity * (colorScheme == .dark ? 0.85 : 0.72)
     }
     
     private var adjustedRotationSpeed: Double {

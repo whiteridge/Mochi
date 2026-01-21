@@ -67,27 +67,15 @@ struct ConfirmationCardView: View {
 
 private extension ConfirmationCardView {
     var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        ZStack(alignment: .topTrailing) {
             if !appSteps.isEmpty {
                 MultiStatusPillView(appSteps: appSteps, activeAppId: activeAppId)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(headerActionTitle)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(palette.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    
-                }
-                
-                Spacer()
-            }
-        }
-        .overlay(alignment: .topTrailing) {
             cancelButton
                 .padding(.top, appSteps.isEmpty ? 0 : 5)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var cancelButton: some View {

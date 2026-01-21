@@ -46,26 +46,7 @@ struct GmailStageSection: View {
     @ViewBuilder
     private func stageContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(16)
-            .background(stageBackground)
-            .clipShape(RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .stroke(palette.subtleBorder.opacity(0.45), lineWidth: 0.45)
-            )
-    }
-
-    @ViewBuilder
-    private var stageBackground: some View {
-        let stageOpacity = preferences.glassStyle == .regular ? 0.75 : 0.9
-        ZStack {
-            LiquidGlassSurface(shape: .roundedRect(stageCornerRadius), prominence: .subtle, shadowed: false)
-                .opacity(stageOpacity)
-            if preferences.glassStyle == .clear {
-                RoundedRectangle(cornerRadius: stageCornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.2 : 0.07))
-            }
-        }
+            .padding(18)
     }
 
     // MARK: - Gmail Display Helpers
