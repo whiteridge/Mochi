@@ -20,6 +20,28 @@ READ_ONLY_CACHEABLE_TOOLS = {
     "SLACK_LIST_ALL_CHANNELS",
 }
 
+ACCOUNT_STATUS_PRIORITY = {
+    "ACTIVE": 6,
+    "INITIALIZING": 5,
+    "INITIATED": 4,
+    "PENDING": 4,
+    "INACTIVE": 3,
+    "EXPIRED": 2,
+    "FAILED": 1,
+}
+
+AUTH_ERROR_HINTS = (
+    "auth",
+    "unauthorized",
+    "token",
+    "expired",
+    "invalid",
+    "permission",
+    "access denied",
+    "forbidden",
+    "oauth",
+)
+
 
 def _compact_dict(source: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
     return {key: source.get(key) for key in keys if key in source}
@@ -34,6 +56,68 @@ def _slim_slack_channel(channel: Dict[str, Any]) -> Dict[str, Any]:
 
 def _slim_linear_team(team: Dict[str, Any]) -> Dict[str, Any]:
     return _compact_dict(team, ["id", "key", "name"])
+
+
+def _extract_account_items(accounts: Any) -> List[Any]:
+    if hasattr(accounts, "items"):
+        return accounts.items or []
+    if isinstance(accounts, dict):
+        return accounts.get("items", [])
+    if isinstance(accounts, list):
+        return accounts
+    return []
+
+
+def _extract_account_status(account: Any) -> Optional[str]:
+    status = getattr(account, "status", None)
+    if status is None and isinstance(account, dict):
+        status = account.get("status")
+    if status is None:
+        return None
+    return str(status).upper()
+
+
+def _extract_account_id(account: Any) -> Optional[str]:
+    account_id = getattr(account, "id", None)
+    if account_id is None and isinstance(account, dict):
+        account_id = account.get("id") or account.get("nanoid")
+    return str(account_id) if account_id is not None else None
+
+
+def _extract_toolkit_slug(account: Any) -> Optional[str]:
+    toolkit = getattr(account, "toolkit", None)
+    toolkit_slug = getattr(account, "toolkit_slug", None) or getattr(account, "toolkitSlug", None)
+    if isinstance(account, dict):
+        toolkit = account.get("toolkit", toolkit)
+        toolkit_slug = account.get("toolkit_slug") or account.get("toolkitSlug") or toolkit_slug
+    if toolkit:
+        if isinstance(toolkit, dict):
+            toolkit_slug = toolkit.get("slug") or toolkit_slug
+        else:
+            toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
+    if toolkit_slug is None:
+        return None
+    return str(toolkit_slug).lower()
+
+
+def _tool_slug_to_app_slug(slug: Optional[str]) -> Optional[str]:
+    if not slug:
+        return None
+    normalized = normalize_tool_slug(slug)
+    upper_slug = normalized.upper()
+    if upper_slug.startswith("GOOGLECALENDAR_") or upper_slug.startswith("GOOGLE_CALENDAR_"):
+        return "googlecalendar"
+    prefix = upper_slug.split("_", 1)[0]
+    mapping = {
+        "SLACK": "slack",
+        "LINEAR": "linear",
+        "NOTION": "notion",
+        "GITHUB": "github",
+        "GMAIL": "gmail",
+        "GOOGLE": "googlecalendar",
+        "GOOGLECALENDAR": "googlecalendar",
+    }
+    return mapping.get(prefix, prefix.lower())
 
 
 class ComposioService:
@@ -78,6 +162,150 @@ class ComposioService:
         key = self._cache_key(tool_name, args)
         self._cache[key] = {"value": value, "ts": time.time()}
         print(f"DEBUG: Cached result for {tool_name}")
+
+    def _list_connected_accounts(
+        self,
+        user_id: str,
+        toolkit_slugs: List[str],
+        statuses: Optional[List[str]] = None,
+    ):
+        try:
+            return self.composio.connected_accounts.list(
+                user_ids=[user_id],
+                toolkit_slugs=toolkit_slugs,
+                statuses=statuses,
+            )
+        except TypeError:
+            try:
+                return self.composio.connected_accounts.list(
+                    user_ids=[user_id],
+                    toolkit_slugs=toolkit_slugs,
+                )
+            except TypeError:
+                return self.composio.connected_accounts.list(
+                    user_id=user_id,
+                    app_names=toolkit_slugs,
+                )
+
+    def _extract_error_message(self, result: Any) -> Optional[str]:
+        if result is None:
+            return None
+        if isinstance(result, dict):
+            for key in ("error", "message", "detail"):
+                value = result.get(key)
+                if value:
+                    return str(value)
+            data = result.get("data")
+            if isinstance(data, dict):
+                for key in ("error", "message", "detail"):
+                    value = data.get(key)
+                    if value:
+                        return str(value)
+            return None
+
+        for attr in ("error", "message", "detail"):
+            value = getattr(result, attr, None)
+            if value:
+                return str(value)
+        data = getattr(result, "data", None)
+        if isinstance(data, dict):
+            for key in ("error", "message", "detail"):
+                value = data.get(key)
+                if value:
+                    return str(value)
+        return None
+
+    def _is_auth_error(self, exc: Exception) -> bool:
+        status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        if status_code in {401, 403}:
+            return True
+        message = str(exc).lower()
+        return any(hint in message for hint in AUTH_ERROR_HINTS)
+
+    def _result_indicates_auth_error(self, result: Any) -> bool:
+        if result is None:
+            return False
+        if isinstance(result, dict):
+            successful = result.get("successful", True)
+        else:
+            successful = getattr(result, "successful", True)
+        if successful:
+            return False
+        message = self._extract_error_message(result)
+        if not message:
+            return False
+        return any(hint in message.lower() for hint in AUTH_ERROR_HINTS)
+
+    def _format_app_label(self, app_slug: str) -> str:
+        mapping = {
+            "googlecalendar": "Google Calendar",
+            "gmail": "Gmail",
+            "github": "GitHub",
+            "slack": "Slack",
+            "linear": "Linear",
+            "notion": "Notion",
+        }
+        return mapping.get(app_slug, app_slug.title())
+
+    def _attempt_auth_refresh(self, slug: str, user_id: str) -> Dict[str, Any]:
+        app_slug = _tool_slug_to_app_slug(slug)
+        if not app_slug:
+            return {"refreshed": False, "action_required": False}
+
+        details = self.get_connection_details(app_slug, user_id)
+        account_id = details.get("account_id")
+        if not account_id:
+            return {"refreshed": False, "action_required": False}
+
+        try:
+            refresh_result = self.refresh_connection(account_id)
+        except Exception as exc:  # noqa: BLE001 - keep auth refresh best-effort
+            print(f"DEBUG: Failed to refresh auth for {app_slug}: {exc}")
+            return {"refreshed": False, "action_required": False}
+
+        redirect_url = refresh_result.get("redirect_url")
+        if redirect_url:
+            return {"refreshed": False, "action_required": True}
+
+        return {"refreshed": True, "action_required": False}
+
+    def _execute_with_auth_retry(
+        self,
+        slug: str,
+        arguments: Dict[str, Any],
+        user_id: str,
+        allow_retry: bool = True,
+    ):
+        try:
+            result = self.composio.tools.execute(
+                slug=slug,
+                arguments=arguments,
+                user_id=user_id,
+                dangerously_skip_version_check=True,
+            )
+        except Exception as exc:
+            if not self._is_auth_error(exc) or not allow_retry:
+                raise
+            refresh_outcome = self._attempt_auth_refresh(slug, user_id)
+            if refresh_outcome.get("refreshed"):
+                return self._execute_with_auth_retry(slug, arguments, user_id, allow_retry=False)
+            app_slug = _tool_slug_to_app_slug(slug) or "integration"
+            raise RuntimeError(
+                f"Authentication expired for {self._format_app_label(app_slug)}. "
+                "Please reconnect in Settings."
+            ) from exc
+
+        if allow_retry and self._result_indicates_auth_error(result):
+            refresh_outcome = self._attempt_auth_refresh(slug, user_id)
+            if refresh_outcome.get("refreshed"):
+                return self._execute_with_auth_retry(slug, arguments, user_id, allow_retry=False)
+            app_slug = _tool_slug_to_app_slug(slug) or "integration"
+            raise RuntimeError(
+                f"Authentication expired for {self._format_app_label(app_slug)}. "
+                "Please reconnect in Settings."
+            )
+
+        return result
     
     def get_auth_url(self, app_name: str, user_id: str, callback_url: Optional[str] = None) -> str:
         """
@@ -161,71 +389,84 @@ class ComposioService:
         except Exception:
             return None
 
-    def get_connection_status(self, app_name: str, user_id: str) -> bool:
+    def get_connection_details(self, app_name: str, user_id: str) -> Dict[str, Any]:
         """
-        Check if a user has an active connection for the given app.
-        
-        Args:
-            app_name: Name of the app (e.g., 'slack', 'linear')
-            user_id: The user ID to check
-            
-        Returns:
-            True if connected, False otherwise
+        Fetch connection metadata for a given app and user.
+
+        Returns a dict with:
+        - connected: bool (ACTIVE)
+        - status: Optional[str]
+        - account_id: Optional[str]
+        - action_required: bool (EXPIRED/FAILED)
         """
         app_slug = app_name.lower()
         toolkit_slug_filters = [app_slug]
         app_slug_upper = app_slug.upper()
         if app_slug_upper != app_slug:
             toolkit_slug_filters.append(app_slug_upper)
-        try:
-            accounts = self.composio.connected_accounts.list(
-                user_ids=[user_id],
-                toolkit_slugs=toolkit_slug_filters,
-            )
-        except TypeError as exc:
-            if "unexpected keyword argument" not in str(exc):
-                raise
-            accounts = self.composio.connected_accounts.list(
-                user_id=user_id,
-                app_names=toolkit_slug_filters,
-            )
 
-        items: List[Any] = []
-        if hasattr(accounts, "items"):
-            items = accounts.items or []
-        elif isinstance(accounts, dict):
-            items = accounts.get("items", [])
-        elif isinstance(accounts, list):
-            items = accounts
+        statuses = list(ACCOUNT_STATUS_PRIORITY.keys())
+        accounts = self._list_connected_accounts(
+            user_id=user_id,
+            toolkit_slugs=toolkit_slug_filters,
+            statuses=statuses,
+        )
+        items = _extract_account_items(accounts)
 
+        best_account = None
+        best_priority = -1
         for account in items:
-            status = getattr(account, "status", None)
-            if status is None and isinstance(account, dict):
-                status = account.get("status")
-            if status != "ACTIVE":
+            status = _extract_account_status(account)
+            if status is None:
                 continue
-
-            toolkit_slug = None
-            toolkit = getattr(account, "toolkit", None)
-            if isinstance(account, dict):
-                toolkit = account.get("toolkit", toolkit)
-                toolkit_slug = account.get("toolkit_slug") or account.get("toolkitSlug")
-
-            if toolkit:
-                if isinstance(toolkit, dict):
-                    toolkit_slug = toolkit.get("slug") or toolkit_slug
-                else:
-                    toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
-
-            normalized_toolkit_slug = None
-            if toolkit_slug is not None:
-                normalized_toolkit_slug = str(toolkit_slug).lower()
-
-            if normalized_toolkit_slug and normalized_toolkit_slug != app_slug:
+            toolkit_slug = _extract_toolkit_slug(account)
+            if toolkit_slug and toolkit_slug != app_slug:
                 continue
-            return True
+            priority = ACCOUNT_STATUS_PRIORITY.get(status, 0)
+            if priority > best_priority:
+                best_priority = priority
+                best_account = account
 
-        return False
+        if not best_account:
+            return {
+                "connected": False,
+                "status": None,
+                "account_id": None,
+                "action_required": False,
+            }
+
+        status = _extract_account_status(best_account)
+        account_id = _extract_account_id(best_account)
+        connected = status == "ACTIVE"
+        action_required = status in {"EXPIRED", "FAILED"}
+        return {
+            "connected": connected,
+            "status": status,
+            "account_id": account_id,
+            "action_required": action_required,
+        }
+
+    def get_connection_status(self, app_name: str, user_id: str) -> bool:
+        """Check if a user has an active connection for the given app."""
+        details = self.get_connection_details(app_name, user_id)
+        return bool(details.get("connected"))
+
+    def refresh_connection(self, connected_account_id: str) -> Dict[str, Any]:
+        """Attempt to refresh a connected account."""
+        try:
+            result = self.composio.connected_accounts.refresh(nanoid=connected_account_id)
+        except TypeError:
+            result = self.composio.connected_accounts.refresh(
+                connected_account_id=connected_account_id
+            )
+
+        redirect_url = getattr(result, "redirect_url", None) or getattr(result, "redirectUrl", None)
+        status = getattr(result, "status", None)
+        return {
+            "successful": True,
+            "redirect_url": redirect_url,
+            "status": status,
+        }
 
     def disconnect_app(self, app_name: str, user_id: str) -> int:
         """
@@ -304,11 +545,10 @@ class ComposioService:
             print(
                 f"DEBUG: Normalized action slug {action_slug} -> {normalized_slug}"
             )
-        result = self.composio.tools.execute(
+        result = self._execute_with_auth_retry(
             slug=normalized_slug,
             arguments=arguments,
             user_id=user_id,
-            dangerously_skip_version_check=True,
         )
         # Convert result to dict format expected by the rest of the code
         if hasattr(result, 'data'):
@@ -344,11 +584,10 @@ class ComposioService:
             if cached is not None:
                 return cached
         
-        result = self.composio.tools.execute(
+        result = self._execute_with_auth_retry(
             slug=slug,
             arguments=arguments,
             user_id=user_id,
-            dangerously_skip_version_check=True,
         )
         
         # Handle pagination for slack_list_all_channels
@@ -369,11 +608,10 @@ class ComposioService:
                     print(f"DEBUG: Fetching page {pages + 1} with cursor {next_cursor}")
                     paged_args = {**arguments, "cursor": next_cursor}
                     
-                    page_result = self.composio.tools.execute(
+                    page_result = self._execute_with_auth_retry(
                         slug=slug,
                         arguments=paged_args,
                         user_id=user_id,
-                        dangerously_skip_version_check=True,
                     )
                     
                     pdata = page_result.get("data", {}) if isinstance(page_result, dict) else getattr(page_result, "data", {})

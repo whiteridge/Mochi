@@ -91,8 +91,12 @@ async def get_integration_status(app_name: str, user_id: str):
         raise HTTPException(status_code=500, detail="Agent service not initialized")
         
     try:
-        is_connected = agent_service.composio_service.get_connection_status(app_name, user_id)
-        return {"connected": is_connected}
+        details = agent_service.composio_service.get_connection_details(app_name, user_id)
+        return {
+            "connected": details.get("connected", False),
+            "status": details.get("status"),
+            "action_required": details.get("action_required", False),
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

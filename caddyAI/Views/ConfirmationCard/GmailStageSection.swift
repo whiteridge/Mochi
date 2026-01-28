@@ -15,27 +15,38 @@ struct GmailStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
-                Text(subjectDisplay)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(palette.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                sectionLabel("Draft preview")
 
-                if let bodyPreview {
-                    ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
-                        Text(bodyPreview)
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(palette.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    sectionLabel("Subject")
+                    Text(subjectDisplay)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(palette.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    sectionLabel("Message")
+                    if let bodyPreview {
+                        ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
+                            Text(bodyPreview)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundStyle(palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else {
+                        Text("No message body provided.")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(palette.tertiaryText)
                     }
-                } else {
-                    Text("No message body provided.")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(palette.tertiaryText)
                 }
 
                 if !gmailMetadataItems.isEmpty {
-                    MetadataGrid(items: gmailMetadataItems, columns: stageMetadataColumns)
+                    VStack(alignment: .leading, spacing: 6) {
+                        sectionLabel("Recipients")
+                        MetadataGrid(items: gmailMetadataItems, columns: stageMetadataColumns)
+                    }
                 }
             }
         }
@@ -52,7 +63,7 @@ struct GmailStageSection: View {
     // MARK: - Gmail Display Helpers
 
     private var subjectDisplay: String {
-        if let subject = proposal.emailSubject?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let subject = rawEmailSubject?.trimmingCharacters(in: .whitespacesAndNewlines),
            !subject.isEmpty {
             return subject
         }
@@ -60,11 +71,8 @@ struct GmailStageSection: View {
     }
 
     private var bodyPreview: String? {
-        if let body = proposal.emailBody?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !body.isEmpty {
-            return body
-        }
-        return nil
+        guard let body = rawEmailBody else { return nil }
+        return body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : body
     }
 
     private var gmailMetadataItems: [(String, String)] {
@@ -85,5 +93,41 @@ struct GmailStageSection: View {
         let cleaned = recipients.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard !cleaned.isEmpty else { return nil }
         return cleaned.joined(separator: ", ")
+    }
+
+    private var rawEmailSubject: String? {
+        rawStringValue(for: ["subject", "title"])
+    }
+
+    private var rawEmailBody: String? {
+        rawStringValue(for: ["body", "message", "text", "content"])
+    }
+
+    private func rawStringValue(for keys: [String]) -> String? {
+        for key in keys {
+            if let value = proposal.args[key] as? String {
+                return value
+            }
+            if let value = proposal.args[key] as? NSNumber {
+                return value.stringValue
+            }
+            if let value = proposal.args[key] as? Int {
+                return String(value)
+            }
+            if let value = proposal.args[key] as? Double {
+                return String(value)
+            }
+            if let value = proposal.args[key] as? Bool {
+                return value ? "true" : "false"
+            }
+        }
+        return nil
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(palette.tertiaryText)
+            .tracking(0.4)
     }
 }

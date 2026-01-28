@@ -1,7 +1,9 @@
 """Stream dispatcher for agent tool execution."""
 
 import json
-from typing import Any, Dict, Generator, List, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, Generator, List, Optional, Tuple
 from google.genai import types
 
 from .common import (
@@ -59,6 +61,41 @@ def _build_tool_response_payload(result_data: Any, max_chars: int = 12000) -> Di
     return {"result": safe_data}
 
 
+class DispatchPhase(Enum):
+    PLANNING = "planning"
+    EXECUTING_READ = "executing_read"
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    FINISHED = "finished"
+
+
+@dataclass
+class DispatcherContext:
+    user_input: str
+    user_id: str
+    max_iterations: int = 5
+    iteration: int = 0
+    response: Optional[Any] = None
+    action_performed: Optional[str] = None
+    write_action_executed: bool = False
+    pending_read_actions: List[Tuple] = field(default_factory=list)
+    pending_write_actions: List[Tuple] = field(default_factory=list)
+    last_searching_app_id: Optional[str] = None
+    completed_write_apps: set[str] = field(default_factory=set)
+    app_read_status: Dict[str, str] = field(default_factory=dict)
+    app_write_executing: set[str] = field(default_factory=set)
+    executed_write_keys: set = field(default_factory=set)
+    apps_with_tool_status: set[str] = field(default_factory=set)
+    early_summary_sent: bool = False
+    early_summary_text: Optional[str] = None
+    tool_nudge_sent: bool = False
+    should_nudge_for_tools: bool = False
+    involved_apps: List[str] = field(default_factory=list)
+    called_apps: set[str] = field(default_factory=set)
+    proposal_queue: List[Dict[str, Any]] = field(default_factory=list)
+    current_read_action: Optional[Tuple] = None
+    exit_early: bool = False
+
+
 class AgentDispatcher:
     """Handles the agent streaming loop (reads, writes, proposals)."""
 
@@ -80,6 +117,553 @@ class AgentDispatcher:
         self.gmail_service = gmail_service
         self.google_calendar_service = google_calendar_service
 
+    def _send_initial_message(
+        self,
+        chat,
+        context: DispatcherContext,
+    ) -> Generator[Dict, None, Optional[Any]]:
+        print(f"DEBUG: Sending user input to Gemini: {context.user_input[:100]}...")
+        try:
+            response = chat.send_message(context.user_input)
+        except Exception as exc:  # noqa: BLE001 - surface rate limits to client
+            if _is_rate_limit_error(exc):
+                yield {
+                    "type": "message",
+                    "content": (
+                        "I'm temporarily rate-limited by the model provider. "
+                        "Please retry in a minute."
+                    ),
+                    "action_performed": None,
+                }
+                return None
+            raise
+
+        if hasattr(response, "candidates") and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, "content") and candidate.content is not None:
+                if hasattr(candidate.content, "parts") and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if hasattr(part, "function_call") and part.function_call:
+                            print(f"DEBUG: Gemini calling tool: {part.function_call.name}", flush=True)
+                        if hasattr(part, "thought") and part.thought:
+                            print(f"DEBUG: Gemini Thought: {part.thought}", flush=True)
+                            yield {
+                                "type": "thinking",
+                                "content": part.thought,
+                            }
+
+        return response
+
+    def _emit_pre_detected_summary(
+        self,
+        context: DispatcherContext,
+        enabled: bool,
+    ) -> Generator[Dict, None, None]:
+        if not enabled:
+            return
+
+        pre_detected_apps = detect_apps_from_input(context.user_input)
+        if len(pre_detected_apps) > 1:
+            print(f"DEBUG: Pre-detected multiple apps from user input: {pre_detected_apps}")
+            context.involved_apps = pre_detected_apps.copy()
+
+            app_actions = []
+            for app in pre_detected_apps:
+                if app == "linear":
+                    app_actions.append("create a ticket in Linear")
+                elif app == "slack":
+                    app_actions.append("notify the team on Slack")
+                elif app == "github":
+                    app_actions.append("check GitHub")
+                elif app == "notion":
+                    app_actions.append("look in Notion")
+                elif app == "gmail":
+                    app_actions.append("check Gmail")
+                elif app == "google_calendar":
+                    app_actions.append("check Google Calendar")
+
+            if len(app_actions) >= 2:
+                summary_text = f"I'll {app_actions[0]} and {app_actions[1]}."
+            else:
+                summary_text = f"I'll {' and '.join(app_actions)}."
+
+            context.early_summary_text = summary_text
+            yield {
+                "type": "early_summary",
+                "content": summary_text,
+                "app_id": pre_detected_apps[0],
+                "involved_apps": context.involved_apps,
+            }
+            context.early_summary_sent = True
+            print(f"DEBUG: Emitted combined early summary for {pre_detected_apps}")
+
+        context.should_nudge_for_tools = bool(pre_detected_apps) and looks_like_tool_request(
+            context.user_input
+        )
+
+    def _execute_confirmed_tool(
+        self,
+        chat,
+        context: DispatcherContext,
+        confirmed_tool: Dict,
+    ) -> Generator[Dict, None, Optional[Any]]:
+        tool_name = confirmed_tool.get("tool")
+        tool_args = confirmed_tool.get("args", {})
+        app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
+
+        print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
+        context.involved_apps.append(app_id)
+        executed_key = (tool_name, json.dumps(tool_args, sort_keys=True))
+        context.executed_write_keys.add(executed_key)
+        context.completed_write_apps.add(app_id)
+        context.app_write_executing.add(app_id)
+
+        app_display = format_app_name(app_id)
+        yield {
+            "type": "early_summary",
+            "content": f"Executing your confirmed {app_display} action...",
+            "app_id": app_id,
+            "involved_apps": context.involved_apps,
+        }
+        context.early_summary_sent = True
+
+        try:
+            result = self.composio_service.execute_tool(
+                slug=tool_name,
+                arguments=tool_args,
+                user_id=context.user_id,
+            )
+            print(f"DEBUG: Confirmed tool result: {result}", flush=True)
+
+            if hasattr(result, "data"):
+                result_data = result.data
+            else:
+                result_data = result
+
+            context.write_action_executed = True
+            context.action_performed = f"{app_display} action executed"
+            context.app_write_executing.discard(app_id)
+            context.app_read_status[app_id] = "done"
+
+            response_payload = _build_tool_response_payload(result_data)
+            function_response = types.Part.from_function_response(
+                name=tool_name,
+                response=response_payload,
+            )
+            try:
+                response = chat.send_message([function_response])
+            except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+                print(
+                    f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                    flush=True,
+                )
+                if _is_rate_limit_error(send_error):
+                    content = (
+                        f"{app_display} action completed. "
+                        "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
+                        "Please retry in a minute."
+                    )
+                else:
+                    content = (
+                        f"{app_display} action completed, but I couldn't continue the follow-up "
+                        "due to a model error. Please retry."
+                    )
+                yield {
+                    "type": "message",
+                    "content": content,
+                    "action_performed": f"{app_display} action executed",
+                }
+                return None
+        except Exception as exec_error:  # noqa: BLE001 - emit error to stream
+            print(f"DEBUG: ❌ Confirmed tool execution error: {exec_error}", flush=True)
+            context.app_write_executing.discard(app_id)
+            context.app_read_status[app_id] = "error"
+            yield {
+                "type": "message",
+                "content": f"Error executing {app_display} action: {str(exec_error)}",
+                "action_performed": None,
+            }
+            return None
+
+        return response
+
+    def _queue_pending_write_actions(self, context: DispatcherContext) -> None:
+        if not context.pending_write_actions:
+            return
+        print(f"DEBUG: Emitting {len(context.pending_write_actions)} queued proposal(s)")
+
+        for (
+            tool_name,
+            args,
+            app_id,
+            is_linear_write,
+            is_slack_write,
+            is_notion_write,
+            is_github_write,
+            is_gmail_write,
+            is_calendar_write,
+        ) in context.pending_write_actions:
+            enriched_args = args
+            if is_linear_write:
+                enriched_args = self.linear_service.enrich_proposal(context.user_id, args, tool_name)
+            elif is_slack_write:
+                enriched_args = self.slack_service.enrich_proposal(context.user_id, args, tool_name)
+            elif is_notion_write:
+                enriched_args = self.notion_service.enrich_proposal(context.user_id, args, tool_name)
+            elif is_github_write:
+                enriched_args = self.github_service.enrich_proposal(context.user_id, args, tool_name)
+            elif is_gmail_write:
+                enriched_args = self.gmail_service.enrich_proposal(context.user_id, args, tool_name)
+            elif is_calendar_write:
+                enriched_args = self.google_calendar_service.enrich_proposal(context.user_id, args, tool_name)
+
+            context.proposal_queue.append(
+                {
+                    "tool": tool_name,
+                    "args": enriched_args,
+                    "app_id": app_id,
+                    "summary_text": make_early_summary(app_id),
+                }
+            )
+
+        context.pending_write_actions.clear()
+
+    def _emit_proposal_queue(self, context: DispatcherContext) -> Generator[Dict, None, None]:
+        if not context.proposal_queue:
+            return
+
+        total_proposals = len(context.proposal_queue)
+        print(f"DEBUG: Emitting {total_proposals} queued proposal(s)")
+
+        proposal_app_ids: List[str] = []
+        for proposal in context.proposal_queue:
+            app_id = proposal["app_id"]
+            if app_id not in proposal_app_ids:
+                proposal_app_ids.append(app_id)
+
+        if len(proposal_app_ids) > 1:
+            for app_id in proposal_app_ids:
+                if app_id in context.apps_with_tool_status:
+                    continue
+                synthetic_tool = _tool_status_name_for_app(app_id)
+                context.apps_with_tool_status.add(app_id)
+                yield {
+                    "type": "tool_status",
+                    "tool": synthetic_tool,
+                    "status": "searching",
+                    "app_id": app_id,
+                    "involved_apps": context.involved_apps,
+                }
+                yield {
+                    "type": "tool_status",
+                    "tool": synthetic_tool,
+                    "status": "done",
+                    "app_id": app_id,
+                    "involved_apps": context.involved_apps,
+                }
+
+        yield {
+            "type": "multi_app_status",
+            "apps": [{"app_id": app, "state": "waiting"} for app in context.involved_apps],
+            "active_app": context.proposal_queue[0]["app_id"],
+        }
+
+        first_proposal = context.proposal_queue[0]
+        yield {
+            "type": "proposal",
+            "tool": first_proposal["tool"],
+            "content": first_proposal["args"],
+            "summary_text": first_proposal["summary_text"],
+            "app_id": first_proposal["app_id"],
+            "proposal_index": 0,
+            "total_proposals": total_proposals,
+            "remaining_proposals": [
+                {"tool": p["tool"], "app_id": p["app_id"], "args": p["args"]}
+                for p in context.proposal_queue[1:]
+            ],
+        }
+
+    def _collect_actions_from_response(
+        self,
+        context: DispatcherContext,
+        response: Any,
+    ) -> Generator[Dict, None, Tuple[bool, List[Tuple], List[Tuple]]]:
+        read_actions_to_execute = context.pending_read_actions
+        context.pending_read_actions = []
+        write_actions_found = []
+        found_function_call = False
+
+        if (
+            hasattr(response, "candidates")
+            and response.candidates
+            and hasattr(response.candidates[0], "content")
+            and response.candidates[0].content is not None
+            and hasattr(response.candidates[0].content, "parts")
+            and response.candidates[0].content.parts
+        ):
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    found_function_call = True
+                    tool_name = part.function_call.name
+                    args = dict(part.function_call.args) if part.function_call.args else {}
+                    print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
+
+                    app_id = map_tool_to_app(tool_name)
+                    is_new_app = app_id not in context.involved_apps
+                    if is_new_app:
+                        context.involved_apps.append(app_id)
+                    context.called_apps.add(app_id)
+
+                    if not context.early_summary_sent:
+                        summary_text = make_early_summary(app_id)
+                        print(f"DEBUG: Emitting early summary for {app_id}: {summary_text}")
+                        yield {
+                            "type": "early_summary",
+                            "content": summary_text,
+                            "app_id": app_id,
+                            "involved_apps": context.involved_apps,
+                        }
+                        context.early_summary_sent = True
+
+                    is_linear_write = self.linear_service.is_write_action(tool_name, args)
+                    is_slack_write = self.slack_service.is_write_action(tool_name, args)
+                    is_notion_write = self.notion_service.is_write_action(tool_name, args)
+                    is_github_write = self.github_service.is_write_action(tool_name, args)
+                    is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
+                    is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
+                    is_write = (
+                        is_linear_write
+                        or is_slack_write
+                        or is_notion_write
+                        or is_github_write
+                        or is_gmail_write
+                        or is_calendar_write
+                    )
+                    executed_key = (tool_name, json.dumps(args, sort_keys=True))
+
+                    if is_write:
+                        if executed_key in context.executed_write_keys:
+                            print(f"DEBUG: Skipping duplicate write proposal for {tool_name}")
+                            continue
+                        if app_id in context.completed_write_apps:
+                            print(f"DEBUG: Skipping write for completed app {app_id}")
+                            continue
+                        if app_id == "slack":
+                            linear_state = context.app_read_status.get("linear")
+                            if (
+                                "linear" in context.called_apps
+                                and (
+                                    linear_state not in ("done", "error")
+                                    or ("linear" in context.app_write_executing)
+                                )
+                            ):
+                                print("DEBUG: Gating Slack write until Linear read+write complete")
+                                continue
+
+                        print(f"DEBUG: Queueing {tool_name} for confirmation")
+                        write_actions_found.append(
+                            (
+                                tool_name,
+                                args,
+                                app_id,
+                                is_linear_write,
+                                is_slack_write,
+                                is_notion_write,
+                                is_github_write,
+                                is_gmail_write,
+                                is_calendar_write,
+                            )
+                        )
+                        context.executed_write_keys.add(executed_key)
+                    else:
+                        if app_id == "slack":
+                            linear_state = context.app_read_status.get("linear")
+                            if (
+                                "linear" in context.called_apps
+                                and (
+                                    linear_state not in ("done", "error")
+                                    or ("linear" in context.app_write_executing)
+                                )
+                            ):
+                                print("DEBUG: Gating Slack read until Linear read+write complete")
+                                continue
+                        read_actions_to_execute.append((tool_name, args, part, app_id))
+
+        return found_function_call, read_actions_to_execute, write_actions_found
+
+    def _handle_planning(
+        self,
+        chat,
+        context: DispatcherContext,
+    ) -> Generator[Dict, None, DispatchPhase]:
+        if context.iteration >= context.max_iterations:
+            return DispatchPhase.FINISHED
+
+        found_function_call, read_actions_to_execute, write_actions_found = yield from (
+            self._collect_actions_from_response(context, context.response)
+        )
+
+        if not found_function_call and context.iteration == 0:
+            print("DEBUG: Gemini responded with text only (no function calls)", flush=True)
+
+        if write_actions_found:
+            context.pending_write_actions.extend(write_actions_found)
+
+        if read_actions_to_execute:
+            context.current_read_action = read_actions_to_execute[0]
+            if len(read_actions_to_execute) > 1:
+                context.pending_read_actions.extend(read_actions_to_execute[1:])
+            return DispatchPhase.EXECUTING_READ
+
+        if context.pending_write_actions and not context.pending_read_actions:
+            self._queue_pending_write_actions(context)
+            return DispatchPhase.AWAITING_CONFIRMATION
+
+        if not found_function_call:
+            if context.should_nudge_for_tools and not context.tool_nudge_sent:
+                context.tool_nudge_sent = True
+                print(
+                    "DEBUG: No function call detected; nudging Gemini to use tools",
+                    flush=True,
+                )
+                nudge_text = (
+                    "Use the available tools to complete the user's request. "
+                    "If IDs are required, call list/search tools to resolve them first. "
+                    "Respond with function calls only."
+                )
+                try:
+                    context.response = chat.send_message(nudge_text)
+                except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
+                    if _is_rate_limit_error(send_error):
+                        yield {
+                            "type": "message",
+                            "content": (
+                                "I'm temporarily rate-limited by the model provider. "
+                                "Please retry in a minute."
+                            ),
+                            "action_performed": None,
+                        }
+                        context.exit_early = True
+                        return DispatchPhase.FINISHED
+                    raise
+
+                context.iteration += 1
+                return DispatchPhase.PLANNING
+
+            if context.last_searching_app_id:
+                context.apps_with_tool_status.add(context.last_searching_app_id)
+                yield {
+                    "type": "tool_status",
+                    "tool": "noop",
+                    "status": "done",
+                    "app_id": context.last_searching_app_id,
+                    "involved_apps": context.involved_apps,
+                }
+            print("DEBUG: No function call in response, breaking loop")
+            return DispatchPhase.FINISHED
+
+        if not context.pending_write_actions and not context.pending_read_actions:
+            print("DEBUG: No actions to process, breaking loop")
+            return DispatchPhase.FINISHED
+
+        return DispatchPhase.FINISHED
+
+    def _handle_read(
+        self,
+        chat,
+        context: DispatcherContext,
+    ) -> Generator[Dict, None, DispatchPhase]:
+        if not context.current_read_action:
+            return DispatchPhase.PLANNING
+
+        tool_name, tool_args, _, app_id = context.current_read_action
+        context.current_read_action = None
+
+        context.apps_with_tool_status.add(app_id)
+        yield {
+            "type": "tool_status",
+            "tool": tool_name,
+            "status": "searching",
+            "app_id": app_id,
+            "involved_apps": context.involved_apps,
+        }
+        context.last_searching_app_id = app_id
+
+        print(f"DEBUG: Executing READ: {tool_name}", flush=True)
+
+        try:
+            result = self.composio_service.execute_tool(
+                slug=tool_name,
+                arguments=tool_args,
+                user_id=context.user_id,
+            )
+            print(f"DEBUG: Tool execution result: {result}", flush=True)
+
+            if hasattr(result, "data"):
+                result_data = result.data
+                result_success = getattr(result, "successful", True)
+            else:
+                result_data = result
+                result_success = bool(getattr(result, "successful", True))
+
+            response_payload = _build_tool_response_payload(result_data)
+            function_response = types.Part.from_function_response(
+                name=tool_name,
+                response=response_payload,
+            )
+            status_after_read = "done" if result_success else "error"
+
+        except Exception as exec_error:  # noqa: BLE001 - emit error to stream
+            print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
+            function_response = types.Part.from_function_response(
+                name=tool_name,
+                response={"error": str(exec_error)},
+            )
+            status_after_read = "error"
+
+        try:
+            context.response = chat.send_message([function_response])
+        except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+            print(
+                f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                flush=True,
+            )
+            if _is_rate_limit_error(send_error):
+                content = (
+                    "I fetched the requested data, but I'm temporarily rate-limited "
+                    "and couldn't continue. Please retry in a minute."
+                )
+            else:
+                content = (
+                    "I fetched the requested data, but couldn't continue due to a model error. "
+                    "Please retry."
+                )
+            if context.pending_write_actions:
+                self._queue_pending_write_actions(context)
+            if context.proposal_queue:
+                yield from self._emit_proposal_queue(context)
+                context.exit_early = True
+                return DispatchPhase.FINISHED
+            yield {
+                "type": "message",
+                "content": content,
+                "action_performed": None,
+            }
+            context.exit_early = True
+            return DispatchPhase.FINISHED
+
+        context.app_read_status[app_id] = status_after_read
+        context.apps_with_tool_status.add(app_id)
+        yield {
+            "type": "tool_status",
+            "tool": tool_name,
+            "status": status_after_read,
+            "app_id": app_id,
+            "involved_apps": context.involved_apps,
+        }
+        context.iteration += 1
+        return DispatchPhase.PLANNING
+
     def run(
         self,
         chat,
@@ -89,566 +673,50 @@ class AgentDispatcher:
     ) -> Generator[Dict, None, None]:
         """Run the streaming loop and yield UI events."""
         try:
-            # Initial message
-            print(f"DEBUG: Sending user input to Gemini: {user_input[:100]}...")
-            try:
-                response = chat.send_message(user_input)
-            except Exception as exc:  # noqa: BLE001 - surface rate limits to client
-                if _is_rate_limit_error(exc):
-                    yield {
-                        "type": "message",
-                        "content": (
-                            "I'm temporarily rate-limited by the model provider. "
-                            "Please retry in a minute."
-                        ),
-                        "action_performed": None,
-                    }
-                    return
-                raise
+            context = DispatcherContext(user_input=user_input, user_id=user_id)
 
-            # DEBUG: Log function calls and thoughts in response
-            if hasattr(response, "candidates") and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, "content") and candidate.content is not None:
-                    if hasattr(candidate.content, "parts") and candidate.content.parts:
-                        for part in candidate.content.parts:
-                            if hasattr(part, "function_call") and part.function_call:
-                                print(f"DEBUG: Gemini calling tool: {part.function_call.name}", flush=True)
-                            if hasattr(part, "thought") and part.thought:
-                                print(f"DEBUG: Gemini Thought: {part.thought}", flush=True)
-                                yield {
-                                    "type": "thinking",
-                                    "content": part.thought,
-                                }
+            response = yield from self._send_initial_message(chat, context)
+            if response is None:
+                return
+            context.response = response
 
-            action_performed = None
+            yield from self._emit_pre_detected_summary(context, confirmed_tool is None)
 
-            # 5. Handle Tool Execution Loop
-            max_iterations = 5
-            write_action_executed = False
-            # Track pending actions to control sequencing (one read at a time)
-            pending_read_actions: List[tuple] = []
-            pending_write_actions: List[tuple] = []
-            # Track last app that emitted a searching status (for cleanup)
-            last_searching_app_id: Optional[str] = None
-            # Track apps that have already completed a confirmed write to avoid re-proposing
-            completed_write_apps: set[str] = set()
-            # Track whether reads have completed (done/error) to gate next app
-            app_read_status: Dict[str, str] = {}
-            # Track apps currently executing a confirmed write (keeps pill expanded)
-            app_write_executing: set[str] = set()
-            # Track executed/queued writes to prevent duplicate proposals across iterations/confirmations
-            executed_write_keys = set()
-            # Track apps that have emitted tool_status events (real or synthetic)
-            apps_with_tool_status: set[str] = set()
-
-            # Early summary tracking (for fast first message)
-            early_summary_sent = False
-            early_summary_text = None
-            tool_nudge_sent = False
-            should_nudge_for_tools = False
-
-            # MULTI-APP SUPPORT: Track involved apps and queue proposals
-            involved_apps = []  # List of app_ids found (including pre-detected)
-            called_apps: set[str] = set()  # Apps with actual tool calls
-            proposal_queue = []  # Queue of proposal dicts
-
-            def queue_pending_write_actions() -> None:
-                if not pending_write_actions:
-                    return
-                print(f"DEBUG: Emitting {len(pending_write_actions)} queued proposal(s)")
-
-                for (
-                    tool_name,
-                    args,
-                    app_id,
-                    is_linear_write,
-                    is_slack_write,
-                    is_notion_write,
-                    is_github_write,
-                    is_gmail_write,
-                    is_calendar_write,
-                ) in pending_write_actions:
-                    enriched_args = args
-                    if is_linear_write:
-                        enriched_args = self.linear_service.enrich_proposal(user_id, args, tool_name)
-                    elif is_slack_write:
-                        enriched_args = self.slack_service.enrich_proposal(user_id, args, tool_name)
-                    elif is_notion_write:
-                        enriched_args = self.notion_service.enrich_proposal(user_id, args, tool_name)
-                    elif is_github_write:
-                        enriched_args = self.github_service.enrich_proposal(user_id, args, tool_name)
-                    elif is_gmail_write:
-                        enriched_args = self.gmail_service.enrich_proposal(user_id, args, tool_name)
-                    elif is_calendar_write:
-                        enriched_args = self.google_calendar_service.enrich_proposal(user_id, args, tool_name)
-
-                    proposal_queue.append(
-                        {
-                            "tool": tool_name,
-                            "args": enriched_args,
-                            "app_id": app_id,
-                            "summary_text": make_early_summary(app_id),
-                        }
-                    )
-
-                pending_write_actions.clear()
-
-            def emit_proposal_queue() -> Generator[Dict, None, None]:
-                if not proposal_queue:
-                    return
-
-                total_proposals = len(proposal_queue)
-                print(f"DEBUG: Emitting {total_proposals} queued proposal(s)")
-
-                proposal_app_ids: List[str] = []
-                for proposal in proposal_queue:
-                    app_id = proposal["app_id"]
-                    if app_id not in proposal_app_ids:
-                        proposal_app_ids.append(app_id)
-
-                if len(proposal_app_ids) > 1:
-                    for app_id in proposal_app_ids:
-                        if app_id in apps_with_tool_status:
-                            continue
-                        synthetic_tool = _tool_status_name_for_app(app_id)
-                        apps_with_tool_status.add(app_id)
-                        yield {
-                            "type": "tool_status",
-                            "tool": synthetic_tool,
-                            "status": "searching",
-                            "app_id": app_id,
-                            "involved_apps": involved_apps,
-                        }
-                        yield {
-                            "type": "tool_status",
-                            "tool": synthetic_tool,
-                            "status": "done",
-                            "app_id": app_id,
-                            "involved_apps": involved_apps,
-                        }
-
-                yield {
-                    "type": "multi_app_status",
-                    "apps": [{"app_id": app, "state": "waiting"} for app in involved_apps],
-                    "active_app": proposal_queue[0]["app_id"],
-                }
-
-                first_proposal = proposal_queue[0]
-                yield {
-                    "type": "proposal",
-                    "tool": first_proposal["tool"],
-                    "content": first_proposal["args"],
-                    "summary_text": first_proposal["summary_text"],
-                    "app_id": first_proposal["app_id"],
-                    "proposal_index": 0,
-                    "total_proposals": total_proposals,
-                    "remaining_proposals": [
-                        {"tool": p["tool"], "app_id": p["app_id"], "args": p["args"]} for p in proposal_queue[1:]
-                    ],
-                }
-
-            # PRE-DETECT APPS: Scan user input to prepare combined summary for multi-app requests
-            # NOTE: We don't emit tool_status here - pills appear sequentially from actual Gemini tool calls
-            pre_detected_apps = []
-            if not confirmed_tool:  # Only on initial request, not confirmations
-                pre_detected_apps = detect_apps_from_input(user_input)
-                if len(pre_detected_apps) > 1:
-                    print(f"DEBUG: Pre-detected multiple apps from user input: {pre_detected_apps}")
-                    involved_apps = pre_detected_apps.copy()
-
-                    # Generate a COMBINED summary for multi-app scenarios
-                    app_actions = []
-                    for app in pre_detected_apps:
-                        if app == "linear":
-                            app_actions.append("create a ticket in Linear")
-                        elif app == "slack":
-                            app_actions.append("notify the team on Slack")
-                        elif app == "github":
-                            app_actions.append("check GitHub")
-                        elif app == "notion":
-                            app_actions.append("look in Notion")
-                        elif app == "gmail":
-                            app_actions.append("check Gmail")
-                        elif app == "google_calendar":
-                            app_actions.append("check Google Calendar")
-
-                    if len(app_actions) >= 2:
-                        early_summary_text = f"I'll {app_actions[0]} and {app_actions[1]}."
-                    else:
-                        early_summary_text = f"I'll {' and '.join(app_actions)}."
-
-                    yield {
-                        "type": "early_summary",
-                        "content": early_summary_text,
-                        "app_id": pre_detected_apps[0],
-                        "involved_apps": involved_apps,
-                    }
-                    early_summary_sent = True
-                    print(f"DEBUG: Emitted combined early summary for {pre_detected_apps}")
-
-                should_nudge_for_tools = bool(pre_detected_apps) and looks_like_tool_request(
-                    user_input
-                )
-
-            # CONFIRMED TOOL EXECUTION: Execute the specific confirmed action first
             if confirmed_tool:
-                tool_name = confirmed_tool.get("tool")
-                tool_args = confirmed_tool.get("args", {})
-                app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
+                response = yield from self._execute_confirmed_tool(chat, context, confirmed_tool)
+                if response is None:
+                    return
+                context.response = response
 
-                print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
-                involved_apps.append(app_id)
-                # Record this write as already executed to avoid re-proposing it
-                executed_key = (tool_name, json.dumps(tool_args, sort_keys=True))
-                executed_write_keys.add(executed_key)
-                completed_write_apps.add(app_id)
-                app_write_executing.add(app_id)
+            phase = DispatchPhase.PLANNING
+            while phase != DispatchPhase.FINISHED:
+                if phase == DispatchPhase.PLANNING:
+                    phase = yield from self._handle_planning(chat, context)
+                elif phase == DispatchPhase.EXECUTING_READ:
+                    phase = yield from self._handle_read(chat, context)
+                elif phase == DispatchPhase.AWAITING_CONFIRMATION:
+                    yield from self._emit_proposal_queue(context)
+                    return
+                else:
+                    phase = DispatchPhase.FINISHED
 
-                # Emit early summary for feedback
-                app_display = format_app_name(app_id)
-                yield {
-                    "type": "early_summary",
-                    "content": f"Executing your confirmed {app_display} action...",
-                    "app_id": app_id,
-                    "involved_apps": involved_apps,
-                }
-                early_summary_sent = True
-
-                try:
-                    result = self.composio_service.execute_tool(
-                        slug=tool_name,
-                        arguments=tool_args,
-                        user_id=user_id,
-                    )
-                    print(f"DEBUG: Confirmed tool result: {result}", flush=True)
-
-                    if hasattr(result, "data"):
-                        result_data = result.data
-                    else:
-                        result_data = result
-
-                    write_action_executed = True
-                    action_performed = f"{app_display} action executed"
-                    app_write_executing.discard(app_id)
-                    app_read_status[app_id] = "done"
-
-                    # Feed result back to Gemini to continue the conversation
-                    response_payload = _build_tool_response_payload(result_data)
-                    function_response = types.Part.from_function_response(
-                        name=tool_name,
-                        response=response_payload,
-                    )
-                    try:
-                        response = chat.send_message([function_response])
-                    except Exception as send_error:  # noqa: BLE001 - surface model errors to client
-                        print(
-                            f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
-                            flush=True,
-                        )
-                        if _is_rate_limit_error(send_error):
-                            content = (
-                                f"{app_display} action completed. "
-                                "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
-                                "Please retry in a minute."
-                            )
-                        else:
-                            content = (
-                                f"{app_display} action completed, but I couldn't continue the follow-up "
-                                "due to a model error. Please retry."
-                            )
-                        yield {
-                            "type": "message",
-                            "content": content,
-                            "action_performed": f"{app_display} action executed",
-                        }
-                        return
-
-                except Exception as exec_error:  # noqa: BLE001 - emit error to stream
-                    print(f"DEBUG: ❌ Confirmed tool execution error: {exec_error}", flush=True)
-                    app_write_executing.discard(app_id)
-                    app_read_status[app_id] = "error"
-                    yield {
-                        "type": "message",
-                        "content": f"Error executing {app_display} action: {str(exec_error)}",
-                        "action_performed": None,
-                    }
+                if context.exit_early:
                     return
 
-            for iteration in range(max_iterations):
-                # Track actions in this iteration
-                read_actions_to_execute = pending_read_actions  # (tool_name, args, part, app_id)
-                pending_read_actions = []
-                # (tool, args, app_id, linear, slack, notion, github, gmail, calendar)
-                write_actions_found = []
-                found_function_call = False
-
-                # Check if the model wants to call a function
-                if (
-                    hasattr(response, "candidates")
-                    and response.candidates
-                    and hasattr(response.candidates[0], "content")
-                    and response.candidates[0].content is not None
-                    and hasattr(response.candidates[0].content, "parts")
-                    and response.candidates[0].content.parts
-                ):
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, "function_call") and part.function_call:
-                            found_function_call = True
-                            tool_name = part.function_call.name
-                            args = dict(part.function_call.args) if part.function_call.args else {}
-                            print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
-
-                            # Track app involvement for multi-app display
-                            app_id = map_tool_to_app(tool_name)
-                            is_new_app = app_id not in involved_apps
-                            if is_new_app:
-                                involved_apps.append(app_id)
-                            called_apps.add(app_id)
-
-                            # EARLY SUMMARY: Emit immediately on first tool call
-                            if not early_summary_sent:
-                                early_summary_text = make_early_summary(app_id)
-                                print(f"DEBUG: Emitting early summary for {app_id}: {early_summary_text}")
-                                yield {
-                                    "type": "early_summary",
-                                    "content": early_summary_text,
-                                    "app_id": app_id,
-                                    "involved_apps": involved_apps,
-                                }
-                                early_summary_sent = True
-
-                            # Check if this is a write action
-                            is_linear_write = self.linear_service.is_write_action(tool_name, args)
-                            is_slack_write = self.slack_service.is_write_action(tool_name, args)
-                            is_notion_write = self.notion_service.is_write_action(tool_name, args)
-                            is_github_write = self.github_service.is_write_action(tool_name, args)
-                            is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
-                            is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
-                            is_write = (
-                                is_linear_write
-                                or is_slack_write
-                                or is_notion_write
-                                or is_github_write
-                                or is_gmail_write
-                                or is_calendar_write
-                            )
-                            executed_key = (tool_name, json.dumps(args, sort_keys=True))
-
-                            if is_write:
-                                # Skip already executed/queued writes
-                                if executed_key in executed_write_keys:
-                                    print(f"DEBUG: Skipping duplicate write proposal for {tool_name}")
-                                    continue
-                                # Skip writes for apps that already completed a confirmed write
-                                if app_id in completed_write_apps:
-                                    print(f"DEBUG: Skipping write for completed app {app_id}")
-                                    continue
-                                # Gate Slack writes until Linear read AND write are complete (only if Linear is involved)
-                                if app_id == "slack":
-                                    linear_state = app_read_status.get("linear")
-                                    if (
-                                        "linear" in called_apps
-                                        and (
-                                            linear_state not in ("done", "error")
-                                            or ("linear" in app_write_executing)
-                                        )
-                                    ):
-                                        print("DEBUG: Gating Slack write until Linear read+write complete")
-                                        continue
-                                # Always queue writes for confirmation - we use confirmed_tool for execution
-                                print(f"DEBUG: Queueing {tool_name} for confirmation")
-                                write_actions_found.append(
-                                    (
-                                        tool_name,
-                                        args,
-                                        app_id,
-                                        is_linear_write,
-                                        is_slack_write,
-                                        is_notion_write,
-                                        is_github_write,
-                                        is_gmail_write,
-                                        is_calendar_write,
-                                    )
-                                )
-                                executed_write_keys.add(executed_key)
-                            else:
-                                # Read action - queue for execution (process one per iteration for sequential pills)
-                                # Gate Slack read until Linear read+write complete or not involved
-                                if app_id == "slack":
-                                    linear_state = app_read_status.get("linear")
-                                    if (
-                                        "linear" in called_apps
-                                        and (
-                                            linear_state not in ("done", "error")
-                                            or ("linear" in app_write_executing)
-                                        )
-                                    ):
-                                        print("DEBUG: Gating Slack read until Linear read+write complete")
-                                        continue
-                                read_actions_to_execute.append((tool_name, args, part, app_id))
-
-                # Log if no function call was found
-                if not found_function_call and iteration == 0:
-                    print("DEBUG: Gemini responded with text only (no function calls)", flush=True)
-
-                # Carry forward any writes we detected alongside reads
-                if write_actions_found:
-                    pending_write_actions.extend(write_actions_found)
-
-                # Execute only ONE READ action per loop to enforce sequential pill display
-                if read_actions_to_execute:
-                    tool_name, tool_args, part, app_id = read_actions_to_execute[0]
-
-                    # Re-queue remaining reads for subsequent iterations
-                    if len(read_actions_to_execute) > 1:
-                        pending_read_actions.extend(read_actions_to_execute[1:])
-
-                    # Emit tool_status before execution (one per iteration)
-                    apps_with_tool_status.add(app_id)
-                    yield {
-                        "type": "tool_status",
-                        "tool": tool_name,
-                        "status": "searching",
-                        "app_id": app_id,
-                        "involved_apps": involved_apps,
-                    }
-                    last_searching_app_id = app_id
-
-                    print(f"DEBUG: Executing READ: {tool_name}", flush=True)
-
-                    try:
-                        result = self.composio_service.execute_tool(
-                            slug=tool_name,
-                            arguments=tool_args,
-                            user_id=user_id,
-                        )
-                        print(f"DEBUG: Tool execution result: {result}", flush=True)
-
-                        if hasattr(result, "data"):
-                            result_data = result.data
-                            result_success = getattr(result, "successful", True)
-                        else:
-                            result_data = result
-                            result_success = bool(getattr(result, "successful", True))
-
-                        response_payload = _build_tool_response_payload(result_data)
-                        function_response = types.Part.from_function_response(
-                            name=tool_name,
-                            response=response_payload,
-                        )
-                        status_after_read = "done" if result_success else "error"
-
-                    except Exception as exec_error:  # noqa: BLE001 - emit error to stream
-                        print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
-                        function_response = types.Part.from_function_response(
-                            name=tool_name,
-                            response={"error": str(exec_error)},
-                        )
-                        status_after_read = "error"
-
-                    # Send single read result back; remaining reads will run in later iterations
-                    try:
-                        response = chat.send_message([function_response])
-                    except Exception as send_error:  # noqa: BLE001 - surface model errors to client
-                        print(
-                            f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
-                            flush=True,
-                        )
-                        if _is_rate_limit_error(send_error):
-                            content = (
-                                "I fetched the requested data, but I'm temporarily rate-limited "
-                                "and couldn't continue. Please retry in a minute."
-                            )
-                        else:
-                            content = (
-                                "I fetched the requested data, but couldn't continue due to a model error. "
-                                "Please retry."
-                            )
-                        if pending_write_actions:
-                            queue_pending_write_actions()
-                        if proposal_queue:
-                            yield from emit_proposal_queue()
-                            return
-                        yield {
-                            "type": "message",
-                            "content": content,
-                            "action_performed": None,
-                        }
-                        return
-
-                    # Emit completion/error status to allow UI transitions and next app
-                    app_read_status[app_id] = status_after_read
-                    apps_with_tool_status.add(app_id)
-                    yield {
-                        "type": "tool_status",
-                        "tool": tool_name,
-                        "status": status_after_read,
-                        "app_id": app_id,
-                        "involved_apps": involved_apps,
-                    }
-                    continue
-
-                # If we have write actions queued and no more reads pending, emit proposals
-                if pending_write_actions and not read_actions_to_execute and not pending_read_actions:
-                    queue_pending_write_actions()
-                    break
-                elif not found_function_call:
-                    if should_nudge_for_tools and not tool_nudge_sent:
-                        tool_nudge_sent = True
-                        print(
-                            "DEBUG: No function call detected; nudging Gemini to use tools",
-                            flush=True,
-                        )
-                        nudge_text = (
-                            "Use the available tools to complete the user's request. "
-                            "If IDs are required, call list/search tools to resolve them first. "
-                            "Respond with function calls only."
-                        )
-                        try:
-                            response = chat.send_message(nudge_text)
-                        except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
-                            if _is_rate_limit_error(send_error):
-                                yield {
-                                    "type": "message",
-                                    "content": (
-                                        "I'm temporarily rate-limited by the model provider. "
-                                        "Please retry in a minute."
-                                    ),
-                                    "action_performed": None,
-                                }
-                                return
-                            raise
-                        continue
-                    # If no new function call and nothing pending, send a cleanup status for last app
-                    if last_searching_app_id:
-                        apps_with_tool_status.add(last_searching_app_id)
-                        yield {
-                            "type": "tool_status",
-                            "tool": "noop",
-                            "status": "done",
-                            "app_id": last_searching_app_id,
-                            "involved_apps": involved_apps,
-                        }
-                    print("DEBUG: No function call in response, breaking loop")
-                    break
-                elif not read_actions_to_execute and not pending_write_actions and not pending_read_actions:
-                    print("DEBUG: No actions to process, breaking loop")
-                    break
-
-            # MULTI-APP: Emit queued proposals with index/total for progress tracking
-            if proposal_queue:
-                yield from emit_proposal_queue()
+            if context.exit_early:
                 return
 
-            if write_action_executed:
-                action_performed = "Action Executed"
+            if context.write_action_executed:
+                context.action_performed = "Action Executed"
 
-            final_text = response.text if hasattr(response, "text") else str(response)
+            if context.response is None:
+                return
+
+            final_text = context.response.text if hasattr(context.response, "text") else str(context.response)
             yield {
                 "type": "message",
                 "content": final_text,
-                "action_performed": action_performed,
+                "action_performed": context.action_performed,
             }
 
         except Exception as exc:  # noqa: BLE001 - surface error to client

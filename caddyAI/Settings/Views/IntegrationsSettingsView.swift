@@ -458,6 +458,23 @@ struct IntegrationRow: View {
 	let showDivider: Bool
 	@Environment(\.colorScheme) private var colorScheme
 	@EnvironmentObject private var preferences: PreferencesStore
+
+	private var resolvedErrorMessage: String? {
+		if let errorMessage {
+			return errorMessage
+		}
+		if case .error(let message) = state {
+			return message
+		}
+		return nil
+	}
+
+	private var actionLabel: String {
+		if case .error = state {
+			return "Reconnect"
+		}
+		return "Connect"
+	}
 	
 	private var palette: LiquidGlassPalette {
 		LiquidGlassPalette(colorScheme: colorScheme, glassStyle: .regular)
@@ -499,7 +516,7 @@ struct IntegrationRow: View {
 						.buttonStyle(.plain)
 					}
 				} else {
-					Button("Connect") {
+					Button(actionLabel) {
 						onConnect()
 					}
 					.buttonStyle(SettingsGlassButtonStyle(kind: .accent(accentColor)))
@@ -510,12 +527,12 @@ struct IntegrationRow: View {
 			.padding(.vertical, 12)
 			
 			// Error message
-			if let errorMessage {
+			if let resolvedErrorMessage {
 				HStack(spacing: 6) {
 					Image(systemName: "exclamationmark.triangle.fill")
 						.font(.caption)
 						.foregroundStyle(.orange)
-					Text(errorMessage)
+					Text(resolvedErrorMessage)
 						.font(.caption)
 						.foregroundStyle(.orange)
 						.lineLimit(1)

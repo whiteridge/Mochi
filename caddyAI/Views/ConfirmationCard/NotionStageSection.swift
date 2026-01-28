@@ -228,12 +228,12 @@ private struct NotionMetadataGridItem: View {
 	}
 
 	private var strokeColor: Color {
-		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.35) }
+		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
 		return accent.opacity(strokeOpacity)
 	}
 
 	var body: some View {
-		let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+		let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
 		HStack(alignment: .top, spacing: 12) {
 			if let accent = item.accent {
 				RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -281,7 +281,7 @@ private struct NotionMetadataGridItem: View {
 		.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 12, style: .continuous)
-				.stroke(strokeColor, lineWidth: 0.45)
+				.stroke(strokeColor, lineWidth: 0.6)
 		)
 	}
 }

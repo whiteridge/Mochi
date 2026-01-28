@@ -192,8 +192,8 @@ private struct GitHubMetadataGridItem: View {
     }
 
     private var accentStroke: Color {
-        guard let accent = item.accent else { return palette.subtleBorder.opacity(0.35) }
-        return accent.opacity(colorScheme == .dark ? 0.38 : 0.28)
+        guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
+        return accent.opacity(colorScheme == .dark ? 0.45 : 0.35)
     }
 
     private var accentTag: Color {
@@ -206,7 +206,7 @@ private struct GitHubMetadataGridItem: View {
     }
 
     var body: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+        let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -233,7 +233,7 @@ private struct GitHubMetadataGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(accentStroke, lineWidth: 0.45)
+                .stroke(accentStroke, lineWidth: 0.6)
         )
         .overlay(alignment: .leading) {
             if item.accent != nil {

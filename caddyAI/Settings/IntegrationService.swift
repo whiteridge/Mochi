@@ -216,9 +216,22 @@ final class IntegrationService: ObservableObject {
 				}
 				
 				let response = try JSONDecoder().decode(StatusResponse.self, from: data)
+				let normalizedStatus = response.status?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+				let actionRequired = response.actionRequired == true
 				
 				await MainActor.run {
-					let newState: IntegrationState = response.connected ? .connected(Date()) : .disconnected
+					let newState: IntegrationState
+					if response.connected {
+						newState = .connected(Date())
+					} else if actionRequired || normalizedStatus == "expired" || normalizedStatus == "failed" {
+						newState = .error("Reconnect to refresh access.")
+					} else if normalizedStatus == "inactive" {
+						newState = .error("Access paused. Reconnect to enable.")
+					} else if normalizedStatus == "initiated" || normalizedStatus == "initializing" || normalizedStatus == "pending" {
+						newState = .connected(Date())
+					} else {
+						newState = .disconnected
+					}
 					switch appName.lowercased() {
 					case "slack":
 						self.slackState = newState
@@ -302,6 +315,14 @@ struct ConnectURLResponse: Codable {
 
 struct StatusResponse: Codable {
 	let connected: Bool
+	let status: String?
+	let actionRequired: Bool?
+
+	enum CodingKeys: String, CodingKey {
+		case connected
+		case status
+		case actionRequired = "action_required"
+	}
 }
 
 struct ErrorResponse: Codable {

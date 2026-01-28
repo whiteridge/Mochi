@@ -30,7 +30,7 @@ This roadmap lists the remaining work to reach a stable v1 of caddyAI. It is org
 
 ## Backend (FastAPI + tooling)
 - [ ] Observability for tool calls and action plans (logging, diagnostics).
-- [ ] Harden integration auth flows and token refresh.
+- [x] Harden integration auth flows and token refresh.
 
 ## Quality and release readiness
 - [ ] XCTest coverage for UI state machine and confirmation flow.

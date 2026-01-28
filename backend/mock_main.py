@@ -669,14 +669,16 @@ async def get_integration_status(app_name: str, user_id: str):
     """Check if user is connected to an app. Returns True in mock mode."""
     if mock_service.composio_service:
         try:
-            is_connected = mock_service.composio_service.get_connection_status(
-                app_name, user_id
-            )
-            return {"connected": is_connected}
+            details = mock_service.composio_service.get_connection_details(app_name, user_id)
+            return {
+                "connected": details.get("connected", False),
+                "status": details.get("status"),
+                "action_required": details.get("action_required", False),
+            }
         except Exception:
             pass
     # Default to connected in mock mode for easier testing
-    return {"connected": True}
+    return {"connected": True, "status": "ACTIVE", "action_required": False}
 
 
 @app.delete("/api/v1/integrations/disconnect/{app_name}")

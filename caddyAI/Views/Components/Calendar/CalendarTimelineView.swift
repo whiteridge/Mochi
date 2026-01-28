@@ -62,7 +62,7 @@ struct CalendarTimelineView: View {
     }
 
     private var allDayPill: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+        let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
         return Text("All day")
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(palette.primaryText)
@@ -74,13 +74,15 @@ struct CalendarTimelineView: View {
             )
             .overlay(
                 Capsule()
-                    .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
+                    .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.6)
             )
     }
 
     private func placeholderBlock(index: Int, rowHeight: CGFloat) -> some View {
         let showPlaceholder = index.isMultiple(of: 2)
-        let fill = palette.iconBackground.opacity(showPlaceholder ? 0.25 : 0.12)
+        let fill = colorScheme == .dark
+            ? palette.iconBackground.opacity(showPlaceholder ? 0.25 : 0.12)
+            : Color.black.opacity(showPlaceholder ? 0.08 : 0.04)
         let inset = min(rowInset, rowHeight * 0.3)
 
         return ZStack {
@@ -88,7 +90,7 @@ struct CalendarTimelineView: View {
                 .fill(fill)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(palette.subtleBorder.opacity(0.25), lineWidth: 0.5)
+                        .stroke(palette.subtleBorder.opacity(0.4), lineWidth: 0.5)
                 )
                 .padding(.vertical, inset)
         }

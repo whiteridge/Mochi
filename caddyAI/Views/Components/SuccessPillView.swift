@@ -36,33 +36,49 @@ struct SuccessPillView: View {
         return preferences.glassStyle == .regular ? .plusLighter : .screen
     }
 
+    private var baseGlassStyleOverride: GlassStyle? {
+        colorScheme == .dark ? nil : .clear
+    }
+
+    private var baseTint: Color? {
+        colorScheme == .dark ? nil : ActionGlowPalette.glassTint(for: colorScheme)
+    }
+
     @ViewBuilder
-    private var backgroundLayer: some View {
+    private var baseBackground: some View {
         ZStack {
-            LiquidGlassSurface(shape: .capsule, prominence: .regular, shadowed: true)
-
-            RotatingGradientFill(
+            LiquidGlassSurface(
                 shape: .capsule,
-                rotationSpeed: 1.4,
-                intensity: glowIntensity,
-                renderStyle: .cone(origin: .center)
+                prominence: .regular,
+                tint: baseTint,
+                shadowed: true,
+                glassStyleOverride: baseGlassStyleOverride
             )
-            .blendMode(glowBlendMode)
-            .opacity(glowOpacity)
-            .clipShape(Capsule())
-            .allowsHitTesting(false)
-
             Capsule()
                 .stroke(palette.subtleBorder, lineWidth: 1)
         }
     }
 
     @ViewBuilder
+    private var rotatingGlowLayer: some View {
+        RotatingGradientFill(
+            shape: .capsule,
+            rotationSpeed: 1.4,
+            intensity: glowIntensity,
+            renderStyle: .cone(origin: .center)
+        )
+        .blendMode(glowBlendMode)
+        .opacity(glowOpacity)
+        .clipShape(Capsule())
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
     private var morphingBackground: some View {
         if let morphNamespace {
-            backgroundLayer.matchedGeometryEffect(id: "background", in: morphNamespace)
+            baseBackground.matchedGeometryEffect(id: "background", in: morphNamespace)
         } else {
-            backgroundLayer
+            baseBackground
         }
     }
     
@@ -87,6 +103,11 @@ struct SuccessPillView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .background(morphingBackground)
+        .background(
+            ZStack {
+                morphingBackground
+                rotatingGlowLayer
+            }
+        )
     }
 }

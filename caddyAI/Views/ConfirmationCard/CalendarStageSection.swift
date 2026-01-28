@@ -61,7 +61,7 @@ struct CalendarStageSection: View {
 
     @ViewBuilder
     private func calendarFieldContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+        let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
         return VStack(alignment: .leading, spacing: 6) {
             content()
         }
@@ -76,7 +76,7 @@ struct CalendarStageSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
+                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.6)
         )
     }
     
@@ -191,7 +191,7 @@ struct CalendarStageSection: View {
     }
 
     var calendarTimelineSection: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+        let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
         return CalendarTimelineView(
             startDate: calendarDetails.startDate,
             endDate: calendarDetails.endDate,
@@ -208,7 +208,7 @@ struct CalendarStageSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(palette.subtleBorder.opacity(0.35), lineWidth: 0.45)
+                .stroke(palette.subtleBorder.opacity(0.5), lineWidth: 0.6)
         )
     }
     

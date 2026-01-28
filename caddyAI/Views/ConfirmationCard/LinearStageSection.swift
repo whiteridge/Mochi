@@ -311,12 +311,12 @@ private struct LinearMetadataGridItem: View {
 	}
 
 	private var strokeColor: Color {
-		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.35) }
+		guard let accent = item.accent else { return palette.subtleBorder.opacity(0.5) }
 		return accent.opacity(strokeOpacity)
 	}
 
     var body: some View {
-        let boxOpacity = preferences.glassStyle == .regular ? 0.45 : 0.75
+        let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
         VStack(alignment: .leading, spacing: 4) {
             Text(item.title.uppercased())
                 .font(.system(size: 10, weight: .medium))
@@ -355,7 +355,7 @@ private struct LinearMetadataGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(strokeColor, lineWidth: 0.45)
+                .stroke(strokeColor, lineWidth: 0.6)
         )
         .overlay(alignment: .leading) {
 			if let accent = item.accent {
