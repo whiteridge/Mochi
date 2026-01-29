@@ -121,19 +121,6 @@ struct IntegrationsSettingsView: View {
 								.textFieldStyle(.roundedBorder)
 								.frame(width: 200)
 							
-							if let success = viewModel.apiTestSuccess {
-								Image(systemName: success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-									.foregroundStyle(success ? .green : .orange)
-							}
-						}
-					}
-					
-					SettingsRow(label: "Base URL", showDivider: false) {
-						HStack(spacing: 8) {
-							TextField("Optional", text: $viewModel.apiBaseURL)
-								.textFieldStyle(.roundedBorder)
-								.frame(width: 160)
-							
 							Button {
 								viewModel.saveAPISettings()
 								withAnimation { showSaved = true }
@@ -146,8 +133,14 @@ struct IntegrationsSettingsView: View {
 							}
 							.buttonStyle(SettingsGlassButtonStyle(kind: .accent(showSaved ? .green : preferences.accentColor)))
 							.controlSize(.small)
+							
+							if let success = viewModel.apiTestSuccess {
+								Image(systemName: success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+									.foregroundStyle(success ? .green : .orange)
+							}
 						}
 					}
+					
 				}
 				
 				// Advanced Section (collapsed by default)
@@ -186,6 +179,27 @@ struct IntegrationsSettingsView: View {
 								if let status = viewModel.linearTestMessage {
 									StatusLabel(text: status, success: viewModel.linearTestSuccess ?? false)
 								}
+							}
+						}
+						
+						Divider()
+						
+						// API Base URL (dev)
+						VStack(alignment: .leading, spacing: 10) {
+							Text("API Base URL (Dev)")
+								.font(.subheadline.weight(.medium))
+							TextField("http://127.0.0.1:8000", text: $viewModel.apiBaseURL)
+								.textFieldStyle(.roundedBorder)
+							HStack(spacing: 12) {
+								Button(showSaved ? "Saved" : "Save") {
+									viewModel.saveAPISettings()
+									withAnimation { showSaved = true }
+									DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+										withAnimation { showSaved = false }
+									}
+								}
+								.buttonStyle(SettingsGlassButtonStyle(kind: .accent(showSaved ? .green : preferences.accentColor)))
+								.controlSize(.small)
 							}
 						}
 					}
@@ -460,6 +474,9 @@ struct IntegrationRow: View {
 	@EnvironmentObject private var preferences: PreferencesStore
 
 	private var resolvedErrorMessage: String? {
+		if state.isConnected {
+			return nil
+		}
 		if let errorMessage {
 			return errorMessage
 		}

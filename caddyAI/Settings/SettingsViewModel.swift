@@ -95,7 +95,6 @@ final class SettingsViewModel: ObservableObject {
 		credentialManager.saveCredentials()
 		
 		preferences.updateAPI(key: "", baseURL: apiBaseURL) // Clear key from prefs if feasible, or just update base URL
-		preferences.hasCompletedSetup = true
 	}
 	
 	func selectAccent(_ option: AccentColorOption) {

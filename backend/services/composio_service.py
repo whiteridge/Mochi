@@ -30,6 +30,15 @@ ACCOUNT_STATUS_PRIORITY = {
     "FAILED": 1,
 }
 
+ACCOUNT_STATUS_FILTERS = [
+    "INITIALIZING",
+    "INITIATED",
+    "ACTIVE",
+    "FAILED",
+    "EXPIRED",
+    "INACTIVE",
+]
+
 AUTH_ERROR_HINTS = (
     "auth",
     "unauthorized",
@@ -170,6 +179,11 @@ class ComposioService:
         statuses: Optional[List[str]] = None,
     ):
         try:
+            if statuses is None:
+                return self.composio.connected_accounts.list(
+                    user_ids=[user_id],
+                    toolkit_slugs=toolkit_slugs,
+                )
             return self.composio.connected_accounts.list(
                 user_ids=[user_id],
                 toolkit_slugs=toolkit_slugs,
@@ -186,6 +200,47 @@ class ComposioService:
                     user_id=user_id,
                     app_names=toolkit_slugs,
                 )
+
+    def _toolkit_slugs_for_app(self, app_name: str) -> List[str]:
+        slug = app_name.lower()
+        slugs = [slug]
+        if slug == "googlecalendar":
+            slugs.append("google_calendar")
+        slug_upper = slug.upper()
+        if slug_upper != slug:
+            slugs.append(slug_upper)
+        return list(dict.fromkeys(slugs))
+
+    def _list_accounts_for_app(self, user_id: str, app_name: str) -> List[Any]:
+        toolkit_slugs = self._toolkit_slugs_for_app(app_name)
+        try:
+            accounts = self._list_connected_accounts(
+                user_id=user_id,
+                toolkit_slugs=toolkit_slugs,
+                statuses=None,
+            )
+            items = _extract_account_items(accounts)
+        except Exception as exc:  # noqa: BLE001 - treat lookup failures as empty
+            print(f"DEBUG: Failed to list connected accounts for {app_name}: {exc}")
+            return []
+
+        allowed = {slug.lower() for slug in toolkit_slugs}
+        return [
+            account
+            for account in items
+            if (_extract_toolkit_slug(account) or "") in allowed
+        ]
+
+    def _select_best_account(self, accounts: List[Any]) -> Optional[Any]:
+        best_account = None
+        best_priority = -1
+        for account in accounts:
+            status = _extract_account_status(account)
+            priority = ACCOUNT_STATUS_PRIORITY.get(status, 0) if status else 0
+            if best_account is None or priority > best_priority:
+                best_account = account
+                best_priority = priority
+        return best_account
 
     def _extract_error_message(self, result: Any) -> Optional[str]:
         if result is None:
@@ -320,9 +375,26 @@ class ComposioService:
             The authorization URL for the user to visit
         """
         app_name_lower = app_name.lower()
+        existing_accounts = self._list_accounts_for_app(user_id=user_id, app_name=app_name_lower)
+        if existing_accounts:
+            best_account = self._select_best_account(existing_accounts)
+            best_id = _extract_account_id(best_account) if best_account else None
+
+            if best_id and len(existing_accounts) > 1:
+                for account in existing_accounts:
+                    account_id = _extract_account_id(account)
+                    if account_id and account_id != best_id:
+                        self._delete_connected_account(account_id)
+
+            if best_id:
+                refreshed = self.refresh_connection(best_id)
+                redirect_url = refreshed.get("redirect_url")
+                if redirect_url:
+                    return redirect_url
+
         auth_configs = {
-            "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID", "ac_VbAOnHEy6Cts"),
-            "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID", "ac_ibulkWqBOyKQ"),
+            "slack": os.getenv("COMPOSIO_SLACK_AUTH_CONFIG_ID"),
+            "linear": os.getenv("COMPOSIO_LINEAR_AUTH_CONFIG_ID"),
             "notion": os.getenv("COMPOSIO_NOTION_AUTH_CONFIG_ID"),
             "github": os.getenv("COMPOSIO_GITHUB_AUTH_CONFIG_ID"),
         }
@@ -405,13 +477,42 @@ class ComposioService:
         if app_slug_upper != app_slug:
             toolkit_slug_filters.append(app_slug_upper)
 
-        statuses = list(ACCOUNT_STATUS_PRIORITY.keys())
-        accounts = self._list_connected_accounts(
-            user_id=user_id,
-            toolkit_slugs=toolkit_slug_filters,
-            statuses=statuses,
-        )
-        items = _extract_account_items(accounts)
+        statuses = ACCOUNT_STATUS_FILTERS
+        try:
+            accounts = self._list_connected_accounts(
+                user_id=user_id,
+                toolkit_slugs=toolkit_slug_filters,
+                statuses=statuses,
+            )
+            items = _extract_account_items(accounts)
+        except Exception as exc:  # noqa: BLE001 - treat lookup failures as disconnected
+            message = str(exc)
+            if "payload.statuses" in message or "Invalid enum value" in message:
+                try:
+                    accounts = self._list_connected_accounts(
+                        user_id=user_id,
+                        toolkit_slugs=toolkit_slug_filters,
+                        statuses=None,
+                    )
+                    items = _extract_account_items(accounts)
+                except Exception as retry_exc:  # noqa: BLE001 - treat lookup failures as disconnected
+                    print(f"DEBUG: Failed to fetch connection status for {app_slug}: {retry_exc}")
+                    return {
+                        "connected": False,
+                        "status": None,
+                        "account_id": None,
+                        "action_required": False,
+                        "error": str(retry_exc),
+                    }
+            else:
+                print(f"DEBUG: Failed to fetch connection status for {app_slug}: {exc}")
+                return {
+                    "connected": False,
+                    "status": None,
+                    "account_id": None,
+                    "action_required": False,
+                    "error": str(exc),
+                }
 
         best_account = None
         best_priority = -1
@@ -456,9 +557,12 @@ class ComposioService:
         try:
             result = self.composio.connected_accounts.refresh(nanoid=connected_account_id)
         except TypeError:
-            result = self.composio.connected_accounts.refresh(
-                connected_account_id=connected_account_id
-            )
+            try:
+                result = self.composio.connected_accounts.refresh(connected_account_id)
+            except TypeError:
+                result = self.composio.connected_accounts.refresh(
+                    connected_account_id=connected_account_id
+                )
 
         redirect_url = getattr(result, "redirect_url", None) or getattr(result, "redirectUrl", None)
         status = getattr(result, "status", None)
@@ -479,21 +583,66 @@ class ComposioService:
         Returns:
             Number of accounts disconnected
         """
-        accounts = self.composio.connected_accounts.list()
+        app_slug = app_name.lower()
+        toolkit_slugs = [app_slug]
+        if app_slug == "googlecalendar":
+            toolkit_slugs.append("google_calendar")
+        app_slug_upper = app_slug.upper()
+        if app_slug_upper != app_slug:
+            toolkit_slugs.append(app_slug_upper)
+
+        try:
+            accounts = self._list_connected_accounts(
+                user_id=user_id,
+                toolkit_slugs=toolkit_slugs,
+                statuses=None,
+            )
+            items = _extract_account_items(accounts)
+        except Exception as exc:  # noqa: BLE001 - surface failure as zero disconnects
+            print(f"DEBUG: Failed to list connected accounts for {app_slug}: {exc}")
+            return 0
+
         disconnected_count = 0
-        
-        for account in accounts.items:
-            toolkit = getattr(account, 'toolkit', None)
-            account_app = getattr(toolkit, 'slug', '').lower() if toolkit else ''
-            
-            if account_app == app_name.lower():
-                try:
-                    self.composio.connected_accounts.delete(id=account.id)
-                    disconnected_count += 1
-                except Exception:
-                    pass  # Continue disconnecting other accounts
-        
+        allowed_toolkits = {slug.lower() for slug in toolkit_slugs}
+
+        for account in items:
+            toolkit_slug = _extract_toolkit_slug(account)
+            if toolkit_slug and toolkit_slug not in allowed_toolkits:
+                continue
+            account_id = _extract_account_id(account)
+            if not account_id:
+                continue
+            if self._delete_connected_account(account_id):
+                disconnected_count += 1
+
         return disconnected_count
+
+    def _delete_connected_account(self, account_id: str) -> bool:
+        """Delete a connected account using whichever SDK signature is available."""
+        try:
+            self.composio.connected_accounts.delete(id=account_id)
+            return True
+        except TypeError:
+            try:
+                self.composio.connected_accounts.delete(nanoid=account_id)
+                return True
+            except TypeError:
+                try:
+                    self.composio.connected_accounts.delete(account_id)
+                    return True
+                except TypeError:
+                    try:
+                        self.composio.connected_accounts.delete(connected_account_id=account_id)
+                        return True
+                    except Exception as exc:  # noqa: BLE001 - best-effort deletion
+                        print(f"DEBUG: Failed to delete account {account_id}: {exc}")
+                        return False
+                except Exception as exc:  # noqa: BLE001 - best-effort deletion
+                    print(f"DEBUG: Failed to delete account {account_id}: {exc}")
+                    return False
+        except Exception as exc:  # noqa: BLE001 - best-effort deletion
+            print(f"DEBUG: Failed to delete account {account_id}: {exc}")
+            return False
 
     def fetch_tools(
         self,

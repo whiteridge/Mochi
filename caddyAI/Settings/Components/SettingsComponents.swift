@@ -103,21 +103,31 @@ struct SettingsGlassButtonStyle: ButtonStyle {
 
 	private var horizontalPadding: CGFloat {
 		switch controlSize {
-		case .mini: 8
-		case .small: 10
-		case .regular: 14
-		case .large: 16
-		@unknown default: 14
+		case .mini:
+			return 8
+		case .small:
+			return 10
+		case .regular:
+			return 14
+		case .large:
+			return 16
+		default:
+			return 14
 		}
 	}
 
 	private var verticalPadding: CGFloat {
 		switch controlSize {
-		case .mini: 4
-		case .small: 6
-		case .regular: 8
-		case .large: 10
-		@unknown default: 8
+		case .mini:
+			return 4
+		case .small:
+			return 6
+		case .regular:
+			return 8
+		case .large:
+			return 10
+		default:
+			return 8
 		}
 	}
 

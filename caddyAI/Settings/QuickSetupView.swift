@@ -20,6 +20,8 @@ struct QuickSetupView: View {
     @State private var githubError: String?
     @State private var gmailError: String?
     @State private var googleCalendarError: String?
+    @State private var apiSaveSuccess = false
+    @State private var apiError: String?
 
     private var backgroundGradient: LinearGradient {
         let colors: [Color] = colorScheme == .dark
@@ -58,14 +60,66 @@ struct QuickSetupView: View {
                     Text("Welcome to caddyAI")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                     
-                    Text("Connect your tools to get started")
+                    Text("Add your API key and connect at least one integration")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 32)
                 
+                // Required: API Key
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("API Key")
+                        .font(.headline)
+                    Text("Required to run the model.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    HStack(spacing: 10) {
+                        SecureField("Enter key", text: $viewModel.apiKey)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        Button(apiSaveSuccess ? "Saved" : "Save") {
+                            saveAPIKey()
+                        }
+                        .buttonStyle(SettingsGlassButtonStyle(kind: .accent(apiSaveSuccess ? .green : preferences.accentColor)))
+                        .controlSize(.small)
+                        .disabled(!hasAPIKey)
+                    }
+                    
+                    if let apiError {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            Text(apiError)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(16)
+                .background(
+                    LiquidGlassSurface(shape: .roundedRect(14), prominence: .regular, glassStyleOverride: .regular)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(apiBorderColor, lineWidth: 1)
+                }
+                .padding(.horizontal, 32)
+                
                 // Integration Cards
                 VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Connect an integration")
+                            .font(.headline)
+                        Text("Composio handles OAuth. You can add more later in Settings.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 4)
+
                     IntegrationConnectCard(
                         title: "Slack",
                         subtitle: "Send messages and receive alerts",
@@ -145,22 +199,13 @@ struct QuickSetupView: View {
                     Button {
                         completeSetup()
                     } label: {
-                        Text(allConnected ? "Get Started" : "Continue")
+                        Text(isSetupReady ? "Finish setup" : "Complete setup")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
                     .buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor), prominence: .regular))
-                    .disabled(!hasAnyConnection)
-                    
-                    Button("Skip for now") {
-                        preferences.hasCompletedSetup = true
-                        onComplete()
-                    }
-                    .buttonStyle(SettingsGlassButtonStyle())
-                    .controlSize(.small)
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                    .disabled(!isSetupReady)
                 }
             }
             .padding(.horizontal, 32)
@@ -169,6 +214,7 @@ struct QuickSetupView: View {
         .frame(width: 420, height: 640)
         .background(backgroundGradient)
         .onAppear {
+            viewModel.loadPersistedValues()
             // Refresh connection status when view appears
             viewModel.refreshStatus(appName: "slack")
             viewModel.refreshStatus(appName: "linear")
@@ -177,24 +223,32 @@ struct QuickSetupView: View {
             viewModel.refreshStatus(appName: "gmail")
             viewModel.refreshStatus(appName: "googlecalendar")
         }
+        .onChange(of: viewModel.apiKey) {
+            apiSaveSuccess = false
+            apiError = nil
+        }
     }
     
-    private var allConnected: Bool {
-        integrationService.slackState.isConnected
-            && integrationService.linearState.isConnected
-            && integrationService.notionState.isConnected
-            && integrationService.githubState.isConnected
-            && integrationService.gmailState.isConnected
-            && integrationService.googleCalendarState.isConnected
+    private var hasAPIKey: Bool {
+        !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     private var hasAnyConnection: Bool {
-        integrationService.slackState.isConnected
-            || integrationService.linearState.isConnected
-            || integrationService.notionState.isConnected
-            || integrationService.githubState.isConnected
-            || integrationService.gmailState.isConnected
-            || integrationService.googleCalendarState.isConnected
+        integrationService.hasAnyComposioConnection
+    }
+    
+    private var isSetupReady: Bool {
+        hasAPIKey && hasAnyConnection
+    }
+    
+    private var apiBorderColor: Color {
+        if apiError != nil {
+            return Color.orange.opacity(0.4)
+        }
+        if hasAPIKey {
+            return Color.green.opacity(0.4)
+        }
+        return Color.gray.opacity(0.15)
     }
     
     private func connectSlack() {
@@ -344,8 +398,26 @@ struct QuickSetupView: View {
     }
     
     private func completeSetup() {
+        guard hasAPIKey, hasAnyConnection else {
+            apiError = hasAPIKey ? nil : "Add your API key to continue."
+            return
+        }
+        viewModel.saveAPISettings()
         preferences.hasCompletedSetup = true
         onComplete()
+    }
+
+    private func saveAPIKey() {
+        apiError = nil
+        guard hasAPIKey else {
+            apiError = "Add your API key to save."
+            return
+        }
+        viewModel.saveAPISettings()
+        apiSaveSuccess = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            apiSaveSuccess = false
+        }
     }
 }
 

@@ -83,11 +83,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			self?.panelController?.hide()
 		}
 		
-		// Show quick setup on first launch
-		if !settingsEnvironment.preferences.hasCompletedSetup {
-			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-				self?.showQuickSetup()
+		// Show quick setup when required (missing API key or Composio connection)
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+			self?.evaluateInitialSetup()
+		}
+	}
+
+	private func evaluateInitialSetup() {
+		settingsEnvironment.viewModel.loadPersistedValues()
+		let apiKeyMissing = settingsEnvironment.viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+		if apiKeyMissing {
+			showQuickSetup()
+			return
+		}
+		
+		refreshComposioStatuses()
+		DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+			guard let self else { return }
+			let stillMissingAPIKey = self.settingsEnvironment.viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+			let hasAnyConnection = self.settingsEnvironment.integrationService.hasAnyComposioConnection
+			if stillMissingAPIKey || !hasAnyConnection {
+				self.showQuickSetup()
 			}
+		}
+	}
+
+	private func refreshComposioStatuses() {
+		let apps = ["slack", "linear", "notion", "github", "gmail", "googlecalendar"]
+		for app in apps {
+			settingsEnvironment.integrationService.refreshComposioStatus(for: app)
 		}
 	}
 	
@@ -296,5 +320,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		quickSetupWindow = window
 	}
 }
-
 

@@ -62,7 +62,7 @@ struct CalendarStageSection: View {
     @ViewBuilder
     private func calendarFieldContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         let boxOpacity = preferences.glassStyle == .regular ? 0.6 : 0.8
-        return VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             content()
         }
         .padding(.vertical, 8)

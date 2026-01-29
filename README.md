@@ -37,9 +37,7 @@ See `ROADMAP.md` for current priorities and progress.
 - Python 3.11, FastAPI, Composio, google-genai
 
 ## Setup
-- macOS app: open `caddyAI.xcodeproj` and run the `caddyAI` scheme
-- Backend: `cd backend && pip install -r requirements.txt && uvicorn main:app --reload`
-- Env: set `GOOGLE_API_KEY` and `COMPOSIO_API_KEY` (optional `COMPOSIO_USER_ID`)
+See `SETUP.md` for a full "from zero" guide (requirements, env vars, backend, app run, and troubleshooting). On first launch, Quick Setup prompts for your API key and at least one Composio integration.
 
 ## Contributing
 Focus on stability and the action/tooling layer.

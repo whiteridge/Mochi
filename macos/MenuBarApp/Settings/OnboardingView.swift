@@ -8,7 +8,7 @@ struct OnboardingView: View {
 	
 	private let steps = [
 		"Set your accent color and theme.",
-		"Add your API key and optional base URL.",
+		"Add your API key.",
 		"Connect Slack and Linear to enable automations."
 	]
 	
@@ -84,5 +84,4 @@ struct OnboardingView: View {
 		}
 	}
 }
-
 

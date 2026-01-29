@@ -157,6 +157,15 @@ final class IntegrationService: ObservableObject {
 	private let credentialManager: CredentialManager
 	private let backendBaseURL = "http://127.0.0.1:8000/api/v1/integrations"
 	private let userId = "caddyai-default"
+
+	var hasAnyComposioConnection: Bool {
+		slackState.isConnected
+			|| linearState.isConnected
+			|| notionState.isConnected
+			|| githubState.isConnected
+			|| gmailState.isConnected
+			|| googleCalendarState.isConnected
+	}
 	
 	init(keychain: KeychainStore, credentialManager: CredentialManager = .shared) {
 		self.keychain = keychain
@@ -227,7 +236,10 @@ final class IntegrationService: ObservableObject {
 						newState = .error("Reconnect to refresh access.")
 					} else if normalizedStatus == "inactive" {
 						newState = .error("Access paused. Reconnect to enable.")
-					} else if normalizedStatus == "initiated" || normalizedStatus == "initializing" || normalizedStatus == "pending" {
+					} else if normalizedStatus == "active"
+								|| normalizedStatus == "initiated"
+								|| normalizedStatus == "initializing"
+								|| normalizedStatus == "pending" {
 						newState = .connected(Date())
 					} else {
 						newState = .disconnected

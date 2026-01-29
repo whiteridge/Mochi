@@ -8,3 +8,4 @@
 * **Test Case 08 (Noise & Interruption Handling):** Ensure Caddy distinguishes between direct commands and background conversation or noise.
 * **Test Case 09 (Impossible Scheduling):** Verify that Caddy flags errors or asks for confirmation when requested to schedule events at invalid times or non-existent dates.
 * **Test Case 10 (Missing Permissions):** Test that Caddy provides an appropriate error message or prompt when attempting to access a disconnected third-party application (e.g., Slack or Linear).
+* **Test Case 11 (First-run Setup Gate):** Verify Quick Setup appears when the API key or integrations are missing, and that it closes after both are set.

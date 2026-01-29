@@ -24,9 +24,10 @@ This roadmap lists the remaining work to reach a stable v1 of caddyAI. It is org
 
 ## Settings and onboarding
 - [ ] Verify Keychain-backed token storage, migration, and reset flows.
+- [x] Add first-run setup gate for API key + Composio connection.
 - [ ] Finish onboarding for API keys and integrations with success/failure feedback.
 - [ ] Align menu bar app settings UI with main app behavior.
- - [ ] Ensure MenuBarApp features stay in sync with the main app (appearance, shortcuts, onboarding).
+- [ ] Ensure MenuBarApp features stay in sync with the main app (appearance, shortcuts, onboarding).
 
 ## Backend (FastAPI + tooling)
 - [ ] Observability for tool calls and action plans (logging, diagnostics).
