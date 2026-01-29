@@ -149,14 +149,66 @@ final class SettingsViewModel: ObservableObject {
 			return nil // Success
 		} catch let error as IntegrationError {
 			print("Error connecting via Composio: \(error)")
-			return error.localizedDescription
+			return normalizeIntegrationError(error.localizedDescription, appName: appName)
 		} catch let error as NSError {
 			print("Error connecting via Composio: \(error)")
 			
 			if error.code == -1004 {
 				return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
 			}
-			return "Connection failed: \(error.localizedDescription)"
+			return normalizeIntegrationError("Connection failed: \(error.localizedDescription)", appName: appName)
+		}
+	}
+
+	private func normalizeIntegrationError(_ message: String, appName: String) -> String {
+		let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+		let lower = trimmed.lowercased()
+		let appLabel = IntegrationKind(rawValue: appName.lowercased())?.displayName ?? appName.capitalized
+		let envVar = envVarName(for: appName)
+
+		if lower.contains("auth config") && (lower.contains("not found") || lower.contains("notfound")) {
+			if let envVar {
+				return "Missing Composio auth config for \(appLabel). Set \(envVar) or create it in Composio."
+			}
+			return "Missing Composio auth config for \(appLabel). Create it in Composio and retry."
+		}
+
+		if lower.contains("multiple") && lower.contains("connected account") {
+			return "Multiple \(appLabel) accounts connected. Disconnect extras in Composio and retry."
+		}
+
+		if lower.contains("rate limit") || lower.contains("quota") {
+			return "Temporarily rate-limited. Please retry in a minute."
+		}
+
+		if lower.contains("backend not running") {
+			return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
+		}
+
+		if trimmed.contains("{") && trimmed.contains("}") {
+			return "Connection failed. Check your Composio auth config and try again."
+		}
+
+		if trimmed.count > 140 {
+			let prefix = trimmed.prefix(140)
+			return "\(prefix)…"
+		}
+
+		return trimmed
+	}
+
+	private func envVarName(for appName: String) -> String? {
+		switch appName.lowercased() {
+		case "slack":
+			return "COMPOSIO_SLACK_AUTH_CONFIG_ID"
+		case "linear":
+			return "COMPOSIO_LINEAR_AUTH_CONFIG_ID"
+		case "notion":
+			return "COMPOSIO_NOTION_AUTH_CONFIG_ID"
+		case "github":
+			return "COMPOSIO_GITHUB_AUTH_CONFIG_ID"
+		default:
+			return nil
 		}
 	}
 

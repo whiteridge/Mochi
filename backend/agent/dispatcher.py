@@ -89,6 +89,8 @@ class DispatcherContext:
     early_summary_text: Optional[str] = None
     tool_nudge_sent: bool = False
     should_nudge_for_tools: bool = False
+    required_apps: List[str] = field(default_factory=list)
+    missing_app_nudge_sent: bool = False
     involved_apps: List[str] = field(default_factory=list)
     called_apps: set[str] = field(default_factory=set)
     proposal_queue: List[Dict[str, Any]] = field(default_factory=list)
@@ -163,6 +165,9 @@ class AgentDispatcher:
             return
 
         pre_detected_apps = detect_apps_from_input(context.user_input)
+        if pre_detected_apps:
+            context.required_apps = pre_detected_apps.copy()
+
         if len(pre_detected_apps) > 1:
             print(f"DEBUG: Pre-detected multiple apps from user input: {pre_detected_apps}")
             context.involved_apps = pre_detected_apps.copy()
@@ -383,6 +388,21 @@ class AgentDispatcher:
             ],
         }
 
+    def _missing_required_apps(self, context: DispatcherContext) -> List[str]:
+        if not context.required_apps:
+            return []
+        return [app for app in context.required_apps if app not in context.called_apps]
+
+    def _missing_app_nudge(self, missing_apps: List[str]) -> str:
+        app_list = ", ".join(format_app_name(app) for app in missing_apps)
+        return (
+            "Continue with the remaining requested apps: "
+            f"{app_list}. "
+            "Use the available tools to complete those actions. "
+            "If IDs are required, call list/search tools to resolve them first. "
+            "Respond with function calls only."
+        )
+
     def _collect_actions_from_response(
         self,
         context: DispatcherContext,
@@ -516,6 +536,33 @@ class AgentDispatcher:
             return DispatchPhase.EXECUTING_READ
 
         if context.pending_write_actions and not context.pending_read_actions:
+            missing_apps = self._missing_required_apps(context)
+            if (
+                context.should_nudge_for_tools
+                and missing_apps
+                and not context.missing_app_nudge_sent
+            ):
+                context.missing_app_nudge_sent = True
+                nudge_text = self._missing_app_nudge(missing_apps)
+                try:
+                    context.response = chat.send_message(nudge_text)
+                except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
+                    if _is_rate_limit_error(send_error):
+                        yield {
+                            "type": "message",
+                            "content": (
+                                "I'm temporarily rate-limited by the model provider. "
+                                "Please retry in a minute."
+                            ),
+                            "action_performed": None,
+                        }
+                        context.exit_early = True
+                        return DispatchPhase.FINISHED
+                    raise
+
+                context.iteration += 1
+                return DispatchPhase.PLANNING
+
             self._queue_pending_write_actions(context)
             return DispatchPhase.AWAITING_CONFIRMATION
 

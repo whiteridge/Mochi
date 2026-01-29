@@ -12,48 +12,58 @@ struct ActionGlowCapsuleBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
 
+    private var effectiveGlassStyle: GlassStyle {
+        // Keep the confirmation button consistent across Regular/Clear in both light + dark.
+        .clear
+    }
+
+    private var isClearStyle: Bool {
+        effectiveGlassStyle == .clear
+    }
+
     private var ringIntensity: Double {
         if let intensity {
             return intensity
         }
-        return showRing ? (preferences.glassStyle == .clear ? 0.34 : 0.28) : 0
+        return showRing ? (isClearStyle ? 0.34 : 0.28) : 0
     }
 
     private var ringStroke: CGFloat {
         if let ringWidth {
             return ringWidth
         }
-        return preferences.glassStyle == .clear ? 3.2 : 3.8
+        return isClearStyle ? 3.2 : 3.8
     }
 
     private var glowOpacity: Double {
-        preferences.glassStyle == .clear ? 0.22 : 0.28
+        isClearStyle ? 0.22 : 0.28
     }
 
     private var glowRadius: CGFloat {
-        preferences.glassStyle == .clear ? 10 : 14
+        isClearStyle ? 10 : 14
     }
 
     private var glowY: CGFloat {
-        preferences.glassStyle == .clear ? 4 : 6
+        isClearStyle ? 4 : 6
     }
 
     private var ringOpacity: Double {
-        showRing ? (preferences.glassStyle == .clear ? 0.9 : 0.8) : 0
+        showRing ? (isClearStyle ? 0.9 : 0.8) : 0
     }
 
     private var ringBlur: CGFloat {
-        showRing ? (preferences.glassStyle == .clear ? 3.5 : 4.5) : 0
+        showRing ? (isClearStyle ? 3.5 : 4.5) : 0
     }
 
     @ViewBuilder
     private var baseFill: some View {
-        if preferences.glassStyle == .clear {
+        if isClearStyle {
             LiquidGlassSurface(
                 shape: .capsule,
                 prominence: .strong,
                 tint: ActionGlowPalette.glassTint(for: colorScheme),
-                shadowed: false
+                shadowed: false,
+                glassStyleOverride: effectiveGlassStyle
             )
         } else {
             Capsule()
@@ -70,7 +80,7 @@ struct ActionGlowCapsuleBackground: View {
             intensity: ringIntensity,
             renderStyle: .ring(lineWidth: ringStroke)
         )
-        .blendMode(preferences.glassStyle == .clear ? .screen : .plusLighter)
+        .blendMode(isClearStyle ? .screen : .plusLighter)
         .blur(radius: ringBlur)
         .opacity(ringOpacity)
         .drawingGroup()
