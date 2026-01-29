@@ -31,6 +31,7 @@ struct UnifiedPillView: View {
     
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
+    @State private var hasSettledFromAppear: Bool = false
     
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
@@ -135,6 +136,13 @@ struct UnifiedPillView: View {
             .matchedGeometryEffect(id: "background", in: morphNamespace)
             .shadow(color: bubbleShadowColor, radius: bubbleShadowRadius, x: 0, y: bubbleShadowY)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
+            .scaleEffect(hasSettledFromAppear ? 1.0 : 1.08)
+            .onAppear {
+                guard !hasSettledFromAppear else { return }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.55, blendDuration: 0)) {
+                    hasSettledFromAppear = true
+                }
+            }
     }
     
     private var legacyBody: some View {
@@ -152,6 +160,13 @@ struct UnifiedPillView: View {
             )
             .shadow(color: bubbleShadowColor, radius: bubbleShadowRadius, x: 0, y: bubbleShadowY)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: mode)
+            .scaleEffect(hasSettledFromAppear ? 1.0 : 1.08)
+            .onAppear {
+                guard !hasSettledFromAppear else { return }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.55, blendDuration: 0)) {
+                    hasSettledFromAppear = true
+                }
+            }
     }
     
     // MARK: - Content

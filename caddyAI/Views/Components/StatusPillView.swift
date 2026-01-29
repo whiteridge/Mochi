@@ -37,6 +37,7 @@ struct StatusPillView: View {
     var morphNamespace: Namespace.ID? = nil
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var preferences: PreferencesStore
+    @State private var hasSettledFromAppear: Bool = false
 
     private var palette: LiquidGlassPalette {
         LiquidGlassPalette(colorScheme: colorScheme, glassStyle: preferences.glassStyle)
@@ -173,6 +174,13 @@ struct StatusPillView: View {
             .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: status.appName)
             .animation(.easeInOut(duration: 0.3), value: isCompact)
+            .scaleEffect(hasSettledFromAppear ? 1.0 : 1.08)
+            .onAppear {
+                guard !hasSettledFromAppear else { return }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.55, blendDuration: 0)) {
+                    hasSettledFromAppear = true
+                }
+            }
     }
     
     // MARK: - Shared Pill Content
