@@ -15,6 +15,12 @@ struct GitHubStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
+                
                 Text(titleDisplay)
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(palette.primaryText)
@@ -39,6 +45,41 @@ struct GitHubStageSection: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        if isRepoCreation {
+            return "Creating Repository"
+        }
+        if isComment {
+            return "Adding Comment"
+        }
+        if isPullRequest {
+            let tool = proposal.tool.lowercased()
+            if tool.contains("merge") {
+                return "Merging Pull Request"
+            }
+            if tool.contains("close") {
+                return "Closing Pull Request"
+            }
+            if tool.contains("update") {
+                return "Updating Pull Request"
+            }
+            return "Creating Pull Request"
+        }
+        if isIssue {
+            let tool = proposal.tool.lowercased()
+            if tool.contains("close") {
+                return "Closing Issue"
+            }
+            if tool.contains("update") {
+                return "Updating Issue"
+            }
+            return "Creating Issue"
+        }
+        return "Creating Issue"
     }
 
     // MARK: - Stage Container

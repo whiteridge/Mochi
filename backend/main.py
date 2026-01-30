@@ -53,6 +53,16 @@ async def chat_endpoint(request: ChatRequest):
             "parts": [msg.content]
         })
 
+    print(
+        "DEBUG: Incoming chat request",
+        {
+            "user_id": request.user_id,
+            "has_confirmed_tool": request.confirmed_tool is not None,
+            "confirmed_tool": request.confirmed_tool,
+        },
+        flush=True,
+    )
+
     # Create a generator that yields JSON strings followed by a newline
     def event_generator():
         # Use configured user_id if available (for dev/single-user mode), otherwise use request user_id

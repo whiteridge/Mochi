@@ -290,8 +290,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			.environmentObject(settingsEnvironment.viewModel)
 		)
 		
-		let width: CGFloat = 420
-		let height: CGFloat = 540
+		let preferredSize = QuickSetupView.preferredSize
+		let width = preferredSize.width
+		let height = preferredSize.height
 		let rect: NSRect
 		if let screen = NSScreen.main {
 			let frame = screen.visibleFrame
@@ -313,6 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		)
 		window.title = "Quick Setup"
 		window.contentViewController = hosting
+		window.contentMinSize = preferredSize
 		window.isReleasedWhenClosed = false
 		window.setFrame(rect, display: true)
 		window.center()
@@ -320,4 +322,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		quickSetupWindow = window
 	}
 }
-

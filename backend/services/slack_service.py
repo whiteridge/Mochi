@@ -1,5 +1,6 @@
 """Slack-specific service for actions, queries, and enrichment."""
 
+import json
 from typing import Dict, Any, List, Optional
 from composio.exceptions import EnumMetadataNotFound
 from .composio_tool_aliases import normalize_tool_slug
@@ -147,45 +148,18 @@ class SlackService:
             # Enrich Channel Name
             channel_id = args.get("channel") or args.get("channel_id")
             if channel_id and isinstance(channel_id, str) and "channelName" not in enriched_args:
-                # Try to resolve channel name
-                # We can use SLACK_LIST_CONVERSATIONS or SLACK_LIST_ALL_CHANNELS
-                # But since we don't have a direct "get_channel_info" tool easily accessible without listing,
-                # we might rely on the fact that the agent usually searches first.
-                # However, for a robust UI, we should try to fetch it.
-                # Fetching ALL channels might be heavy if there are thousands.
-                # Let's try to see if we can use a more targeted approach or just list conversations (usually smaller set of joined channels).
-                
-                print(f"DEBUG: Attempting to resolve Slack channel ID: {channel_id}")
-                
-                # We'll try listing conversations (joined channels) first as it's safer/smaller
-                try:
-                    result = self.composio_service.execute_action(
-                        action_slug="SLACK_LIST_CONVERSATIONS",
-                        arguments={"types": "public_channel,private_channel", "limit": 1000}, # Try to get enough
-                        user_id=user_id
-                    )
-                    
-                    channels = []
-                    if result.get("successful"):
-                        data = result.get("data", {})
-                        if isinstance(data, dict):
-                            channels = data.get("channels", [])
-                    
-                    found_channel = next((c for c in channels if c.get("id") == channel_id), None)
-                    
-                    if found_channel:
-                        name = found_channel.get("name")
-                        if name:
-                            enriched_args["channelName"] = f"#{name}"
-                            print(f"DEBUG: Resolved channel {channel_id} to #{name}")
+                # If already human readable, keep it.
+                if channel_id.startswith("#") or channel_id.startswith("@"):
+                    enriched_args["channelName"] = channel_id
+                else:
+                    print(f"DEBUG: Attempting to resolve Slack channel ID: {channel_id}")
+                    resolved = self._resolve_channel_name(user_id, channel_id)
+                    if resolved:
+                        enriched_args["channelName"] = resolved
                     else:
                         # Fallback: maybe it's a user DM? Or not in joined channels?
-                        # Let's try LIST_ALL_USERS if it looks like a user ID (starts with U or W)
                         if channel_id.startswith("U") or channel_id.startswith("W"):
-                             self._enrich_user_name(user_id, channel_id, enriched_args, "channelName")
-                        
-                except Exception as e:
-                    print(f"DEBUG: Failed to resolve channel name: {e}")
+                            self._enrich_user_name(user_id, channel_id, enriched_args, "channelName")
 
             # Enrich User (if sending DM or ephemeral)
             user_target = args.get("user")
@@ -196,6 +170,54 @@ class SlackService:
             print(f"DEBUG: Error enriching Slack proposal: {e}")
             
         return enriched_args
+
+    def _resolve_channel_name(self, user_id: str, channel_id: str) -> Optional[str]:
+        """Resolve a Slack channel ID to a human-readable name."""
+        action_slugs = [
+            ("SLACK_LIST_CONVERSATIONS", {"types": "public_channel,private_channel", "limit": 1000}),
+            ("SLACK_LIST_ALL_CHANNELS", {"types": "public_channel,private_channel"}),
+        ]
+
+        for action_slug, arguments in action_slugs:
+            try:
+                result = self.composio_service.execute_action(
+                    action_slug=action_slug,
+                    arguments=arguments,
+                    user_id=user_id,
+                )
+            except Exception as exc:
+                print(f"DEBUG: Failed to resolve channel via {action_slug}: {exc}")
+                continue
+
+            if not result.get("successful"):
+                continue
+
+            data = result.get("data", {})
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    data = {}
+
+            channels: List[Dict[str, Any]] = []
+            if isinstance(data, list):
+                channels = data
+            elif isinstance(data, dict):
+                for key in ("channels", "conversations", "items", "data"):
+                    value = data.get(key)
+                    if isinstance(value, list):
+                        channels = value
+                        break
+
+            found = next((c for c in channels if c.get("id") == channel_id), None)
+            if found:
+                name = found.get("name")
+                if name:
+                    resolved = f"#{name}"
+                    print(f"DEBUG: Resolved channel {channel_id} to {resolved}")
+                    return resolved
+
+        return None
 
     def _enrich_user_name(self, user_id: str, target_user_id: str, enriched_args: Dict[str, Any], key: str):
         """Helper to resolve user ID to name."""

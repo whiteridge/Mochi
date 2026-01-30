@@ -236,11 +236,10 @@ final class IntegrationService: ObservableObject {
 						newState = .error("Reconnect to refresh access.")
 					} else if normalizedStatus == "inactive" {
 						newState = .error("Access paused. Reconnect to enable.")
-					} else if normalizedStatus == "active"
-								|| normalizedStatus == "initiated"
+					} else if normalizedStatus == "initiated"
 								|| normalizedStatus == "initializing"
 								|| normalizedStatus == "pending" {
-						newState = .connected(Date())
+						newState = .error("Connection pending. Complete setup in browser.")
 					} else {
 						newState = .disconnected
 					}

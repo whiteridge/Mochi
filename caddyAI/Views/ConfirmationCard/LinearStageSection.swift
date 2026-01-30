@@ -16,6 +16,12 @@ struct LinearStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
+                
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(titleDisplay)
                         .font(.system(size: 18, weight: .medium))
@@ -48,6 +54,35 @@ struct LinearStageSection: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        let tool = proposal.tool.lowercased()
+        
+        if tool.contains("create") {
+            return "Creating Ticket"
+        }
+        if tool.contains("update") || tool.contains("patch") {
+            return "Updating Ticket"
+        }
+        if tool.contains("delete") || tool.contains("remove") {
+            return "Deleting Ticket"
+        }
+        if tool.contains("archive") {
+            return "Archiving Ticket"
+        }
+        if tool.contains("comment") {
+            return "Adding Comment"
+        }
+        if tool.contains("assign") {
+            return "Assigning Ticket"
+        }
+        if tool.contains("label") {
+            return "Updating Labels"
+        }
+        return "Creating Ticket"
     }
     
     // MARK: - Stage Container

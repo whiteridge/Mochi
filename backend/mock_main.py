@@ -17,6 +17,7 @@ Test scenarios:
     - "test 6" / "test six" -> GitHub PR
     - "test 7" / "test seven" -> Gmail email
     - "test 8" / "test eight" -> Notion page
+    - "test 9" / "test nine" -> Demo flow (GitHub digest + Notion + Calendar)
     - anything else -> Help message
 """
 
@@ -103,6 +104,7 @@ class MockAgentService:
         print(f"[MOCK DEBUG] Contains 'test 3': {'test 3' in user_input_lower}")
         print(f"[MOCK DEBUG] Contains 'test 4': {'test 4' in user_input_lower}")
         print(f"[MOCK DEBUG] Contains 'test 5': {'test 5' in user_input_lower}")
+        print(f"[MOCK DEBUG] Contains 'test 9': {'test 9' in user_input_lower}")
         print("=" * 60)
 
         # Scenario A: Linear (test 1 / test one)
@@ -153,6 +155,12 @@ class MockAgentService:
             async for event in self._notion_scenario():
                 yield event
 
+        # Scenario I: Demo (test 9 / test nine)
+        elif any(k in user_input_lower for k in ["test 9", "test nine", "testnine"]):
+            print("[MOCK DEBUG] -> Matched: Demo full-flow scenario")
+            async for event in self._demo_flow_scenario():
+                yield event
+
         # Default: Help message
         else:
             yield {
@@ -167,7 +175,8 @@ class MockAgentService:
                     "- `test 5` → Calendar\n"
                     "- `test 6` → GitHub\n"
                     "- `test 7` → Gmail\n"
-                    "- `test 8` → Notion"
+                    "- `test 8` → Notion\n"
+                    "- `test 9` → Demo (GitHub + Notion + Calendar)"
                 ),
                 "action_performed": None,
             }
@@ -510,6 +519,107 @@ class MockAgentService:
                             {"email": "lisa.wong@acme.com", "displayName": "Lisa Wong"},
                             {"email": "tech-lead@acme.com", "displayName": "Tech Lead"},
                         ],
+                    },
+                },
+            ],
+        }
+
+    async def _demo_flow_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Simulate demo flow (GitHub digest + Notion + Calendar)."""
+        apps = ["github", "notion", "google_calendar"]
+
+        yield {
+            "type": "early_summary",
+            "content": "I'll summarize your GitHub notifications, log it in Notion, and block time to review.",
+            "app_id": "github",
+            "involved_apps": apps,
+        }
+
+        yield {
+            "type": "multi_app_status",
+            "apps": [
+                {"app_id": "github", "state": "waiting"},
+                {"app_id": "notion", "state": "waiting"},
+                {"app_id": "google_calendar", "state": "waiting"},
+            ],
+            "active_app": "github",
+        }
+
+        for app_id, tool in [
+            ("github", "GITHUB_LIST_NOTIFICATIONS"),
+            ("notion", "NOTION_PRECHECK"),
+            ("google_calendar", "CALENDAR_PRECHECK"),
+        ]:
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "searching",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(1.6)
+
+        await asyncio.sleep(0.4)
+
+        yield {
+            "type": "proposal",
+            "tool": "GITHUB_CREATE_ISSUE",
+            "content": {
+                "owner": "acme-corp",
+                "repo": "triage",
+                "title": "GitHub Notifications Digest - Jan 30",
+                "body": (
+                    "Summary of new GitHub notifications (last 24h):\n\n"
+                    "1) PR #428 - \"Improve onboarding quick setup\" (review requested)\n"
+                    "2) Issue #512 - \"Auth config missing for Slack\" (needs triage)\n"
+                    "3) PR #417 - \"Fix calendar invite parsing\" (ready to merge)\n\n"
+                    "Suggested next steps:\n"
+                    "- Review PR #428 and leave feedback\n"
+                    "- Triage Issue #512 and assign owner\n"
+                    "- Merge PR #417 after CI passes"
+                ),
+                "labels": ["digest", "triage"],
+                "assignees": ["matteo"],
+            },
+            "summary_text": "Here's a clean digest of your GitHub notifications.",
+            "app_id": "github",
+            "proposal_index": 0,
+            "total_proposals": 3,
+            "remaining_proposals": [
+                {
+                    "tool": "NOTION_CREATE_PAGE",
+                    "app_id": "notion",
+                    "args": {
+                        "parent_id": "workspace-digest-001",
+                        "title": "GitHub Daily Digest - Jan 30",
+                        "properties": {
+                            "Status": "Ready",
+                            "Owner": "Matteo",
+                            "Tags": ["github", "triage", "daily"]
+                        },
+                        "content": (
+                            "## Highlights\n"
+                            "- 3 high-signal notifications\n"
+                            "- 1 urgent auth issue\n"
+                            "- 1 PR ready to merge\n\n"
+                            "## Action Items\n"
+                            "- Review PR #428\n"
+                            "- Assign Issue #512\n"
+                            "- Merge PR #417\n\n"
+                            "## Notes\n"
+                            "- Keep an eye on Slack auth errors in staging."
+                        ),
+                    },
+                },
+                {
+                    "tool": "GOOGLECALENDAR_CREATE_EVENT",
+                    "app_id": "google_calendar",
+                    "args": {
+                        "summary": "GitHub Triage (Daily Digest)",
+                        "description": "Quick review of today's GitHub digest and action items.",
+                        "start": {"dateTime": "2026-01-30T16:00:00", "timeZone": "America/Los_Angeles"},
+                        "end": {"dateTime": "2026-01-30T16:30:00", "timeZone": "America/Los_Angeles"},
+                        "location": "https://meet.google.com/triage-room",
                     },
                 },
             ],

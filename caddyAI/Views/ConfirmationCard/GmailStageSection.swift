@@ -15,7 +15,11 @@ struct GmailStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Draft preview")
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
 
                 VStack(alignment: .leading, spacing: 6) {
                     sectionLabel("Subject")
@@ -50,6 +54,32 @@ struct GmailStageSection: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        let tool = proposal.tool.lowercased()
+        
+        if tool.contains("reply") {
+            return "Replying to Email"
+        }
+        if tool.contains("forward") {
+            return "Forwarding Email"
+        }
+        if tool.contains("draft") {
+            return "Saving Draft"
+        }
+        if tool.contains("label") {
+            return "Applying Label"
+        }
+        if tool.contains("trash") {
+            return "Moving to Trash"
+        }
+        if tool.contains("delete") {
+            return "Deleting Email"
+        }
+        return "Sending Email"
     }
 
     // MARK: - Stage Container

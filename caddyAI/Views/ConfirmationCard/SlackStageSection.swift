@@ -16,6 +16,12 @@ struct SlackStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
+                
                 if let messageText = slackMessageDisplay {
                     ScrollableTextArea(maxHeight: 140, indicatorColor: palette.subtleBorder.opacity(0.35)) {
                         if let markdown = slackAttributedText(from: messageText) {
@@ -41,6 +47,51 @@ struct SlackStageSection: View {
         }
     }
     
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        let tool = proposal.tool.lowercased()
+        
+        if tool.contains("schedule") {
+            return "Scheduling Message"
+        }
+        if tool.contains("ephemeral") {
+            return "Sending Ephemeral Message"
+        }
+        if tool.contains("update") {
+            return "Updating Message"
+        }
+        if tool.contains("search") {
+            return "Searching Slack"
+        }
+        if tool.contains("create") && tool.contains("channel") {
+            return "Creating Channel"
+        }
+        if tool.contains("invite") {
+            return "Inviting to Channel"
+        }
+        if tool.contains("archive") {
+            return "Archiving Conversation"
+        }
+        if tool.contains("rename") {
+            return "Renaming Conversation"
+        }
+        if tool.contains("leave") {
+            return "Leaving Conversation"
+        }
+        if tool.contains("remove") {
+            return "Removing from Conversation"
+        }
+        if tool.contains("topic") {
+            return "Setting Topic"
+        }
+        if tool.contains("purpose") {
+            return "Setting Purpose"
+        }
+        // Default to Send Message for send actions
+        return "Sending Message"
+    }
+    
     // MARK: - Stage Container
     
     @ViewBuilder
@@ -59,9 +110,10 @@ struct SlackStageSection: View {
             if name.hasPrefix("#") || name.hasPrefix("@") {
                 return name
             }
-            // If it's a channel ID (starts with C), just show generic text
+            // If it's a channel ID (starts with C), show it with # prefix for consistency
+            // The backend should ideally enrich this, but showing the ID is better than nothing
             if name.hasPrefix("C") && name.count > 8 {
-                return nil // Will be resolved by backend enrichment
+                return "#\(name)"
             }
             return "#\(name)"
         }

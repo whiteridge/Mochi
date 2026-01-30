@@ -26,29 +26,57 @@ struct CalendarStageSection: View {
     
     var body: some View {
         stageContainer {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(calendarDetails.title)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(palette.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 12) {
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
+                
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(calendarDetails.title)
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(palette.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    calendarScheduleSection
-                    calendarAttendeesSection
-                    calendarLocationSection
-                    calendarDescriptionSection
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(key: CalendarDetailsHeightKey.self, value: geo.size.height)
+                        calendarScheduleSection
+                        calendarAttendeesSection
+                        calendarLocationSection
+                        calendarDescriptionSection
                     }
-                )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: CalendarDetailsHeightKey.self, value: geo.size.height)
+                        }
+                    )
 
-                calendarTimelineSection
+                    calendarTimelineSection
+                }
             }
         }
         .onPreferenceChange(CalendarDetailsHeightKey.self) { detailsHeight = $0 }
+    }
+    
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        let tool = proposal.tool.lowercased()
+        
+        if tool.contains("create") || tool.contains("quick_add") || tool.contains("import") {
+            return "Creating Event"
+        }
+        if tool.contains("update") || tool.contains("patch") {
+            return "Updating Event"
+        }
+        if tool.contains("delete") || tool.contains("remove") || tool.contains("clear") {
+            return "Deleting Event"
+        }
+        if tool.contains("move") {
+            return "Moving Event"
+        }
+        return "Creating Event"
     }
     
     // MARK: - Stage Container

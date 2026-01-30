@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct QuickSetupView: View {
+    static let preferredSize = CGSize(width: 520, height: 700)
     @EnvironmentObject private var integrationService: IntegrationService
     @EnvironmentObject private var viewModel: SettingsViewModel
     @EnvironmentObject private var preferences: PreferencesStore
@@ -211,7 +212,7 @@ struct QuickSetupView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 28)
         }
-        .frame(width: 420, height: 640)
+        .frame(width: Self.preferredSize.width, height: Self.preferredSize.height)
         .background(backgroundGradient)
         .onAppear {
             viewModel.loadPersistedValues()

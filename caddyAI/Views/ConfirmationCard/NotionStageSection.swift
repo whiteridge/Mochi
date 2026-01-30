@@ -16,6 +16,12 @@ struct NotionStageSection: View {
     var body: some View {
         stageContainer {
             VStack(alignment: .leading, spacing: 12) {
+                // Action title header
+                Text(actionTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.tertiaryText)
+                    .tracking(0.3)
+                
                 Text(titleDisplay)
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(palette.primaryText)
@@ -52,6 +58,29 @@ struct NotionStageSection: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Action Title
+    
+    private var actionTitle: String {
+        let tool = proposal.tool.lowercased()
+        
+        if tool.contains("create") {
+            return "Creating Page"
+        }
+        if tool.contains("update") || tool.contains("patch") {
+            return "Updating Page"
+        }
+        if tool.contains("archive") {
+            return "Archiving Page"
+        }
+        if tool.contains("restore") {
+            return "Restoring Page"
+        }
+        if tool.contains("delete") {
+            return "Deleting Page"
+        }
+        return "Creating Page"
     }
     
     // MARK: - Stage Container
