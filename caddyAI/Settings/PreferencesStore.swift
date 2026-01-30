@@ -203,7 +203,7 @@ final class PreferencesStore: ObservableObject {
 	init(store: UserDefaults = UserDefaults.standard) {
 		self.store = store
 		self.accentColorHex = store.string(forKey: Keys.accent) ?? "#4A90E2"
-		self.themeRaw = store.string(forKey: Keys.theme) ?? ThemePreference.system.rawValue
+		self.themeRaw = store.string(forKey: Keys.theme) ?? ThemePreference.dark.rawValue
 		self.apiKey = store.string(forKey: Keys.apiKey) ?? ""
 		self.apiBaseURL = store.string(forKey: Keys.apiBaseURL) ?? ""
 		self.hasCompletedSetup = store.bool(forKey: Keys.hasCompletedSetup)
@@ -218,7 +218,7 @@ final class PreferencesStore: ObservableObject {
 	
 	func reset() {
 		accentColorHex = "#4A90E2"
-		themeRaw = ThemePreference.system.rawValue
+		themeRaw = ThemePreference.dark.rawValue
 		apiKey = ""
 		apiBaseURL = ""
 		hasCompletedSetup = false
@@ -253,4 +253,3 @@ extension Color {
 		self = Color(red: r, green: g, blue: b)
 	}
 }
-
