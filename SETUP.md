@@ -34,8 +34,13 @@ Create a `backend/.env` file (do not commit it) or export variables in your shel
 Minimum required:
 ```
 COMPOSIO_API_KEY=your_composio_key
+```
+
+Model API key options (pick one):
+```
 GOOGLE_API_KEY=your_gemini_key
 ```
+or enter the Gemini key in the macOS app Quick Setup (stored locally in Keychain and sent to the backend per request).
 
 Recommended (keeps accounts stable across restarts):
 ```
@@ -68,7 +73,7 @@ open caddyAI.xcodeproj
 ```
 Then run the `caddyAI` scheme. The first time, macOS will ask for microphone access.
 
-On first launch, a minimal Quick Setup window appears. Add your API key and connect at least one integration (Composio OAuth). You can connect additional tools later in Settings.
+On first launch, a minimal Quick Setup window appears. Add your API key (stored locally in Keychain and sent to the backend) and connect at least one integration (Composio OAuth). You can connect additional tools later in Settings.
 
 ## 5) Connect integrations
 In the app:

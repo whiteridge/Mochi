@@ -42,6 +42,12 @@ load_dotenv()
 
 app = FastAPI(title="CaddyAI Mock Backend")
 
+MOCK_THINKING_DELAY_SEC = float(os.getenv("MOCK_THINKING_DELAY_SEC", "0.9"))
+MOCK_SEARCHING_DELAY_SEC = float(os.getenv("MOCK_SEARCHING_DELAY_SEC", "1.4"))
+MOCK_LONG_SEARCHING_DELAY_SEC = float(os.getenv("MOCK_LONG_SEARCHING_DELAY_SEC", "2.2"))
+MOCK_PRE_PROPOSAL_DELAY_SEC = float(os.getenv("MOCK_PRE_PROPOSAL_DELAY_SEC", "0.5"))
+MOCK_CONFIRM_EXEC_DELAY_SEC = float(os.getenv("MOCK_CONFIRM_EXEC_DELAY_SEC", "1.2"))
+
 
 # --- Models (Same as main.py) ---
 
@@ -56,6 +62,7 @@ class ChatRequest(BaseModel):
     user_id: str
     confirmed_tool: Optional[dict] = None
     user_timezone: Optional[str] = None
+    api_key: Optional[str] = None
 
 
 # --- Mock Agent Service ---
@@ -67,6 +74,13 @@ class MockAgentService:
     def __init__(self):
         # Initialize real service for execution if available
         self.composio_service = ComposioService() if ComposioService else None
+
+    async def _emit_thinking(self, text: str = "Thinking...") -> AsyncGenerator[Dict[str, Any], None]:
+        yield {
+            "type": "thinking",
+            "content": text,
+        }
+        await asyncio.sleep(MOCK_THINKING_DELAY_SEC)
 
     async def run_mock_flow(
         self,
@@ -191,6 +205,9 @@ class MockAgentService:
         args = confirmed_tool.get("args", {})
         app_id = confirmed_tool.get("app_id", "unknown")
 
+        async for event in self._emit_thinking():
+            yield event
+
         # 1. Emit executing status
         yield {
             "type": "early_summary",
@@ -199,10 +216,21 @@ class MockAgentService:
             "involved_apps": [app_id],
         }
 
-        # 2. Simulate processing delay
-        await asyncio.sleep(1.0)
+        # 2. Pause before searching state
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
-        # 3. Execute (real or mock)
+        # 3. Show searching state
+        yield {
+            "type": "tool_status",
+            "tool": tool_name,
+            "status": "searching",
+            "app_id": app_id,
+            "involved_apps": [app_id],
+        }
+
+        await asyncio.sleep(MOCK_CONFIRM_EXEC_DELAY_SEC)
+
+        # 4. Execute (real or mock)
         try:
             if self.composio_service:
                 # Actually run it with the real service
@@ -213,16 +241,32 @@ class MockAgentService:
                     result_text = str(result)[:500]
             else:
                 # Fake execution
-                await asyncio.sleep(0.5)
                 result_text = "Mock execution successful. (ComposioService not loaded)"
 
-            # 4. Success message
+            yield {
+                "type": "tool_status",
+                "tool": tool_name,
+                "status": "done",
+                "app_id": app_id,
+                "involved_apps": [app_id],
+            }
+
+            await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
+
+            # 5. Success message
             yield {
                 "type": "message",
                 "content": f"✅ Action completed successfully!\n\n```json\n{result_text}\n```",
                 "action_performed": f"{app_id.capitalize()} Action Executed",
             }
         except Exception as e:
+            yield {
+                "type": "tool_status",
+                "tool": tool_name,
+                "status": "error",
+                "app_id": app_id,
+                "involved_apps": [app_id],
+            }
             yield {
                 "type": "message",
                 "content": f"❌ Error executing action: {str(e)}",
@@ -231,6 +275,9 @@ class MockAgentService:
 
     async def _linear_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Linear ticket creation flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -247,7 +294,7 @@ class MockAgentService:
             "app_id": "linear",
         }
 
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(MOCK_SEARCHING_DELAY_SEC)
 
         # Tool status: done
         yield {
@@ -257,7 +304,7 @@ class MockAgentService:
             "app_id": "linear",
         }
 
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal - MAXED OUT with all Linear metadata
         yield {
@@ -287,6 +334,9 @@ class MockAgentService:
 
     async def _slack_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Slack message flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -295,7 +345,7 @@ class MockAgentService:
             "involved_apps": ["slack"],
         }
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal - MAXED OUT with all Slack metadata
         yield {
@@ -319,6 +369,9 @@ class MockAgentService:
     async def _multi_app_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate multi-app flow (Linear + Slack)."""
         apps = ["linear", "slack"]
+
+        async for event in self._emit_thinking():
+            yield event
 
         # Early summary
         yield {
@@ -350,9 +403,9 @@ class MockAgentService:
                 "app_id": app_id,
                 "involved_apps": apps,
             }
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(MOCK_LONG_SEARCHING_DELAY_SEC)
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # Proposal 1 (Linear) with remaining proposals - MAXED OUT
         yield {
@@ -388,6 +441,9 @@ class MockAgentService:
 
     async def _calendar_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Google Calendar upcoming events flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -404,7 +460,7 @@ class MockAgentService:
             "app_id": "google_calendar",
         }
 
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(MOCK_SEARCHING_DELAY_SEC)
 
         # Tool status: done
         yield {
@@ -414,7 +470,7 @@ class MockAgentService:
             "app_id": "google_calendar",
         }
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal - upcoming events snapshot
         yield {
@@ -440,6 +496,9 @@ class MockAgentService:
     async def _triple_app_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate triple-app flow (Linear + Slack + Calendar)."""
         apps = ["linear", "slack", "google_calendar"]
+
+        async for event in self._emit_thinking():
+            yield event
 
         # Early summary
         yield {
@@ -473,9 +532,9 @@ class MockAgentService:
                 "app_id": app_id,
                 "involved_apps": apps,
             }
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(MOCK_LONG_SEARCHING_DELAY_SEC)
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # Proposal 1 (Linear) with remaining proposals for Slack and Calendar - MAXED OUT
         yield {
@@ -528,6 +587,9 @@ class MockAgentService:
         """Simulate demo flow (GitHub digest + Notion + Calendar)."""
         apps = ["github", "notion", "google_calendar"]
 
+        async for event in self._emit_thinking():
+            yield event
+
         yield {
             "type": "early_summary",
             "content": "I'll summarize your GitHub notifications, log it in Notion, and block time to review.",
@@ -557,9 +619,9 @@ class MockAgentService:
                 "app_id": app_id,
                 "involved_apps": apps,
             }
-            await asyncio.sleep(1.6)
+            await asyncio.sleep(MOCK_LONG_SEARCHING_DELAY_SEC)
 
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         yield {
             "type": "proposal",
@@ -627,6 +689,9 @@ class MockAgentService:
 
     async def _github_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate GitHub PR creation flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -643,7 +708,7 @@ class MockAgentService:
             "app_id": "github",
         }
 
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(MOCK_SEARCHING_DELAY_SEC)
 
         yield {
             "type": "tool_status",
@@ -652,7 +717,7 @@ class MockAgentService:
             "app_id": "github",
         }
 
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal
         yield {
@@ -674,6 +739,9 @@ class MockAgentService:
 
     async def _gmail_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Gmail email composition flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -682,7 +750,7 @@ class MockAgentService:
             "involved_apps": ["gmail"],
         }
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal
         yield {
@@ -702,6 +770,9 @@ class MockAgentService:
 
     async def _notion_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Notion page creation flow."""
+        async for event in self._emit_thinking():
+            yield event
+
         # Early summary
         yield {
             "type": "early_summary",
@@ -710,7 +781,7 @@ class MockAgentService:
             "involved_apps": ["notion"],
         }
 
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
 
         # The Proposal
         yield {

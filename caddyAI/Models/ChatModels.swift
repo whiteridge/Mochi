@@ -7,19 +7,28 @@ struct ChatRequest: Codable {
     let userId: String
     let confirmedTool: ConfirmedToolData?
     let userTimezone: String?
+    let apiKey: String?
     
     enum CodingKeys: String, CodingKey {
         case messages
         case userId = "user_id"
         case confirmedTool = "confirmed_tool"
         case userTimezone = "user_timezone"
+        case apiKey = "api_key"
     }
     
-    init(messages: [Message], userId: String, confirmedTool: ConfirmedToolData? = nil, userTimezone: String? = nil) {
+    init(
+        messages: [Message],
+        userId: String,
+        confirmedTool: ConfirmedToolData? = nil,
+        userTimezone: String? = nil,
+        apiKey: String? = nil
+    ) {
         self.messages = messages
         self.userId = userId
         self.confirmedTool = confirmedTool
         self.userTimezone = userTimezone
+        self.apiKey = apiKey
     }
 }
 

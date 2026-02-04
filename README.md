@@ -37,7 +37,7 @@ See `ROADMAP.md` for current priorities and progress.
 - Python 3.11, FastAPI, Composio, google-genai
 
 ## Setup
-See `SETUP.md` for a full "from zero" guide (requirements, env vars, backend, app run, and troubleshooting). On first launch, Quick Setup prompts for your API key and at least one Composio integration.
+See `SETUP.md` for a full "from zero" guide (requirements, env vars, backend, app run, and troubleshooting). On first launch, Quick Setup prompts for your API key and at least one Composio integration (the key is stored in Keychain and sent to the backend).
 
 ## Contributing
 Focus on stability and the action/tooling layer.

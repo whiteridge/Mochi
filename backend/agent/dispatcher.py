@@ -1,6 +1,8 @@
 """Stream dispatcher for agent tool execution."""
 
 import json
+import re
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Generator, List, Optional, Tuple
@@ -40,6 +42,40 @@ def _is_rate_limit_error(exc: Exception) -> bool:
         or "quota" in message
         or "429" in message
     )
+
+
+def _parse_retry_delay_seconds(exc: Exception) -> Optional[float]:
+    match = re.search(r"retry in ([0-9.]+)s", str(exc), re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _send_message_with_retry(
+    chat,
+    message: Any,
+    *,
+    max_retries: int = 2,
+    base_delay: float = 1.0,
+) -> Tuple[Optional[Any], Optional[Exception]]:
+    last_exc: Optional[Exception] = None
+    for attempt in range(max_retries + 1):
+        try:
+            return chat.send_message(message), None
+        except Exception as exc:  # noqa: BLE001 - surface model errors to caller
+            last_exc = exc
+            if not _is_rate_limit_error(exc) or attempt >= max_retries:
+                break
+            delay = _parse_retry_delay_seconds(exc) or (base_delay * (attempt + 1))
+            print(
+                f"DEBUG: Gemini rate-limited; retrying in {delay:.2f}s",
+                flush=True,
+            )
+            time.sleep(delay)
+    return None, last_exc
 
 
 def _build_tool_response_payload(result_data: Any, max_chars: int = 12000) -> Dict[str, Any]:
@@ -125,10 +161,9 @@ class AgentDispatcher:
         context: DispatcherContext,
     ) -> Generator[Dict, None, Optional[Any]]:
         print(f"DEBUG: Sending user input to Gemini: {context.user_input[:100]}...")
-        try:
-            response = chat.send_message(context.user_input)
-        except Exception as exc:  # noqa: BLE001 - surface rate limits to client
-            if _is_rate_limit_error(exc):
+        response, send_error = _send_message_with_retry(chat, context.user_input)
+        if send_error is not None:  # noqa: BLE001 - surface rate limits to client
+            if _is_rate_limit_error(send_error):
                 yield {
                     "type": "message",
                     "content": (
@@ -138,7 +173,7 @@ class AgentDispatcher:
                     "action_performed": None,
                 }
                 return None
-            raise
+            raise send_error
 
         if hasattr(response, "candidates") and response.candidates:
             candidate = response.candidates[0]
@@ -255,9 +290,8 @@ class AgentDispatcher:
                 name=tool_name,
                 response=response_payload,
             )
-            try:
-                response = chat.send_message([function_response])
-            except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+            response, send_error = _send_message_with_retry(chat, [function_response])
+            if send_error is not None:  # noqa: BLE001 - surface model errors to client
                 print(
                     f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
                     flush=True,
@@ -544,9 +578,8 @@ class AgentDispatcher:
             ):
                 context.missing_app_nudge_sent = True
                 nudge_text = self._missing_app_nudge(missing_apps)
-                try:
-                    context.response = chat.send_message(nudge_text)
-                except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
+                response, send_error = _send_message_with_retry(chat, nudge_text)
+                if send_error is not None:  # noqa: BLE001 - surface rate limits to client
                     if _is_rate_limit_error(send_error):
                         yield {
                             "type": "message",
@@ -558,7 +591,9 @@ class AgentDispatcher:
                         }
                         context.exit_early = True
                         return DispatchPhase.FINISHED
-                    raise
+                    raise send_error
+
+                context.response = response
 
                 context.iteration += 1
                 return DispatchPhase.PLANNING
@@ -578,9 +613,8 @@ class AgentDispatcher:
                     "If IDs are required, call list/search tools to resolve them first. "
                     "Respond with function calls only."
                 )
-                try:
-                    context.response = chat.send_message(nudge_text)
-                except Exception as send_error:  # noqa: BLE001 - surface rate limits to client
+                response, send_error = _send_message_with_retry(chat, nudge_text)
+                if send_error is not None:  # noqa: BLE001 - surface rate limits to client
                     if _is_rate_limit_error(send_error):
                         yield {
                             "type": "message",
@@ -592,7 +626,9 @@ class AgentDispatcher:
                         }
                         context.exit_early = True
                         return DispatchPhase.FINISHED
-                    raise
+                    raise send_error
+
+                context.response = response
 
                 context.iteration += 1
                 return DispatchPhase.PLANNING
@@ -668,9 +704,8 @@ class AgentDispatcher:
             )
             status_after_read = "error"
 
-        try:
-            context.response = chat.send_message([function_response])
-        except Exception as send_error:  # noqa: BLE001 - surface model errors to client
+        response, send_error = _send_message_with_retry(chat, [function_response])
+        if send_error is not None:  # noqa: BLE001 - surface model errors to client
             print(
                 f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
                 flush=True,
@@ -698,6 +733,8 @@ class AgentDispatcher:
             }
             context.exit_early = True
             return DispatchPhase.FINISHED
+
+        context.response = response
 
         context.app_read_status[app_id] = status_after_read
         context.apps_with_tool_status.add(app_id)

@@ -156,7 +156,6 @@ extension AgentViewModel {
                             // DON'T clear status - smoothly transition from "Thinking" to "Searching {app}"
                             // The StatusPillView will animate the text change
                             let formattedAppName = appId.capitalized
-                            await delayThinkingToSearching()
                             await MainActor.run {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                     // Slide from "Thinking" to "Searching {app}" - pill stays visible
@@ -207,7 +206,6 @@ extension AgentViewModel {
                         if !hasInsertedActionSummary && status == "searching" {
                             hasInsertedActionSummary = true
                             
-                            await delayThinkingToSearching()
                             await MainActor.run {
                                 // DON'T clear status - smoothly transition from "Thinking" to "Searching {app}"
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -221,9 +219,6 @@ extension AgentViewModel {
                             }
                         }
                         
-                        if status == "searching" {
-                            await delayThinkingToSearching()
-                        }
                         await MainActor.run {
                             if !appSteps.contains(where: { $0.appId == appId }) {
                                 let newStep = AppStep(appId: appId, state: .waiting, proposalIndex: appSteps.count)
@@ -280,7 +275,6 @@ extension AgentViewModel {
                                 steps.append(AppStep(appId: appId, state: state, proposalIndex: idx))
                             }
                         }
-                        await delayThinkingToSearching()
                         await MainActor.run {
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 appSteps = steps
@@ -375,16 +369,6 @@ extension AgentViewModel {
         }
     }
 
-    private func delayThinkingToSearching() async {
-        let shouldDelay = await MainActor.run { () -> Bool in
-            if case .thinking = currentStatus { return true }
-            return isThinking
-        }
-        if shouldDelay {
-            try? await Task.sleep(nanoseconds: 350_000_000)
-        }
-    }
-    
     // MARK: - Proposal Helpers
     private func resolvedAppId(for tool: String, eventAppId: String?) -> String {
         return eventAppId ?? formatAppName(from: tool).lowercased()

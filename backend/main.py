@@ -5,13 +5,25 @@ from typing import List, Optional, Any
 import json
 import os
 from agent_service import AgentService
+from services.composio_service import ComposioService
 
 app = FastAPI(title="CaddyAI Backend")
 
-# Initialize Agent Service
-# We initialize it once at startup
+# Initialize Composio Service (for integrations)
 try:
-    agent_service = AgentService()
+    composio_service = ComposioService()
+except Exception as e:
+    print(f"Warning: Failed to initialize ComposioService: {e}")
+    composio_service = None
+
+# Initialize Agent Service (Gemini) if API key is available
+agent_service = None
+agent_service_api_key = None
+try:
+    env_api_key = os.getenv("GOOGLE_API_KEY")
+    if env_api_key:
+        agent_service = AgentService(api_key=env_api_key, composio_service=composio_service)
+        agent_service_api_key = env_api_key
 except Exception as e:
     print(f"Warning: Failed to initialize AgentService: {e}")
     agent_service = None
@@ -25,15 +37,38 @@ class ChatRequest(BaseModel):
     user_id: str
     confirmed_tool: Optional[dict] = None  # For multi-app: {"tool": "...", "args": {...}, "app_id": "..."}
     user_timezone: Optional[str] = None
+    api_key: Optional[str] = None
 
 # ChatResponse model is no longer used for the return type of the endpoint directly, 
 # but the events yielded will match the structure we want.
 # We'll keep it for reference or if we want to document the event structure.
 
+def _resolve_agent_service(request: ChatRequest) -> AgentService | None:
+    global agent_service, agent_service_api_key
+
+    api_key = request.api_key or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+
+    if agent_service is None or agent_service_api_key != api_key:
+        try:
+            agent_service = AgentService(api_key=api_key, composio_service=composio_service)
+            agent_service_api_key = api_key
+        except Exception as exc:  # noqa: BLE001 - surface startup error to caller
+            print(f"Warning: Failed to initialize AgentService: {exc}")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return agent_service
+
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    if not agent_service:
-        raise HTTPException(status_code=500, detail="Agent service not initialized (check API keys)")
+    service = _resolve_agent_service(request)
+    if not service:
+        raise HTTPException(
+            status_code=500,
+            detail="Agent service not initialized (missing GOOGLE_API_KEY or api_key in request)",
+        )
     
     # Extract the latest user message
     user_input = next((m.content for m in reversed(request.messages) if m.role == "user"), None)
@@ -69,7 +104,7 @@ async def chat_endpoint(request: ChatRequest):
         effective_user_id = os.getenv("COMPOSIO_USER_ID", request.user_id)
         print(f"DEBUG: Using effective user_id: {effective_user_id}")
         
-        for event in agent_service.run_agent(
+        for event in service.run_agent(
             user_input,
             effective_user_id,
             chat_history=gemini_history,
@@ -83,13 +118,13 @@ async def chat_endpoint(request: ChatRequest):
 @app.get("/api/v1/integrations/connect/{app_name}")
 async def get_connect_url(app_name: str, user_id: str):
     """Get the Composio authorization URL for the specified app."""
-    if not agent_service:
-        raise HTTPException(status_code=500, detail="Agent service not initialized")
+    if not composio_service:
+        raise HTTPException(status_code=500, detail="Composio service not initialized")
         
     try:
         # We can pass a callback_url if we want the user to be redirected back 
         # to a web page or deep link. For now, we'll let Composio use its default.
-        url = agent_service.composio_service.get_auth_url(app_name, user_id)
+        url = composio_service.get_auth_url(app_name, user_id)
         return {"url": url}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -97,11 +132,11 @@ async def get_connect_url(app_name: str, user_id: str):
 @app.get("/api/v1/integrations/status/{app_name}")
 async def get_integration_status(app_name: str, user_id: str):
     """Check if the user is connected to the specified app via Composio."""
-    if not agent_service:
-        raise HTTPException(status_code=500, detail="Agent service not initialized")
+    if not composio_service:
+        raise HTTPException(status_code=500, detail="Composio service not initialized")
         
     try:
-        details = agent_service.composio_service.get_connection_details(app_name, user_id)
+        details = composio_service.get_connection_details(app_name, user_id)
         return {
             "connected": details.get("connected", False),
             "status": details.get("status"),
@@ -113,11 +148,11 @@ async def get_integration_status(app_name: str, user_id: str):
 @app.delete("/api/v1/integrations/disconnect/{app_name}")
 async def disconnect_integration(app_name: str, user_id: str):
     """Disconnect the user from the specified app via Composio."""
-    if not agent_service:
-        raise HTTPException(status_code=500, detail="Agent service not initialized")
+    if not composio_service:
+        raise HTTPException(status_code=500, detail="Composio service not initialized")
         
     try:
-        count = agent_service.composio_service.disconnect_app(app_name, user_id)
+        count = composio_service.disconnect_app(app_name, user_id)
         return {"disconnected": True, "accounts_removed": count}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

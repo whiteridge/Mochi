@@ -144,7 +144,7 @@ def create_chat(client, gemini_tools, chat_history, user_context: Optional[str] 
         thinking_config=types.ThinkingConfig(include_thoughts=True),
     )
     return client.chats.create(
-        model="gemini-2.5-flash",  # Using stable model - gemini-3-flash not yet available in v1beta API
+        model="gemini-3-flash-preview",
         config=config,
         history=formatted_history,
     )

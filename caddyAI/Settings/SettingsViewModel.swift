@@ -153,7 +153,7 @@ final class SettingsViewModel: ObservableObject {
 			print("Error connecting via Composio: \(error)")
 			
 			if error.code == -1004 {
-				return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
+				return "Backend not running. Start with: cd backend && uvicorn main:app --reload"
 			}
 			return normalizeIntegrationError("Connection failed: \(error.localizedDescription)", appName: appName)
 		}
@@ -181,7 +181,7 @@ final class SettingsViewModel: ObservableObject {
 		}
 
 		if lower.contains("backend not running") {
-			return "Backend not running. Start with: cd backend && uv run uvicorn main:app"
+			return "Backend not running. Start with: cd backend && uvicorn main:app --reload"
 		}
 
 		if trimmed.contains("{") && trimmed.contains("}") {

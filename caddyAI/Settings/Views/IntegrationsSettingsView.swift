@@ -414,7 +414,9 @@ struct IntegrationsSettingsView: View {
 	}
 	
 	private func disconnectViaBackend(app: String) async {
-		let urlString = "http://127.0.0.1:8000/api/v1/integrations/disconnect/\(app)?user_id=caddyai-default"
+		let baseURL = BackendConfig.integrationsBaseURL
+		let userId = BackendConfig.userId
+		let urlString = "\(baseURL)/disconnect/\(app)?user_id=\(userId)"
 		guard let url = URL(string: urlString) else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "DELETE"

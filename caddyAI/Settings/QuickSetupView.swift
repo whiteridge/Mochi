@@ -212,6 +212,7 @@ struct QuickSetupView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 28)
         }
+        .scrollIndicators(.hidden)
         .frame(width: Self.preferredSize.width, height: Self.preferredSize.height)
         .background(backgroundGradient)
         .onAppear {

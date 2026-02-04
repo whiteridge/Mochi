@@ -22,16 +22,21 @@ enum LLMError: LocalizedError {
 
 actor LLMService {
     static let shared = LLMService()
-    
-    private let baseURL = "http://127.0.0.1:8000/api/chat"
-    private let userId = "test_user_voice_app"
+
+    private var chatURL: URL? {
+        BackendConfig.chatURL
+    }
+
+    private var userId: String {
+        BackendConfig.userId
+    }
     
     private init() {}
     
     func sendMessage(text: String, history: [Message] = [], confirmedTool: ConfirmedToolData? = nil) -> AsyncThrowingStream<StreamEvent, Error> {
         return AsyncThrowingStream { continuation in
             Task {
-                guard let url = URL(string: baseURL) else {
+                guard let url = chatURL else {
                     continuation.finish(throwing: LLMError.invalidURL)
                     return
                 }
@@ -44,7 +49,8 @@ actor LLMService {
                     messages: fullMessages,
                     userId: userId,
                     confirmedTool: confirmedTool,
-                    userTimezone: userTimezone
+                    userTimezone: userTimezone,
+                    apiKey: BackendConfig.loadModelApiKey()
                 )
                 
                 var request = URLRequest(url: url)

@@ -55,9 +55,9 @@ class GeminiService: ObservableObject {
 			return
 		}
 		
-		// Initialize the model with gemini-2.5-flash (gemini-3-flash not yet available in API)
+		// Initialize the model with Gemini 3 Flash preview.
 		model = GenerativeModel(
-			name: "gemini-2.5-flash",
+			name: "gemini-3-flash-preview",
 			apiKey: apiKey,
 			systemInstruction: ModelContent(role: "system", parts: systemInstruction)
 		)
@@ -172,4 +172,3 @@ class GeminiService: ObservableObject {
 		startNewChat()
 	}
 }
-

@@ -20,15 +20,15 @@ load_dotenv()
 class AgentService:
     """Main agent service for orchestrating conversations with Composio tools."""
     
-    def __init__(self):
+    def __init__(self, api_key: str | None = None, composio_service: ComposioService | None = None):
         """Initialize the agent service with Gemini client and service dependencies."""
-        self.api_key = os.getenv("GOOGLE_API_KEY")
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
         self.client = genai.Client(api_key=self.api_key)
         
         # Initialize services
-        self.composio_service = ComposioService()
+        self.composio_service = composio_service or ComposioService()
         self.linear_service = LinearService(self.composio_service)
         self.slack_service = SlackService(self.composio_service)
         self.notion_service = NotionService(self.composio_service)

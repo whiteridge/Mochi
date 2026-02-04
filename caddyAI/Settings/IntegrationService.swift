@@ -155,8 +155,8 @@ final class IntegrationService: ObservableObject {
 	private let keychain: KeychainStore
 	private let core: IntegrationCore
 	private let credentialManager: CredentialManager
-	private let backendBaseURL = "http://127.0.0.1:8000/api/v1/integrations"
-	private let userId = "caddyai-default"
+	private var backendBaseURL: String { BackendConfig.integrationsBaseURL }
+	private var userId: String { BackendConfig.userId }
 
 	var hasAnyComposioConnection: Bool {
 		slackState.isConnected
