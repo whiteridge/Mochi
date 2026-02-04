@@ -656,58 +656,79 @@ class AgentDispatcher:
         chat,
         context: DispatcherContext,
     ) -> Generator[Dict, None, DispatchPhase]:
-        if not context.current_read_action:
+        if not context.current_read_action and not context.pending_read_actions:
             return DispatchPhase.PLANNING
 
-        tool_name, tool_args, _, app_id = context.current_read_action
+        read_actions: List[Tuple] = []
+        if context.current_read_action:
+            read_actions.append(context.current_read_action)
+        if context.pending_read_actions:
+            read_actions.extend(context.pending_read_actions)
         context.current_read_action = None
+        context.pending_read_actions = []
 
-        context.apps_with_tool_status.add(app_id)
-        yield {
-            "type": "tool_status",
-            "tool": tool_name,
-            "status": "searching",
-            "app_id": app_id,
-            "involved_apps": context.involved_apps,
-        }
-        context.last_searching_app_id = app_id
+        if len(read_actions) > 1:
+            print(f"DEBUG: Executing {len(read_actions)} READ actions in batch", flush=True)
 
-        print(f"DEBUG: Executing READ: {tool_name}", flush=True)
+        function_responses: List[types.Part] = []
+        for tool_name, tool_args, _, app_id in read_actions:
+            context.apps_with_tool_status.add(app_id)
+            yield {
+                "type": "tool_status",
+                "tool": tool_name,
+                "status": "searching",
+                "app_id": app_id,
+                "involved_apps": context.involved_apps,
+            }
+            context.last_searching_app_id = app_id
 
-        try:
-            result = self.composio_service.execute_tool(
-                slug=tool_name,
-                arguments=tool_args,
-                user_id=context.user_id,
-            )
-            print(f"DEBUG: Tool execution result: {result}", flush=True)
+            print(f"DEBUG: Executing READ: {tool_name}", flush=True)
 
-            if hasattr(result, "data"):
-                result_data = result.data
-                result_success = getattr(result, "successful", True)
-            else:
-                result_data = result
-                result_success = bool(getattr(result, "successful", True))
+            try:
+                result = self.composio_service.execute_tool(
+                    slug=tool_name,
+                    arguments=tool_args,
+                    user_id=context.user_id,
+                )
+                print(f"DEBUG: Tool execution result: {result}", flush=True)
 
-            response_payload = _build_tool_response_payload(result_data)
-            function_response = types.Part.from_function_response(
-                name=tool_name,
-                response=response_payload,
-            )
-            status_after_read = "done" if result_success else "error"
+                if hasattr(result, "data"):
+                    result_data = result.data
+                    result_success = getattr(result, "successful", True)
+                else:
+                    result_data = result
+                    result_success = bool(getattr(result, "successful", True))
 
-        except Exception as exec_error:  # noqa: BLE001 - emit error to stream
-            print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
-            function_response = types.Part.from_function_response(
-                name=tool_name,
-                response={"error": str(exec_error)},
-            )
-            status_after_read = "error"
+                response_payload = _build_tool_response_payload(result_data)
+                function_response = types.Part.from_function_response(
+                    name=tool_name,
+                    response=response_payload,
+                )
+                status_after_read = "done" if result_success else "error"
 
-        response, send_error = _send_message_with_retry(chat, [function_response])
+            except Exception as exec_error:  # noqa: BLE001 - emit error to stream
+                print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
+                function_response = types.Part.from_function_response(
+                    name=tool_name,
+                    response={"error": str(exec_error)},
+                )
+                status_after_read = "error"
+
+            context.app_read_status[app_id] = status_after_read
+            context.apps_with_tool_status.add(app_id)
+            yield {
+                "type": "tool_status",
+                "tool": tool_name,
+                "status": status_after_read,
+                "app_id": app_id,
+                "involved_apps": context.involved_apps,
+            }
+            function_responses.append(function_response)
+
+        response, send_error = _send_message_with_retry(chat, function_responses)
         if send_error is not None:  # noqa: BLE001 - surface model errors to client
             print(
-                f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                f"DEBUG: ❌ Gemini follow-up error after read batch: {send_error}",
                 flush=True,
             )
             if _is_rate_limit_error(send_error):
@@ -735,16 +756,6 @@ class AgentDispatcher:
             return DispatchPhase.FINISHED
 
         context.response = response
-
-        context.app_read_status[app_id] = status_after_read
-        context.apps_with_tool_status.add(app_id)
-        yield {
-            "type": "tool_status",
-            "tool": tool_name,
-            "status": status_after_read,
-            "app_id": app_id,
-            "involved_apps": context.involved_apps,
-        }
         context.iteration += 1
         return DispatchPhase.PLANNING
 

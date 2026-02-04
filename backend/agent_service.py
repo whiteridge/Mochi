@@ -3,6 +3,7 @@ from typing import Dict, List
 from dotenv import load_dotenv
 from google import genai
 
+from agent.common import detect_apps_from_input, map_tool_to_app
 from agent.dispatcher import AgentDispatcher
 from agent.gemini_config import build_gemini_tools, create_chat
 from agent.tool_loader import load_composio_tools
@@ -63,6 +64,15 @@ class AgentService:
         print(f"Running agent for user: {user_id} with input: {user_input}")
 
         # 1. Get tools for the user (Linear, Slack, Notion, GitHub, Gmail, Calendar)
+        required_apps = detect_apps_from_input(user_input)
+        if confirmed_tool:
+            confirmed_app = confirmed_tool.get("app_id") or map_tool_to_app(
+                confirmed_tool.get("tool", "")
+            )
+            if confirmed_app and confirmed_app not in required_apps:
+                required_apps.append(confirmed_app)
+        if not required_apps:
+            required_apps = None
         all_composio_tools, errors = load_composio_tools(
             self.linear_service,
             self.slack_service,
@@ -71,6 +81,7 @@ class AgentService:
             self.gmail_service,
             self.google_calendar_service,
             user_id,
+            required_apps=required_apps,
         )
 
         if not all_composio_tools:
