@@ -9,8 +9,8 @@ Usage:
     uvicorn mock_main:app --reload --port 8000
 
 Test scenarios:
-    - "test 1" / "test one" -> Linear ticket proposal
-    - "test 2" / "test two" -> Slack message proposal
+    - "test 1" / "test one" -> Demo flow #1 (Linear issue + Slack notify)
+    - "test 2" / "test two" -> Demo flow #2 (Slack message w/ confirm)
     - "test 3" / "test three" -> Multi-app flow (Linear + Slack)
     - "test 4" / "test four" -> Triple-app flow (Linear + Slack + Calendar)
     - "test 5" / "test five" -> Calendar event
@@ -122,55 +122,67 @@ class MockAgentService:
         print(f"[MOCK DEBUG] Contains 'test 9': {'test 9' in user_input_lower}")
         print("=" * 60)
 
-        # Scenario A: Linear (test 1 / test one)
-        if any(k in user_input_lower for k in ["test 1", "test one", "testone"]) or ("linear" in user_input_lower and "test" not in user_input_lower):
+        # Scenario A: Demo flow #1 (test 1 / test one)
+        if any(k in user_input_lower for k in ["test 1", "test one", "testone"]):
+            print("[MOCK DEBUG] -> Matched: Demo flow #1 (Linear + Slack)")
+            async for event in self._demo_flow_one_scenario():
+                yield event
+
+        # Scenario B: Demo flow #2 (test 2 / test two)
+        elif any(k in user_input_lower for k in ["test 2", "test two", "testtwo"]):
+            print("[MOCK DEBUG] -> Matched: Demo flow #2 (Slack confirm)")
+            async for event in self._demo_flow_two_scenario():
+                yield event
+
+        # Scenario C: Linear (keyword match)
+        elif "linear" in user_input_lower and "test" not in user_input_lower:
             print("[MOCK DEBUG] -> Matched: Linear scenario")
             async for event in self._linear_scenario():
                 yield event
 
-        # Scenario B: Slack (test 2 / test two)
-        elif any(k in user_input_lower for k in ["test 2", "test two", "testtwo"]) or ("slack" in user_input_lower and "test" not in user_input_lower):
+        # Scenario D: Slack (keyword match)
+        elif "slack" in user_input_lower and "test" not in user_input_lower:
             print("[MOCK DEBUG] -> Matched: Slack scenario")
             async for event in self._slack_scenario():
                 yield event
 
-        # Scenario C: Multi-App (test 3 / test three)
+        # Scenario E: Multi-App (test 3 / test three)
         elif any(k in user_input_lower for k in ["test 3", "test three", "testthree"]):
             print("[MOCK DEBUG] -> Matched: Multi-app scenario")
             async for event in self._multi_app_scenario():
                 yield event
 
-        # Scenario D: Triple-App (test 4 / test four)
+        # Scenario F: Triple-App (test 4 / test four)
         elif any(k in user_input_lower for k in ["test 4", "test four", "testfour"]):
             print("[MOCK DEBUG] -> Matched: Triple-app scenario")
             async for event in self._triple_app_scenario():
                 yield event
 
-        # Scenario E: Calendar (test 5 / test five)
+        # Scenario G: Calendar (test 5 / test five)
         elif any(k in user_input_lower for k in ["test 5", "test five", "testfive"]) or ("calendar" in user_input_lower and "test" not in user_input_lower):
             print("[MOCK DEBUG] -> Matched: Calendar scenario")
             async for event in self._calendar_scenario():
                 yield event
 
-        # Scenario F: GitHub (test 6 / test six)
+        # Scenario H: GitHub (test 6 / test six)
         elif any(k in user_input_lower for k in ["test 6", "test six", "testsix"]) or ("github" in user_input_lower and "test" not in user_input_lower):
             print("[MOCK DEBUG] -> Matched: GitHub scenario")
             async for event in self._github_scenario():
                 yield event
 
-        # Scenario G: Gmail (test 7 / test seven)
+        # Scenario I: Gmail (test 7 / test seven)
         elif any(k in user_input_lower for k in ["test 7", "test seven", "testseven"]) or ("gmail" in user_input_lower and "test" not in user_input_lower):
             print("[MOCK DEBUG] -> Matched: Gmail scenario")
             async for event in self._gmail_scenario():
                 yield event
 
-        # Scenario H: Notion (test 8 / test eight)
+        # Scenario J: Notion (test 8 / test eight)
         elif any(k in user_input_lower for k in ["test 8", "test eight", "testeight"]) or ("notion" in user_input_lower and "test" not in user_input_lower):
             print("[MOCK DEBUG] -> Matched: Notion scenario")
             async for event in self._notion_scenario():
                 yield event
 
-        # Scenario I: Demo (test 9 / test nine)
+        # Scenario K: Demo (test 9 / test nine)
         elif any(k in user_input_lower for k in ["test 9", "test nine", "testnine"]):
             print("[MOCK DEBUG] -> Matched: Demo full-flow scenario")
             async for event in self._demo_flow_scenario():
@@ -183,8 +195,8 @@ class MockAgentService:
                 "content": (
                     "🧪 **Mock Backend Active**\n\n"
                     "Try saying:\n"
-                    "- `test 1` → Linear\n"
-                    "- `test 2` → Slack\n"
+                    "- `test 1` → Demo #1 (Linear + Slack)\n"
+                    "- `test 2` → Demo #2 (Slack confirm)\n"
                     "- `test 3` → Multi-app (Linear+Slack)\n"
                     "- `test 4` → Triple-app (+Calendar)\n"
                     "- `test 5` → Calendar\n"
@@ -273,6 +285,116 @@ class MockAgentService:
                 "content": f"❌ Error executing action: {str(e)}",
                 "action_performed": None,
             }
+
+    async def _demo_flow_one_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Demo flow #1: Linear issue + Slack notify (pain point #1)."""
+        apps = ["linear", "slack"]
+
+        async for event in self._emit_thinking():
+            yield event
+
+        yield {
+            "type": "early_summary",
+            "content": "I'll create a Linear issue and notify #billing-team in Slack.",
+            "app_id": "linear",
+            "involved_apps": apps,
+        }
+
+        yield {
+            "type": "multi_app_status",
+            "apps": [
+                {"app_id": "linear", "state": "waiting"},
+                {"app_id": "slack", "state": "waiting"},
+            ],
+            "active_app": "linear",
+        }
+
+        for app_id, tool in [
+            ("linear", "LINEAR_PRECHECK"),
+            ("slack", "SLACK_PRECHECK"),
+        ]:
+            yield {
+                "type": "tool_status",
+                "tool": tool,
+                "status": "searching",
+                "app_id": app_id,
+                "involved_apps": apps,
+            }
+            await asyncio.sleep(MOCK_LONG_SEARCHING_DELAY_SEC)
+
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
+
+        yield {
+            "type": "proposal",
+            "tool": "LINEAR_CREATE_LINEAR_ISSUE",
+            "content": {
+                "title": "Login crash on iOS 17.3",
+                "description": (
+                    "Users report the app crashes immediately after login on iOS 17.3.\\n\\n"
+                    "Steps to reproduce:\\n"
+                    "1. Open app on iOS 17.3\\n"
+                    "2. Enter valid credentials\\n"
+                    "3. Tap Login → crash\\n\\n"
+                    "Expected: user lands on Home screen."
+                ),
+                "teamId": "b0c33658-525d-4f71-a029-775796016149",
+                "teamName": "Mobile",
+                "projectId": "a1b2c3d4-5678-90ab-cdef-123456789012",
+                "projectName": "iOS Stability",
+                "priority": 0,
+                "priorityName": "Urgent",
+                "stateName": "Triage",
+                "labels": ["crash", "ios", "login"],
+            },
+            "summary_text": "I'll create a Linear issue for the iOS 17.3 login crash.",
+            "app_id": "linear",
+            "proposal_index": 0,
+            "total_proposals": 2,
+            "remaining_proposals": [
+                {
+                    "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
+                    "app_id": "slack",
+                    "args": {
+                        "channel": "C99887766",
+                        "channelName": "#billing-team",
+                        "text": (
+                            "Heads up: I just filed a **Login crash on iOS 17.3** issue in Linear. "
+                            "Impact appears high; please avoid related deploys until we triage."
+                        ),
+                        "mrkdwn": True,
+                    },
+                }
+            ],
+        }
+
+    async def _demo_flow_two_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Demo flow #2: Slack message with explicit confirmation (pain point #2)."""
+        async for event in self._emit_thinking():
+            yield event
+
+        yield {
+            "type": "early_summary",
+            "content": "I'll draft that Slack announcement for review.",
+            "app_id": "slack",
+            "involved_apps": ["slack"],
+        }
+
+        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
+
+        yield {
+            "type": "proposal",
+            "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
+            "content": {
+                "channel": "C44556677",
+                "channelName": "#announcements",
+                "text": "We’re shipping at 6pm—please hold deploys.",
+                "mrkdwn": True,
+            },
+            "summary_text": "I'll post the 6pm ship notice in #announcements.",
+            "app_id": "slack",
+            "proposal_index": 0,
+            "total_proposals": 1,
+        }
 
     async def _linear_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Linear ticket creation flow."""
