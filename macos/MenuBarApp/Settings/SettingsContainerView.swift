@@ -175,9 +175,54 @@ private struct APISettingsView: View {
 				.padding(16)
 			
 			Form {
-				Section("LLM / Agent API") {
-					TextField("API key", text: $viewModel.apiKey)
+				Section("Model") {
+					Picker("Provider", selection: $viewModel.selectedProvider) {
+						ForEach(ModelProvider.allCases) { provider in
+							Text(provider.displayName).tag(provider)
+						}
+					}
+					Picker("Model", selection: $viewModel.selectedModel) {
+						ForEach(ModelCatalog.models(for: viewModel.selectedProvider), id: \.self) { model in
+							Text(ModelCatalog.displayName(for: model)).tag(model)
+						}
+					}
+					if viewModel.isCustomModelSelected {
+						TextField("Custom model name", text: $viewModel.customModelName)
+							.textFieldStyle(.roundedBorder)
+					}
+					if viewModel.selectedProvider.requiresApiKey {
+						SecureField("API key", text: $viewModel.apiKey)
+							.textFieldStyle(.roundedBorder)
+					}
+					if viewModel.selectedProvider.supportsBaseURL {
+						TextField("Base URL", text: Binding(
+							get: { viewModel.providerBaseURL },
+							set: { viewModel.providerBaseURL = $0 }
+						))
 						.textFieldStyle(.roundedBorder)
+					}
+					if viewModel.selectedProvider.isLocal {
+						Text("Local models may not support tool calling.")
+							.font(.caption)
+							.foregroundStyle(.secondary)
+					}
+					HStack {
+						Button("Save") {
+							viewModel.saveAPISettings()
+							saveMessage = "Saved"
+						}
+						.buttonStyle(.borderedProminent)
+						.disabled(!viewModel.isModelConfigValid)
+						
+						if let saveMessage {
+							Text(saveMessage)
+								.font(.caption)
+								.foregroundStyle(.secondary)
+						}
+					}
+				}
+
+				Section("Backend") {
 					TextField("Base URL (optional)", text: $viewModel.apiBaseURL)
 						.textFieldStyle(.roundedBorder)
 					HStack {
@@ -186,12 +231,6 @@ private struct APISettingsView: View {
 							saveMessage = "Saved"
 						}
 						.buttonStyle(.borderedProminent)
-						
-						if let saveMessage {
-							Text(saveMessage)
-								.font(.caption)
-								.foregroundStyle(.secondary)
-						}
 					}
 				}
 				

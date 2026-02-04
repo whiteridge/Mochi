@@ -39,7 +39,11 @@ class AnthropicChat(LLMChat):
 
         for msg in history:
             role = msg.get("role", "user")
+            if role == "model":
+                role = "assistant"
             content = msg.get("parts", "")
+            if isinstance(content, list):
+                content = " ".join([str(part) for part in content])
             self._messages.append({"role": role, "content": [{"type": "text", "text": content}]})
 
         self._client = httpx.Client(timeout=60.0)

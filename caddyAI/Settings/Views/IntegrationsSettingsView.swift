@@ -113,14 +113,63 @@ struct IntegrationsSettingsView: View {
 					)
 				}
 				
-				// API Section
-				SettingsRowCard(title: "API") {
-					SettingsRow(label: "API Key") {
-						HStack(spacing: 8) {
+				// Model Section
+				SettingsRowCard(title: "Model") {
+					SettingsRow(label: "Provider") {
+						Picker("Provider", selection: $viewModel.selectedProvider) {
+							ForEach(ModelProvider.allCases) { provider in
+								Text(provider.displayName).tag(provider)
+							}
+						}
+						.pickerStyle(.menu)
+					}
+
+					SettingsRow(label: "Model") {
+						Picker("Model", selection: $viewModel.selectedModel) {
+							ForEach(ModelCatalog.models(for: viewModel.selectedProvider), id: \.self) { model in
+								Text(ModelCatalog.displayName(for: model)).tag(model)
+							}
+						}
+						.pickerStyle(.menu)
+					}
+
+					if viewModel.isCustomModelSelected {
+						SettingsRow(label: "Custom Model") {
+							TextField("Model name", text: $viewModel.customModelName)
+								.textFieldStyle(.roundedBorder)
+								.frame(width: 220)
+						}
+					}
+
+					if viewModel.selectedProvider.requiresApiKey {
+						SettingsRow(label: "API Key") {
 							SecureField("Enter key", text: $viewModel.apiKey)
 								.textFieldStyle(.roundedBorder)
-								.frame(width: 200)
-							
+								.frame(width: 220)
+						}
+					}
+
+					if viewModel.selectedProvider.supportsBaseURL {
+						SettingsRow(label: "Base URL") {
+							TextField("http://localhost:11434/v1", text: Binding(
+								get: { viewModel.providerBaseURL },
+								set: { viewModel.providerBaseURL = $0 }
+							))
+							.textFieldStyle(.roundedBorder)
+							.frame(width: 260)
+						}
+					}
+
+					if viewModel.selectedProvider.isLocal {
+						Text("Local models may not support tool calling. If actions fail, switch to a hosted provider.")
+							.font(.caption)
+							.foregroundStyle(.secondary)
+							.padding(.horizontal, 16)
+							.padding(.bottom, 6)
+					}
+
+					SettingsRow(label: "Save", showDivider: false) {
+						HStack(spacing: 8) {
 							Button {
 								viewModel.saveAPISettings()
 								withAnimation { showSaved = true }
@@ -133,14 +182,14 @@ struct IntegrationsSettingsView: View {
 							}
 							.buttonStyle(SettingsGlassButtonStyle(kind: .accent(showSaved ? .green : preferences.accentColor)))
 							.controlSize(.small)
-							
+							.disabled(!viewModel.isModelConfigValid)
+
 							if let success = viewModel.apiTestSuccess {
 								Image(systemName: success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
 									.foregroundStyle(success ? .green : .orange)
 							}
 						}
 					}
-					
 				}
 				
 				// Advanced Section (collapsed by default)

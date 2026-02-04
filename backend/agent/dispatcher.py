@@ -5,8 +5,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Generator, List, Optional, Tuple
-from google.genai import types
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 from .common import (
     detect_apps_from_input,
@@ -55,8 +54,7 @@ def _parse_retry_delay_seconds(exc: Exception) -> Optional[float]:
 
 
 def _send_message_with_retry(
-    chat,
-    message: Any,
+    send_fn: Callable[[], Any],
     *,
     max_retries: int = 2,
     base_delay: float = 1.0,
@@ -64,14 +62,14 @@ def _send_message_with_retry(
     last_exc: Optional[Exception] = None
     for attempt in range(max_retries + 1):
         try:
-            return chat.send_message(message), None
+            return send_fn(), None
         except Exception as exc:  # noqa: BLE001 - surface model errors to caller
             last_exc = exc
             if not _is_rate_limit_error(exc) or attempt >= max_retries:
                 break
             delay = _parse_retry_delay_seconds(exc) or (base_delay * (attempt + 1))
             print(
-                f"DEBUG: Gemini rate-limited; retrying in {delay:.2f}s",
+                f"DEBUG: Model provider rate-limited; retrying in {delay:.2f}s",
                 flush=True,
             )
             time.sleep(delay)
@@ -79,7 +77,7 @@ def _send_message_with_retry(
 
 
 def _build_tool_response_payload(result_data: Any, max_chars: int = 12000) -> Dict[str, Any]:
-    """Build a JSON-safe, size-limited response payload for Gemini tool results."""
+    """Build a JSON-safe, size-limited response payload for tool results."""
     try:
         safe_data = json.loads(json.dumps(result_data, ensure_ascii=True, default=str))
     except (TypeError, ValueError):
@@ -160,8 +158,10 @@ class AgentDispatcher:
         chat,
         context: DispatcherContext,
     ) -> Generator[Dict, None, Optional[Any]]:
-        print(f"DEBUG: Sending user input to Gemini: {context.user_input[:100]}...")
-        response, send_error = _send_message_with_retry(chat, context.user_input)
+        print(f"DEBUG: Sending user input to model: {context.user_input[:100]}...")
+        response, send_error = _send_message_with_retry(
+            lambda: chat.send_user_message(context.user_input)
+        )
         if send_error is not None:  # noqa: BLE001 - surface rate limits to client
             if _is_rate_limit_error(send_error):
                 yield {
@@ -175,19 +175,15 @@ class AgentDispatcher:
                 return None
             raise send_error
 
-        if hasattr(response, "candidates") and response.candidates:
-            candidate = response.candidates[0]
-            if hasattr(candidate, "content") and candidate.content is not None:
-                if hasattr(candidate.content, "parts") and candidate.content.parts:
-                    for part in candidate.content.parts:
-                        if hasattr(part, "function_call") and part.function_call:
-                            print(f"DEBUG: Gemini calling tool: {part.function_call.name}", flush=True)
-                        if hasattr(part, "thought") and part.thought:
-                            print(f"DEBUG: Gemini Thought: {part.thought}", flush=True)
-                            yield {
-                                "type": "thinking",
-                                "content": part.thought,
-                            }
+        if hasattr(response, "thoughts") and response.thoughts:
+            for thought in response.thoughts:
+                if not thought:
+                    continue
+                print(f"DEBUG: Model Thought: {thought}", flush=True)
+                yield {
+                    "type": "thinking",
+                    "content": thought,
+                }
 
         return response
 
@@ -249,6 +245,7 @@ class AgentDispatcher:
     ) -> Generator[Dict, None, Optional[Any]]:
         tool_name = confirmed_tool.get("tool")
         tool_args = confirmed_tool.get("args", {})
+        tool_call_id = confirmed_tool.get("tool_call_id")
         app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
 
         print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
@@ -286,14 +283,12 @@ class AgentDispatcher:
             context.app_read_status[app_id] = "done"
 
             response_payload = _build_tool_response_payload(result_data)
-            function_response = types.Part.from_function_response(
-                name=tool_name,
-                response=response_payload,
+            response, send_error = _send_message_with_retry(
+                lambda: chat.send_tool_result(tool_name, response_payload, tool_call_id)
             )
-            response, send_error = _send_message_with_retry(chat, [function_response])
             if send_error is not None:  # noqa: BLE001 - surface model errors to client
                 print(
-                    f"DEBUG: ❌ Gemini follow-up error after {tool_name}: {send_error}",
+                    f"DEBUG: ❌ Model follow-up error after {tool_name}: {send_error}",
                     flush=True,
                 )
                 if _is_rate_limit_error(send_error):
@@ -334,6 +329,7 @@ class AgentDispatcher:
         for (
             tool_name,
             args,
+            tool_call_id,
             app_id,
             is_linear_write,
             is_slack_write,
@@ -361,6 +357,7 @@ class AgentDispatcher:
                     "tool": tool_name,
                     "args": enriched_args,
                     "app_id": app_id,
+                    "tool_call_id": tool_call_id,
                     "summary_text": make_early_summary(app_id),
                 }
             )
@@ -414,10 +411,16 @@ class AgentDispatcher:
             "content": first_proposal["args"],
             "summary_text": first_proposal["summary_text"],
             "app_id": first_proposal["app_id"],
+            "tool_call_id": first_proposal.get("tool_call_id"),
             "proposal_index": 0,
             "total_proposals": total_proposals,
             "remaining_proposals": [
-                {"tool": p["tool"], "app_id": p["app_id"], "args": p["args"]}
+                {
+                    "tool": p["tool"],
+                    "app_id": p["app_id"],
+                    "args": p["args"],
+                    "tool_call_id": p.get("tool_call_id"),
+                }
                 for p in context.proposal_queue[1:]
             ],
         }
@@ -447,101 +450,95 @@ class AgentDispatcher:
         write_actions_found = []
         found_function_call = False
 
-        if (
-            hasattr(response, "candidates")
-            and response.candidates
-            and hasattr(response.candidates[0], "content")
-            and response.candidates[0].content is not None
-            and hasattr(response.candidates[0].content, "parts")
-            and response.candidates[0].content.parts
-        ):
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, "function_call") and part.function_call:
-                    found_function_call = True
-                    tool_name = part.function_call.name
-                    args = dict(part.function_call.args) if part.function_call.args else {}
-                    print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            for tool_call in response.tool_calls:
+                found_function_call = True
+                tool_name = tool_call.name
+                args = tool_call.args or {}
+                tool_call_id = tool_call.call_id
+                print(f"DEBUG: Tool call: {tool_name}({args})", flush=True)
 
-                    app_id = map_tool_to_app(tool_name)
-                    is_new_app = app_id not in context.involved_apps
-                    if is_new_app:
-                        context.involved_apps.append(app_id)
-                    context.called_apps.add(app_id)
+                app_id = map_tool_to_app(tool_name)
+                is_new_app = app_id not in context.involved_apps
+                if is_new_app:
+                    context.involved_apps.append(app_id)
+                context.called_apps.add(app_id)
 
-                    if not context.early_summary_sent:
-                        summary_text = make_early_summary(app_id)
-                        print(f"DEBUG: Emitting early summary for {app_id}: {summary_text}")
-                        yield {
-                            "type": "early_summary",
-                            "content": summary_text,
-                            "app_id": app_id,
-                            "involved_apps": context.involved_apps,
-                        }
-                        context.early_summary_sent = True
+                if not context.early_summary_sent:
+                    summary_text = make_early_summary(app_id)
+                    print(f"DEBUG: Emitting early summary for {app_id}: {summary_text}")
+                    yield {
+                        "type": "early_summary",
+                        "content": summary_text,
+                        "app_id": app_id,
+                        "involved_apps": context.involved_apps,
+                    }
+                    context.early_summary_sent = True
 
-                    is_linear_write = self.linear_service.is_write_action(tool_name, args)
-                    is_slack_write = self.slack_service.is_write_action(tool_name, args)
-                    is_notion_write = self.notion_service.is_write_action(tool_name, args)
-                    is_github_write = self.github_service.is_write_action(tool_name, args)
-                    is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
-                    is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
-                    is_write = (
-                        is_linear_write
-                        or is_slack_write
-                        or is_notion_write
-                        or is_github_write
-                        or is_gmail_write
-                        or is_calendar_write
-                    )
-                    executed_key = (tool_name, json.dumps(args, sort_keys=True))
+                is_linear_write = self.linear_service.is_write_action(tool_name, args)
+                is_slack_write = self.slack_service.is_write_action(tool_name, args)
+                is_notion_write = self.notion_service.is_write_action(tool_name, args)
+                is_github_write = self.github_service.is_write_action(tool_name, args)
+                is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
+                is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
+                is_write = (
+                    is_linear_write
+                    or is_slack_write
+                    or is_notion_write
+                    or is_github_write
+                    or is_gmail_write
+                    or is_calendar_write
+                )
+                executed_key = (tool_name, json.dumps(args, sort_keys=True))
 
-                    if is_write:
-                        if executed_key in context.executed_write_keys:
-                            print(f"DEBUG: Skipping duplicate write proposal for {tool_name}")
-                            continue
-                        if app_id in context.completed_write_apps:
-                            print(f"DEBUG: Skipping write for completed app {app_id}")
-                            continue
-                        if app_id == "slack":
-                            linear_state = context.app_read_status.get("linear")
-                            if (
-                                "linear" in context.called_apps
-                                and (
-                                    linear_state not in ("done", "error")
-                                    or ("linear" in context.app_write_executing)
-                                )
-                            ):
-                                print("DEBUG: Gating Slack write until Linear read+write complete")
-                                continue
-
-                        print(f"DEBUG: Queueing {tool_name} for confirmation")
-                        write_actions_found.append(
-                            (
-                                tool_name,
-                                args,
-                                app_id,
-                                is_linear_write,
-                                is_slack_write,
-                                is_notion_write,
-                                is_github_write,
-                                is_gmail_write,
-                                is_calendar_write,
+                if is_write:
+                    if executed_key in context.executed_write_keys:
+                        print(f"DEBUG: Skipping duplicate write proposal for {tool_name}")
+                        continue
+                    if app_id in context.completed_write_apps:
+                        print(f"DEBUG: Skipping write for completed app {app_id}")
+                        continue
+                    if app_id == "slack":
+                        linear_state = context.app_read_status.get("linear")
+                        if (
+                            "linear" in context.called_apps
+                            and (
+                                linear_state not in ("done", "error")
+                                or ("linear" in context.app_write_executing)
                             )
+                        ):
+                            print("DEBUG: Gating Slack write until Linear read+write complete")
+                            continue
+
+                    print(f"DEBUG: Queueing {tool_name} for confirmation")
+                    write_actions_found.append(
+                        (
+                            tool_name,
+                            args,
+                            tool_call_id,
+                            app_id,
+                            is_linear_write,
+                            is_slack_write,
+                            is_notion_write,
+                            is_github_write,
+                            is_gmail_write,
+                            is_calendar_write,
                         )
-                        context.executed_write_keys.add(executed_key)
-                    else:
-                        if app_id == "slack":
-                            linear_state = context.app_read_status.get("linear")
-                            if (
-                                "linear" in context.called_apps
-                                and (
-                                    linear_state not in ("done", "error")
-                                    or ("linear" in context.app_write_executing)
-                                )
-                            ):
-                                print("DEBUG: Gating Slack read until Linear read+write complete")
-                                continue
-                        read_actions_to_execute.append((tool_name, args, part, app_id))
+                    )
+                    context.executed_write_keys.add(executed_key)
+                else:
+                    if app_id == "slack":
+                        linear_state = context.app_read_status.get("linear")
+                        if (
+                            "linear" in context.called_apps
+                            and (
+                                linear_state not in ("done", "error")
+                                or ("linear" in context.app_write_executing)
+                            )
+                        ):
+                            print("DEBUG: Gating Slack read until Linear read+write complete")
+                            continue
+                    read_actions_to_execute.append((tool_name, args, tool_call_id, app_id))
 
         return found_function_call, read_actions_to_execute, write_actions_found
 
@@ -558,7 +555,7 @@ class AgentDispatcher:
         )
 
         if not found_function_call and context.iteration == 0:
-            print("DEBUG: Gemini responded with text only (no function calls)", flush=True)
+            print("DEBUG: Model responded with text only (no function calls)", flush=True)
 
         if write_actions_found:
             context.pending_write_actions.extend(write_actions_found)
@@ -578,7 +575,9 @@ class AgentDispatcher:
             ):
                 context.missing_app_nudge_sent = True
                 nudge_text = self._missing_app_nudge(missing_apps)
-                response, send_error = _send_message_with_retry(chat, nudge_text)
+                response, send_error = _send_message_with_retry(
+                    lambda: chat.send_user_message(nudge_text)
+                )
                 if send_error is not None:  # noqa: BLE001 - surface rate limits to client
                     if _is_rate_limit_error(send_error):
                         yield {
@@ -605,7 +604,7 @@ class AgentDispatcher:
             if context.should_nudge_for_tools and not context.tool_nudge_sent:
                 context.tool_nudge_sent = True
                 print(
-                    "DEBUG: No function call detected; nudging Gemini to use tools",
+                    "DEBUG: No function call detected; nudging model to use tools",
                     flush=True,
                 )
                 nudge_text = (
@@ -613,7 +612,9 @@ class AgentDispatcher:
                     "If IDs are required, call list/search tools to resolve them first. "
                     "Respond with function calls only."
                 )
-                response, send_error = _send_message_with_retry(chat, nudge_text)
+                response, send_error = _send_message_with_retry(
+                    lambda: chat.send_user_message(nudge_text)
+                )
                 if send_error is not None:  # noqa: BLE001 - surface rate limits to client
                     if _is_rate_limit_error(send_error):
                         yield {
@@ -670,8 +671,8 @@ class AgentDispatcher:
         if len(read_actions) > 1:
             print(f"DEBUG: Executing {len(read_actions)} READ actions in batch", flush=True)
 
-        function_responses: List[types.Part] = []
-        for tool_name, tool_args, _, app_id in read_actions:
+        response: Optional[Any] = None
+        for tool_name, tool_args, tool_call_id, app_id in read_actions:
             context.apps_with_tool_status.add(app_id)
             yield {
                 "type": "tool_status",
@@ -700,18 +701,11 @@ class AgentDispatcher:
                     result_success = bool(getattr(result, "successful", True))
 
                 response_payload = _build_tool_response_payload(result_data)
-                function_response = types.Part.from_function_response(
-                    name=tool_name,
-                    response=response_payload,
-                )
                 status_after_read = "done" if result_success else "error"
 
             except Exception as exec_error:  # noqa: BLE001 - emit error to stream
                 print(f"DEBUG: ❌ Tool execution error: {exec_error}", flush=True)
-                function_response = types.Part.from_function_response(
-                    name=tool_name,
-                    response={"error": str(exec_error)},
-                )
+                response_payload = {"error": str(exec_error)}
                 status_after_read = "error"
 
             context.app_read_status[app_id] = status_after_read
@@ -723,37 +717,38 @@ class AgentDispatcher:
                 "app_id": app_id,
                 "involved_apps": context.involved_apps,
             }
-            function_responses.append(function_response)
 
-        response, send_error = _send_message_with_retry(chat, function_responses)
-        if send_error is not None:  # noqa: BLE001 - surface model errors to client
-            print(
-                f"DEBUG: ❌ Gemini follow-up error after read batch: {send_error}",
-                flush=True,
+            response, send_error = _send_message_with_retry(
+                lambda: chat.send_tool_result(tool_name, response_payload, tool_call_id)
             )
-            if _is_rate_limit_error(send_error):
-                content = (
-                    "I fetched the requested data, but I'm temporarily rate-limited "
-                    "and couldn't continue. Please retry in a minute."
+            if send_error is not None:  # noqa: BLE001 - surface model errors to client
+                print(
+                    f"DEBUG: ❌ Model follow-up error after read batch: {send_error}",
+                    flush=True,
                 )
-            else:
-                content = (
-                    "I fetched the requested data, but couldn't continue due to a model error. "
-                    "Please retry."
-                )
-            if context.pending_write_actions:
-                self._queue_pending_write_actions(context)
-            if context.proposal_queue:
-                yield from self._emit_proposal_queue(context)
+                if _is_rate_limit_error(send_error):
+                    content = (
+                        "I fetched the requested data, but I'm temporarily rate-limited "
+                        "and couldn't continue. Please retry in a minute."
+                    )
+                else:
+                    content = (
+                        "I fetched the requested data, but couldn't continue due to a model error. "
+                        "Please retry."
+                    )
+                if context.pending_write_actions:
+                    self._queue_pending_write_actions(context)
+                if context.proposal_queue:
+                    yield from self._emit_proposal_queue(context)
+                    context.exit_early = True
+                    return DispatchPhase.FINISHED
+                yield {
+                    "type": "message",
+                    "content": content,
+                    "action_performed": None,
+                }
                 context.exit_early = True
                 return DispatchPhase.FINISHED
-            yield {
-                "type": "message",
-                "content": content,
-                "action_performed": None,
-            }
-            context.exit_early = True
-            return DispatchPhase.FINISHED
 
         context.response = response
         context.iteration += 1
@@ -807,7 +802,10 @@ class AgentDispatcher:
             if context.response is None:
                 return
 
-            final_text = context.response.text if hasattr(context.response, "text") else str(context.response)
+            if hasattr(context.response, "text"):
+                final_text = context.response.text or ""
+            else:
+                final_text = str(context.response) if context.response is not None else ""
             yield {
                 "type": "message",
                 "content": final_text,

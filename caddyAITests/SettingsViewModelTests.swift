@@ -4,7 +4,7 @@ import Foundation
 
 struct SettingsViewModelTests {
     
-    @Test func testOpenAIKeyUpdatesCredentialManager() {
+    @Test func testGoogleKeyUpdatesCredentialManager() {
         // Setup dependencies
         // Note: We are using real instances for now. In a strict unit test, we'd mock.
         // But CredentialManager is lightweight logic.
@@ -47,15 +47,16 @@ struct SettingsViewModelTests {
             credentialManager: credManager
         )
         
+        viewModel.selectedProvider = .google
         viewModel.apiKey = "sk-test-vm-key"
         
         // Trigger save (assuming saveAPISettings saves credentials)
         viewModel.saveAPISettings()
         
         // Verify
-        #expect(credManager.openaiKey == "sk-test-vm-key")
+        #expect(credManager.googleKey == "sk-test-vm-key")
         
         // Clean up
-        try? keychain.delete(key: CredentialManager.Keys.openai)
+        try? keychain.delete(key: CredentialManager.Keys.google)
     }
 }

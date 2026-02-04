@@ -7,7 +7,8 @@ extension AgentViewModel {
         let confirmedTool = ConfirmedToolData(
             tool: proposal.tool,
             args: proposal.args,  // Pass args directly, ConfirmedToolData handles encoding
-            appId: proposal.appId ?? proposal.tool.split(separator: "_").first.map(String.init)?.lowercased() ?? "unknown"
+            appId: proposal.appId ?? proposal.tool.split(separator: "_").first.map(String.init)?.lowercased() ?? "unknown",
+            toolCallId: proposal.toolCallId
         )
 
         do {
@@ -448,6 +449,7 @@ extension AgentViewModel {
         var proposalData = ProposalData(tool: tool, args: content)
         proposalData.summaryText = event.summaryText
         proposalData.appId = appId
+        proposalData.toolCallId = event.toolCallId
         proposalData.proposalIndex = event.proposalIndex ?? 0
         proposalData.totalProposals = event.totalProposals ?? 1
         
@@ -464,6 +466,7 @@ extension AgentViewModel {
                 
                 var rpData = ProposalData(tool: rpTool, args: rpArgs)
                 rpData.appId = rpAppId
+                rpData.toolCallId = rp["tool_call_id"]?.value as? String
                 rpData.proposalIndex = nextQueue.count
                 rpData.totalProposals = event.totalProposals ?? 1
                 nextQueue.append(rpData)

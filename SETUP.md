@@ -6,7 +6,7 @@ This guide walks you from a clean machine to a working caddyAI setup (backend + 
 - macOS with Xcode installed
 - Python 3.11
 - A Composio account + API key
-- A Google Gemini API key
+- A model provider API key (Google Gemini, OpenAI, or Anthropic)
 
 Optional but helpful:
 - Homebrew
@@ -39,8 +39,14 @@ COMPOSIO_API_KEY=your_composio_key
 Model API key options (pick one):
 ```
 GOOGLE_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
 ```
-or enter the Gemini key in the macOS app Quick Setup (stored locally in Keychain and sent to the backend per request).
+or enter the key in the macOS app Quick Setup (stored locally in Keychain and sent to the backend per request).
+
+Local providers (no API key required):
+- Ollama default base URL: `http://localhost:11434/v1`
+- LM Studio default base URL: `http://localhost:1234/v1`
 
 Recommended (keeps accounts stable across restarts):
 ```
@@ -95,7 +101,7 @@ You should see a confirmation card before any write action.
 - Auth config not found: set the correct `COMPOSIO_*_AUTH_CONFIG_ID` or create the auth config in Composio.
 - Multiple connected accounts: remove duplicates in the Composio dashboard (Connected Accounts) and retry.
 - Authentication expired: use the “Reconnect” button in Settings > Integrations.
-- Rate limits: wait a minute and retry (Gemini quota limits apply).
+- Rate limits: wait a minute and retry (provider quota limits apply).
 - Composio cache not writable: set `COMPOSIO_CACHE_DIR` to a writable path.
 - Microphone denied: System Settings > Privacy & Security > Microphone.
 - `xcodebuild` error: open Xcode and select it in `xcode-select`.

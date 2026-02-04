@@ -1,6 +1,16 @@
-from composio import ComposioToolSet
-from composio_gemini import GeminiProvider
+import pytest
 from dotenv import load_dotenv
+
+try:
+    from composio import ComposioToolSet
+except Exception as exc:
+    pytest.skip(f"ComposioToolSet unavailable: {exc}", allow_module_level=True)
+
+try:
+    from composio_gemini import GeminiProvider
+except Exception as exc:
+    pytest.skip(f"composio_gemini unavailable: {exc}", allow_module_level=True)
+
 load_dotenv()
 
 try:

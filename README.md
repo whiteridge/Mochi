@@ -6,7 +6,7 @@ Native macOS overlay for fast local transcription and tool-assisted actions.
 - Always-on-top bubble with chat expansion
 - Draggable pill and confirmation card (click-drag to reposition)
 - Local-first speech-to-text (FluidAudio/Parakeet)
-- Gemini-powered intent parsing and tool calls via local backend
+- Multi-provider model routing (Gemini, OpenAI, Anthropic, local)
 - Action confirmations for Linear, Slack, GitHub, Notion, Gmail, Google Calendar
 
 ## Implemented apps
@@ -20,7 +20,7 @@ Native macOS overlay for fast local transcription and tool-assisted actions.
 ## Architecture
 - UI: SwiftUI + NSWindow transparency for the glass effect
 - Audio: FluidAudio / Parakeet TDT v3
-- Reasoning: Google Gemini 2.5 Flash (tools)
+- Reasoning: Configurable provider (Gemini/OpenAI/Anthropic/local)
 - Backend: FastAPI agent + Composio tool layer
 - Actions: SwiftUI proposal and confirmation cards
 

@@ -91,8 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	private func evaluateInitialSetup() {
 		settingsEnvironment.viewModel.loadPersistedValues()
-		let apiKeyMissing = settingsEnvironment.viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-		if apiKeyMissing {
+		let modelConfigMissing = !settingsEnvironment.viewModel.isModelConfigValid
+		if modelConfigMissing {
 			showQuickSetup()
 			return
 		}
@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		refreshComposioStatuses()
 		DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
 			guard let self else { return }
-			let stillMissingAPIKey = self.settingsEnvironment.viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+			let stillMissingAPIKey = !self.settingsEnvironment.viewModel.isModelConfigValid
 			let hasAnyConnection = self.settingsEnvironment.integrationService.hasAnyComposioConnection
 			if stillMissingAPIKey || !hasAnyConnection {
 				self.showQuickSetup()

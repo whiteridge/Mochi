@@ -132,7 +132,13 @@ def build_gemini_tools(composio_tools) -> Tuple[List[types.Tool], int]:
     return gemini_tools, num_declarations
 
 
-def create_chat(client, gemini_tools, chat_history, user_context: Optional[str] = None):
+def create_chat(
+    client,
+    gemini_tools,
+    chat_history,
+    user_context: Optional[str] = None,
+    model: str = "gemini-2.5-flash",
+):
     """Create a Gemini chat with tools and system instruction."""
     formatted_history = format_history(chat_history)
     system_instruction = SYSTEM_INSTRUCTION
@@ -144,7 +150,7 @@ def create_chat(client, gemini_tools, chat_history, user_context: Optional[str] 
         thinking_config=types.ThinkingConfig(include_thoughts=True),
     )
     return client.chats.create(
-        model="gemini-3-flash-preview",
+        model=model,
         config=config,
         history=formatted_history,
     )

@@ -8,6 +8,7 @@ struct ChatRequest: Codable {
     let confirmedTool: ConfirmedToolData?
     let userTimezone: String?
     let apiKey: String?
+    let model: ModelConfig?
     
     enum CodingKeys: String, CodingKey {
         case messages
@@ -15,6 +16,7 @@ struct ChatRequest: Codable {
         case confirmedTool = "confirmed_tool"
         case userTimezone = "user_timezone"
         case apiKey = "api_key"
+        case model
     }
     
     init(
@@ -22,13 +24,36 @@ struct ChatRequest: Codable {
         userId: String,
         confirmedTool: ConfirmedToolData? = nil,
         userTimezone: String? = nil,
-        apiKey: String? = nil
+        apiKey: String? = nil,
+        model: ModelConfig? = nil
     ) {
         self.messages = messages
         self.userId = userId
         self.confirmedTool = confirmedTool
         self.userTimezone = userTimezone
         self.apiKey = apiKey
+        self.model = model
+    }
+}
+
+struct ModelConfig: Codable {
+    let provider: String?
+    let model: String?
+    let apiKey: String?
+    let baseURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case model
+        case apiKey = "api_key"
+        case baseURL = "base_url"
+    }
+
+    init(provider: String?, model: String?, apiKey: String?, baseURL: String?) {
+        self.provider = provider
+        self.model = model
+        self.apiKey = apiKey
+        self.baseURL = baseURL
     }
 }
 
@@ -37,23 +62,27 @@ struct ConfirmedToolData: Codable {
     let tool: String
     let args: [String: Any]
     let appId: String
+    let toolCallId: String?
     
     enum CodingKeys: String, CodingKey {
         case tool
         case args
         case appId = "app_id"
+        case toolCallId = "tool_call_id"
     }
     
-    init(tool: String, args: [String: Any], appId: String) {
+    init(tool: String, args: [String: Any], appId: String, toolCallId: String? = nil) {
         self.tool = tool
         self.args = args
         self.appId = appId
+        self.toolCallId = toolCallId
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         tool = try container.decode(String.self, forKey: .tool)
         appId = try container.decode(String.self, forKey: .appId)
+        toolCallId = try container.decodeIfPresent(String.self, forKey: .toolCallId)
         
         // Decode args as AnyCodable dictionary then extract values
         let anyCodableArgs = try container.decode([String: AnyCodable].self, forKey: .args)
@@ -64,6 +93,7 @@ struct ConfirmedToolData: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(tool, forKey: .tool)
         try container.encode(appId, forKey: .appId)
+        try container.encodeIfPresent(toolCallId, forKey: .toolCallId)
         
         // Encode args using AnyCodable wrapper
         let anyCodableArgs = args.mapValues { AnyCodable($0) }
@@ -151,6 +181,7 @@ struct StreamEvent: Decodable {
     // Early summary / proposal fields
     let appId: String?        // For early_summary events
     let summaryText: String?  // For proposal events (reuse of early summary)
+    let toolCallId: String?   // For proposal events
     
     // Multi-app fields
     let involvedApps: [String]?      // List of app IDs involved
@@ -165,6 +196,7 @@ struct StreamEvent: Decodable {
         case actionPerformed = "action_performed"
         case appId = "app_id"
         case summaryText = "summary_text"
+        case toolCallId = "tool_call_id"
         case involvedApps = "involved_apps"
         case proposalIndex = "proposal_index"
         case totalProposals = "total_proposals"
@@ -234,6 +266,7 @@ struct ProposalData: Equatable {
     let args: [String: Any]
     var summaryText: String?  // Reused from early summary as card header
     var appId: String?        // App identifier (linear, slack, etc.)
+    var toolCallId: String?   // Tool call ID from model
     var proposalIndex: Int = 0      // Index in multi-proposal queue
     var totalProposals: Int = 1     // Total proposals in queue
     var remainingProposals: [[String: Any]]?  // Remaining proposals for UI decoration
@@ -559,6 +592,7 @@ struct ProposalData: Equatable {
         lhs.tool == rhs.tool && 
         lhs.appId == rhs.appId &&
         lhs.proposalIndex == rhs.proposalIndex &&
+        lhs.toolCallId == rhs.toolCallId &&
         NSDictionary(dictionary: lhs.args).isEqual(to: rhs.args)
     }
 }

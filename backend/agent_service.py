@@ -1,12 +1,11 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
-from google import genai
 
 from agent.common import detect_apps_from_input, map_tool_to_app
 from agent.dispatcher import AgentDispatcher
-from agent.gemini_config import build_gemini_tools, create_chat
 from agent.tool_loader import load_composio_tools
+from llm.router import create_chat_session, ModelConfigError
 from services.composio_service import ComposioService
 from services.github_service import GitHubService
 from services.gmail_service import GmailService
@@ -22,11 +21,8 @@ class AgentService:
     """Main agent service for orchestrating conversations with Composio tools."""
     
     def __init__(self, api_key: str | None = None, composio_service: ComposioService | None = None):
-        """Initialize the agent service with Gemini client and service dependencies."""
+        """Initialize the agent service with service dependencies."""
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        if not self.api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable is required")
-        self.client = genai.Client(api_key=self.api_key)
         
         # Initialize services
         self.composio_service = composio_service or ComposioService()
@@ -46,6 +42,8 @@ class AgentService:
         chat_history: List[Dict[str, str]] = [],
         confirmed_tool: Dict = None,
         user_timezone: str | None = None,
+        model_config: Optional[Any] = None,
+        fallback_api_key: Optional[str] = None,
     ):
         """
         Runs the agent with the given user input and user_id.
@@ -93,20 +91,25 @@ class AgentService:
             }
             return
 
-        # 2. Convert tools and configure Gemini
-        gemini_tools, _ = build_gemini_tools(all_composio_tools)
-
-        # 3. Start Chat
+        # 2. Start Chat
         user_context = None
         if user_timezone:
             user_context = f"User timezone: {user_timezone}."
-
-        chat = create_chat(
-            self.client,
-            gemini_tools,
-            chat_history,
-            user_context=user_context,
-        )
+        try:
+            chat, _ = create_chat_session(
+                model_config=model_config,
+                fallback_api_key=fallback_api_key or self.api_key,
+                tools=all_composio_tools,
+                history=chat_history,
+                user_context=user_context,
+            )
+        except ModelConfigError as exc:
+            yield {
+                "type": "message",
+                "content": f"Model configuration error: {str(exc)}",
+                "action_performed": None,
+            }
+            return
 
         # 4. Delegate streaming loop
         dispatcher = AgentDispatcher(

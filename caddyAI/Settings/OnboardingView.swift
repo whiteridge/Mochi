@@ -8,7 +8,7 @@ struct OnboardingView: View {
 	
 	private let steps = [
 		"Set your accent color and theme.",
-		"Add your API key.",
+		"Choose your model provider and key.",
 		"Connect your integrations (Slack, Linear, Notion, GitHub, Gmail, Google Calendar)."
 	]
 	

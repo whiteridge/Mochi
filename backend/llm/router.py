@@ -106,16 +106,16 @@ def _resolve_model_config(
         base_url = None
         return ResolvedModelConfig(provider, model, api_key, base_url)
 
-    provider = (getattr(model_config, "provider", None) or "google").lower()
-    provider = provider.replace(" ", "")
-    if provider == "lmstudio":
+    provider = (_get_field(model_config, "provider") or "google").lower()
+    normalized = provider.replace(" ", "").replace("-", "").replace("_", "")
+    if normalized == "lmstudio":
         provider = "lmstudio"
-    if provider == "customopenai":
+    elif normalized == "customopenai":
         provider = "custom_openai"
 
-    model = getattr(model_config, "model", None) or DEFAULT_MODELS.get(provider, "")
-    api_key = getattr(model_config, "api_key", None)
-    base_url = getattr(model_config, "base_url", None)
+    model = _get_field(model_config, "model") or DEFAULT_MODELS.get(provider, "")
+    api_key = _get_field(model_config, "api_key")
+    base_url = _get_field(model_config, "base_url")
 
     if provider == "google":
         api_key = api_key or os.getenv("GOOGLE_API_KEY") or fallback_api_key
@@ -133,3 +133,9 @@ def _resolve_model_config(
         base_url = base_url or None
 
     return ResolvedModelConfig(provider, model, api_key, base_url)
+
+
+def _get_field(model_config: Any, field: str) -> Optional[str]:
+    if isinstance(model_config, dict):
+        return model_config.get(field)
+    return getattr(model_config, field, None)

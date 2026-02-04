@@ -16,14 +16,9 @@ except Exception as e:
     print(f"Warning: Failed to initialize ComposioService: {e}")
     composio_service = None
 
-# Initialize Agent Service (Gemini) if API key is available
-agent_service = None
-agent_service_api_key = None
+# Initialize Agent Service
 try:
-    env_api_key = os.getenv("GOOGLE_API_KEY")
-    if env_api_key:
-        agent_service = AgentService(api_key=env_api_key, composio_service=composio_service)
-        agent_service_api_key = env_api_key
+    agent_service = AgentService(composio_service=composio_service)
 except Exception as e:
     print(f"Warning: Failed to initialize AgentService: {e}")
     agent_service = None
@@ -32,42 +27,35 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
+class ModelConfig(BaseModel):
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     user_id: str
     confirmed_tool: Optional[dict] = None  # For multi-app: {"tool": "...", "args": {...}, "app_id": "..."}
     user_timezone: Optional[str] = None
     api_key: Optional[str] = None
+    model: Optional[ModelConfig] = None
 
 # ChatResponse model is no longer used for the return type of the endpoint directly, 
 # but the events yielded will match the structure we want.
 # We'll keep it for reference or if we want to document the event structure.
 
-def _resolve_agent_service(request: ChatRequest) -> AgentService | None:
-    global agent_service, agent_service_api_key
-
-    api_key = request.api_key or os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        return None
-
-    if agent_service is None or agent_service_api_key != api_key:
-        try:
-            agent_service = AgentService(api_key=api_key, composio_service=composio_service)
-            agent_service_api_key = api_key
-        except Exception as exc:  # noqa: BLE001 - surface startup error to caller
-            print(f"Warning: Failed to initialize AgentService: {exc}")
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
+def _resolve_agent_service() -> AgentService | None:
     return agent_service
 
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    service = _resolve_agent_service(request)
+    service = _resolve_agent_service()
     if not service:
         raise HTTPException(
             status_code=500,
-            detail="Agent service not initialized (missing GOOGLE_API_KEY or api_key in request)",
+            detail="Agent service not initialized (check COMPOSIO_API_KEY)",
         )
     
     # Extract the latest user message
@@ -85,7 +73,7 @@ async def chat_endpoint(request: ChatRequest):
         role = "user" if msg.role == "user" else "model"
         gemini_history.append({
             "role": role,
-            "parts": [msg.content]
+            "parts": msg.content
         })
 
     print(
@@ -110,6 +98,8 @@ async def chat_endpoint(request: ChatRequest):
             chat_history=gemini_history,
             confirmed_tool=request.confirmed_tool,
             user_timezone=request.user_timezone,
+            model_config=request.model,
+            fallback_api_key=request.api_key,
         ):
             yield json.dumps(event) + "\n"
 

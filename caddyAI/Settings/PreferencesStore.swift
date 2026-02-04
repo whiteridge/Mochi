@@ -1,6 +1,109 @@
 import SwiftUI
 import AppKit
 
+enum ModelProvider: String, CaseIterable, Identifiable, Codable {
+	case google
+	case openai
+	case anthropic
+	case ollama
+	case lmStudio = "lmstudio"
+	case customOpenAI = "custom_openai"
+
+	var id: String { rawValue }
+
+	var displayName: String {
+		switch self {
+		case .google: return "Google"
+		case .openai: return "OpenAI"
+		case .anthropic: return "Anthropic"
+		case .ollama: return "Ollama"
+		case .lmStudio: return "LM Studio"
+		case .customOpenAI: return "Custom OpenAI-compatible"
+		}
+	}
+
+	var requiresApiKey: Bool {
+		switch self {
+		case .google, .openai, .anthropic:
+			return true
+		case .ollama, .lmStudio, .customOpenAI:
+			return false
+		}
+	}
+
+	var supportsBaseURL: Bool {
+		switch self {
+		case .ollama, .lmStudio, .customOpenAI:
+			return true
+		default:
+			return false
+		}
+	}
+
+	var defaultBaseURL: String? {
+		switch self {
+		case .ollama:
+			return "http://localhost:11434/v1"
+		case .lmStudio:
+			return "http://localhost:1234/v1"
+		case .customOpenAI:
+			return ""
+		default:
+			return nil
+		}
+	}
+
+	var isLocal: Bool {
+		switch self {
+		case .ollama, .lmStudio:
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+struct ModelCatalog {
+	static let customModelId = "custom"
+
+	static let googleModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
+	static let openaiModels = ["gpt-4o", "gpt-4o-mini"]
+	static let anthropicModels = ["claude-3-5-sonnet", "claude-3-5-haiku"]
+
+	static func models(for provider: ModelProvider) -> [String] {
+		switch provider {
+		case .google:
+			return googleModels + [customModelId]
+		case .openai:
+			return openaiModels + [customModelId]
+		case .anthropic:
+			return anthropicModels + [customModelId]
+		case .ollama, .lmStudio, .customOpenAI:
+			return [customModelId]
+		}
+	}
+
+	static func defaultModel(for provider: ModelProvider) -> String {
+		switch provider {
+		case .google:
+			return googleModels.first ?? customModelId
+		case .openai:
+			return openaiModels.first ?? customModelId
+		case .anthropic:
+			return anthropicModels.first ?? customModelId
+		case .ollama, .lmStudio, .customOpenAI:
+			return customModelId
+		}
+	}
+
+	static func displayName(for modelId: String) -> String {
+		if modelId == customModelId {
+			return "Custom"
+		}
+		return modelId
+	}
+}
+
 enum ThemePreference: String, CaseIterable, Identifiable {
 	case system, light, dark
 	var id: String { rawValue }
@@ -130,7 +233,7 @@ struct AccentColorOption: Identifiable, Hashable {
 }
 
 final class PreferencesStore: ObservableObject {
-	private enum Keys {
+	enum Keys {
 		static let accent = "accentColorHex"
 		static let theme = "theme"
 		static let apiKey = "apiKey"
@@ -139,6 +242,12 @@ final class PreferencesStore: ObservableObject {
 		static let voiceShortcutKey = "voiceShortcutKey"
 		static let voiceActivationMode = "voiceActivationMode"
 		static let glassStyle = "glassStyle"
+		static let modelProvider = "modelProvider"
+		static let modelName = "modelName"
+		static let customModelName = "customModelName"
+		static let ollamaBaseURL = "ollamaBaseURL"
+		static let lmStudioBaseURL = "lmStudioBaseURL"
+		static let customOpenAIBaseURL = "customOpenAIBaseURL"
 	}
 	
 	private let store: UserDefaults
@@ -147,12 +256,22 @@ final class PreferencesStore: ObservableObject {
 	@Published var themeRaw: String { didSet { store.set(themeRaw, forKey: Keys.theme) } }
 	@Published var apiKey: String { didSet { store.set(apiKey, forKey: Keys.apiKey) } }
 	@Published var apiBaseURL: String { didSet { store.set(apiBaseURL, forKey: Keys.apiBaseURL) } }
+	@Published var modelProviderRaw: String { didSet { store.set(modelProviderRaw, forKey: Keys.modelProvider) } }
+	@Published var modelName: String { didSet { store.set(modelName, forKey: Keys.modelName) } }
+	@Published var customModelName: String { didSet { store.set(customModelName, forKey: Keys.customModelName) } }
+	@Published var ollamaBaseURL: String { didSet { store.set(ollamaBaseURL, forKey: Keys.ollamaBaseURL) } }
+	@Published var lmStudioBaseURL: String { didSet { store.set(lmStudioBaseURL, forKey: Keys.lmStudioBaseURL) } }
+	@Published var customOpenAIBaseURL: String { didSet { store.set(customOpenAIBaseURL, forKey: Keys.customOpenAIBaseURL) } }
 	@Published var hasCompletedSetup: Bool { didSet { store.set(hasCompletedSetup, forKey: Keys.hasCompletedSetup) } }
 	@Published var voiceShortcutKeyRaw: String { didSet { store.set(voiceShortcutKeyRaw, forKey: Keys.voiceShortcutKey) } }
 	@Published var voiceActivationModeRaw: String { didSet { store.set(voiceActivationModeRaw, forKey: Keys.voiceActivationMode) } }
 	@Published var glassStyleRaw: String { didSet { store.set(glassStyleRaw, forKey: Keys.glassStyle) } }
 	
 	var accentColor: Color { Color(hex: accentColorHex) ?? .accentColor }
+	var modelProvider: ModelProvider {
+		get { ModelProvider(rawValue: modelProviderRaw) ?? .google }
+		set { modelProviderRaw = newValue.rawValue }
+	}
 	var theme: ThemePreference {
 		get { ThemePreference(rawValue: themeRaw) ?? .system }
 		set { themeRaw = newValue.rawValue; applyTheme(newValue) }
@@ -206,6 +325,14 @@ final class PreferencesStore: ObservableObject {
 		self.themeRaw = store.string(forKey: Keys.theme) ?? ThemePreference.dark.rawValue
 		self.apiKey = store.string(forKey: Keys.apiKey) ?? ""
 		self.apiBaseURL = store.string(forKey: Keys.apiBaseURL) ?? ""
+		let storedProvider = store.string(forKey: Keys.modelProvider) ?? ModelProvider.google.rawValue
+		self.modelProviderRaw = storedProvider
+		let provider = ModelProvider(rawValue: storedProvider) ?? .google
+		self.modelName = store.string(forKey: Keys.modelName) ?? ModelCatalog.defaultModel(for: provider)
+		self.customModelName = store.string(forKey: Keys.customModelName) ?? ""
+		self.ollamaBaseURL = store.string(forKey: Keys.ollamaBaseURL) ?? (ModelProvider.ollama.defaultBaseURL ?? "")
+		self.lmStudioBaseURL = store.string(forKey: Keys.lmStudioBaseURL) ?? (ModelProvider.lmStudio.defaultBaseURL ?? "")
+		self.customOpenAIBaseURL = store.string(forKey: Keys.customOpenAIBaseURL) ?? ""
 		self.hasCompletedSetup = store.bool(forKey: Keys.hasCompletedSetup)
 		self.voiceShortcutKeyRaw = store.string(forKey: Keys.voiceShortcutKey) ?? VoiceShortcutKey.fn.rawValue
 		self.voiceActivationModeRaw = store.string(forKey: Keys.voiceActivationMode) ?? VoiceActivationMode.holdToTalk.rawValue
@@ -221,6 +348,12 @@ final class PreferencesStore: ObservableObject {
 		themeRaw = ThemePreference.dark.rawValue
 		apiKey = ""
 		apiBaseURL = ""
+		modelProviderRaw = ModelProvider.google.rawValue
+		modelName = ModelCatalog.defaultModel(for: .google)
+		customModelName = ""
+		ollamaBaseURL = ModelProvider.ollama.defaultBaseURL ?? ""
+		lmStudioBaseURL = ModelProvider.lmStudio.defaultBaseURL ?? ""
+		customOpenAIBaseURL = ""
 		hasCompletedSetup = false
 		voiceShortcutKeyRaw = VoiceShortcutKey.fn.rawValue
 		voiceActivationModeRaw = VoiceActivationMode.holdToTalk.rawValue
@@ -230,6 +363,12 @@ final class PreferencesStore: ObservableObject {
 		store.removeObject(forKey: Keys.theme)
 		store.removeObject(forKey: Keys.apiKey)
 		store.removeObject(forKey: Keys.apiBaseURL)
+		store.removeObject(forKey: Keys.modelProvider)
+		store.removeObject(forKey: Keys.modelName)
+		store.removeObject(forKey: Keys.customModelName)
+		store.removeObject(forKey: Keys.ollamaBaseURL)
+		store.removeObject(forKey: Keys.lmStudioBaseURL)
+		store.removeObject(forKey: Keys.customOpenAIBaseURL)
 		store.removeObject(forKey: Keys.hasCompletedSetup)
 		store.removeObject(forKey: Keys.voiceShortcutKey)
 		store.removeObject(forKey: Keys.voiceActivationMode)

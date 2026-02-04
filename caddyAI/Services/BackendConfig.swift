@@ -39,7 +39,7 @@ enum BackendConfig {
     static func loadModelApiKey() -> String? {
         let credentials = CredentialManager.shared
         credentials.loadCredentials()
-        let key = credentials.openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = credentials.googleKey.trimmingCharacters(in: .whitespacesAndNewlines)
         return key.isEmpty ? nil : key
     }
 }

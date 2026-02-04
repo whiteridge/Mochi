@@ -37,7 +37,13 @@ class OpenAICompatChat(LLMChat):
             system_instruction = f"{SYSTEM_INSTRUCTION}\n\n### USER CONTEXT\n{user_context}"
         self._messages.append({"role": "system", "content": system_instruction})
         for msg in history:
-            self._messages.append({"role": msg.get("role", "user"), "content": msg.get("parts", "")})
+            content = msg.get("parts", "")
+            if isinstance(content, list):
+                content = " ".join([str(part) for part in content])
+            role = msg.get("role", "user")
+            if role == "model":
+                role = "assistant"
+            self._messages.append({"role": role, "content": content})
 
         self._client = httpx.Client(timeout=60.0)
         self._last_tool_calls: List[Dict[str, Any]] = []

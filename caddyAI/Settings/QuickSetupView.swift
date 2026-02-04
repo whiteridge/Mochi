@@ -61,30 +61,67 @@ struct QuickSetupView: View {
                     Text("Welcome to caddyAI")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                     
-                    Text("Add your API key and connect at least one integration")
+                    Text("Choose your model provider and connect at least one integration")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 32)
                 
-                // Required: API Key
+                // Required: Model Provider
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("API Key")
+                    Text("Model")
                         .font(.headline)
-                    Text("Required to run the model.")
+                    Text("Choose a provider and model before connecting integrations.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
-                    HStack(spacing: 10) {
-                        SecureField("Enter key", text: $viewModel.apiKey)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Button(apiSaveSuccess ? "Saved" : "Save") {
-                            saveAPIKey()
+                    VStack(alignment: .leading, spacing: 10) {
+                        Picker("Provider", selection: $viewModel.selectedProvider) {
+                            ForEach(ModelProvider.allCases) { provider in
+                                Text(provider.displayName).tag(provider)
+                            }
                         }
-                        .buttonStyle(SettingsGlassButtonStyle(kind: .accent(apiSaveSuccess ? .green : preferences.accentColor)))
-                        .controlSize(.small)
-                        .disabled(!hasAPIKey)
+                        .pickerStyle(.menu)
+
+                        Picker("Model", selection: $viewModel.selectedModel) {
+                            ForEach(ModelCatalog.models(for: viewModel.selectedProvider), id: \.self) { model in
+                                Text(ModelCatalog.displayName(for: model)).tag(model)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if viewModel.isCustomModelSelected {
+                            TextField("Custom model name", text: $viewModel.customModelName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        if viewModel.selectedProvider.requiresApiKey {
+                            SecureField("API key", text: $viewModel.apiKey)
+                                .textFieldStyle(.roundedBorder)
+                        }
+
+                        if viewModel.selectedProvider.supportsBaseURL {
+                            TextField("Base URL", text: Binding(
+                                get: { viewModel.providerBaseURL },
+                                set: { viewModel.providerBaseURL = $0 }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                        }
+
+                        if viewModel.selectedProvider.isLocal {
+                            Text("Local models may not support tool calling. If actions fail, switch to a hosted provider.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 10) {
+                            Button(apiSaveSuccess ? "Saved" : "Save") {
+                                saveModelSettings()
+                            }
+                            .buttonStyle(SettingsGlassButtonStyle(kind: .accent(apiSaveSuccess ? .green : preferences.accentColor)))
+                            .controlSize(.small)
+                            .disabled(!hasValidModelConfig)
+                        }
                     }
                     
                     if let apiError {
@@ -225,14 +262,38 @@ struct QuickSetupView: View {
             viewModel.refreshStatus(appName: "gmail")
             viewModel.refreshStatus(appName: "googlecalendar")
         }
-        .onChange(of: viewModel.apiKey) {
+        .onChange(of: viewModel.apiKey) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.selectedProvider) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.selectedModel) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.customModelName) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.ollamaBaseURL) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.lmStudioBaseURL) { _ in
+            apiSaveSuccess = false
+            apiError = nil
+        }
+        .onChange(of: viewModel.customOpenAIBaseURL) { _ in
             apiSaveSuccess = false
             apiError = nil
         }
     }
     
-    private var hasAPIKey: Bool {
-        !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var hasValidModelConfig: Bool {
+        viewModel.isModelConfigValid
     }
     
     private var hasAnyConnection: Bool {
@@ -240,14 +301,14 @@ struct QuickSetupView: View {
     }
     
     private var isSetupReady: Bool {
-        hasAPIKey && hasAnyConnection
+        hasValidModelConfig && hasAnyConnection
     }
     
     private var apiBorderColor: Color {
         if apiError != nil {
             return Color.orange.opacity(0.4)
         }
-        if hasAPIKey {
+        if hasValidModelConfig {
             return Color.green.opacity(0.4)
         }
         return Color.gray.opacity(0.15)
@@ -400,8 +461,8 @@ struct QuickSetupView: View {
     }
     
     private func completeSetup() {
-        guard hasAPIKey, hasAnyConnection else {
-            apiError = hasAPIKey ? nil : "Add your API key to continue."
+        guard hasValidModelConfig, hasAnyConnection else {
+            apiError = hasValidModelConfig ? nil : "Add a valid model configuration to continue."
             return
         }
         viewModel.saveAPISettings()
@@ -409,10 +470,10 @@ struct QuickSetupView: View {
         onComplete()
     }
 
-    private func saveAPIKey() {
+    private func saveModelSettings() {
         apiError = nil
-        guard hasAPIKey else {
-            apiError = "Add your API key to save."
+        guard hasValidModelConfig else {
+            apiError = "Add a valid model configuration to save."
             return
         }
         viewModel.saveAPISettings()

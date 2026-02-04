@@ -63,6 +63,7 @@ class ChatRequest(BaseModel):
     confirmed_tool: Optional[dict] = None
     user_timezone: Optional[str] = None
     api_key: Optional[str] = None
+    model: Optional[dict] = None
 
 
 # --- Mock Agent Service ---
