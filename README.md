@@ -18,11 +18,7 @@ Linear, Slack, GitHub, Notion, Gmail, Google Calendar.
 
 ## Docs
 - `SETUP.md` — run the backend + macOS app
-- `KEYBOARD_INTERACTION.md` — hold-to-talk / toggle + shortcut key
 - `backend/README.md` — backend-only notes
-- `ROADMAP.md` — current priorities
-- `DEMO_PAIN_POINTS.md` — demo scripts / talking points
-- `TESTS.md` — manual test checklist
 
 ## Status
 MVP in progress.
