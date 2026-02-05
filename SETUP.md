@@ -1,117 +1,95 @@
-# Get Started (From Zero)
+# Setup
 
-This guide walks you from a clean machine to a working caddyAI setup (backend + macOS app) and connected integrations.
+caddyAI has two parts:
+1) `backend/` (FastAPI + Composio)
+2) `caddyAI/` (macOS SwiftUI app)
 
-## 1) Requirements
-- macOS with Xcode installed
+## Requirements
+- macOS + Xcode
 - Python 3.11
-- A Composio account + API key
-- A model provider API key (Google Gemini, OpenAI, or Anthropic)
+- A Composio API key (`COMPOSIO_API_KEY`)
+- A model provider key (Gemini/OpenAI/Anthropic) **or** a local OpenAI-compatible server
 
-Optional but helpful:
-- Homebrew
-- A dedicated virtualenv for the backend
+Latest curated model IDs (in-app defaults):
+- Google Gemini (best performance): `gemini-3-flash-preview`, `gemini-3-pro-preview`
+- OpenAI: `gpt-5.2`, `gpt-5-mini`, `gpt-5-nano`
+- Anthropic: `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`
 
-## 2) Clone the repo
-```
-cd ~/Desktop
-# If you already have the repo, skip this
-# git clone <your-repo-url>
-cd caddyAI
-```
+## Quick start
 
-## 3) Backend setup (FastAPI + Composio)
-From the repo root:
-```
+### 1) Run the backend
+```bash
 cd backend
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-### Environment variables
-Create a `backend/.env` file (do not commit it) or export variables in your shell.
-Minimum required:
-```
-COMPOSIO_API_KEY=your_composio_key
-```
+# required
+export COMPOSIO_API_KEY=your_composio_key
 
-Model API key options (pick one):
-```
-GOOGLE_API_KEY=your_gemini_key
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-```
-or enter the key in the macOS app Quick Setup (stored locally in Keychain and sent to the backend per request).
+# pick one (optional if you enter it in the app)
+export GOOGLE_API_KEY=your_gemini_key
+# export OPENAI_API_KEY=your_openai_key
+# export ANTHROPIC_API_KEY=your_anthropic_key
 
-Local providers (no API key required):
-- Ollama default base URL: `http://localhost:11434/v1`
-- LM Studio default base URL: `http://localhost:1234/v1`
-
-Recommended (keeps accounts stable across restarts):
+uvicorn main:app --reload
 ```
+Keep this terminal running while you use the app.
+
+### 2) Run the macOS app
+```bash
+cd ..
+open caddyAI.xcodeproj
+```
+Run the `caddyAI` scheme. The first time, macOS will ask for microphone access.
+The voice hotkey defaults to `Fn` and is configurable in Settings.
+
+## Backend environment variables (optional)
+Put these in `backend/.env` (never commit it) or export them in your shell.
+
+Recommended:
+```bash
 COMPOSIO_USER_ID=caddyai-default
 ```
 
-If you see “Auth config not found” errors, add the app-specific auth config IDs (from the Composio dashboard):
-```
+If Composio says “Auth config not found”, add auth config IDs from the Composio dashboard:
+```bash
 COMPOSIO_SLACK_AUTH_CONFIG_ID=...
 COMPOSIO_LINEAR_AUTH_CONFIG_ID=...
 COMPOSIO_NOTION_AUTH_CONFIG_ID=...
 COMPOSIO_GITHUB_AUTH_CONFIG_ID=...
 ```
 
-If Composio cache permission errors appear, set a writable cache dir:
-```
+If Composio cache permissions fail:
+```bash
 COMPOSIO_CACHE_DIR=/tmp/composio-cache
 ```
 
-### Run the backend
-```
-uvicorn main:app --reload
-```
-Keep this terminal running while you use the app.
+Local models (no API key required):
+- Ollama: `http://localhost:11434/v1`
+- LM Studio: `http://localhost:1234/v1`
 
-## 4) Run the macOS app
-From the repo root:
-```
-open caddyAI.xcodeproj
-```
-Then run the `caddyAI` scheme. The first time, macOS will ask for microphone access.
+## First run (Quick Setup)
+If you’re missing a model key or any Composio connection, a Quick Setup window appears.
+- Add a model API key (stored in Keychain).
+- Connect at least one integration (Settings → Integrations).
 
-On first launch, a minimal Quick Setup window appears. Add your API key (stored locally in Keychain and sent to the backend) and connect at least one integration (Composio OAuth). You can connect additional tools later in Settings.
-
-## 5) Connect integrations
-In the app:
-- Open Settings > Integrations
-- Click “Connect” for Slack, Linear, etc.
-- Complete OAuth in the browser
-- Return to the app and wait for the status to show Connected
-
-If the button says “Reconnect”, it means the token expired or is inactive. Click it to refresh access.
-
-## 6) Quick smoke test
-Try a multi-app prompt:
-- “Create a Linear issue named blue bug for the Mobile app team and notify #billing-team in Slack.”
+## Smoke test
+Say:
+- “Create a Linear issue titled ‘Login crash on iOS 17.3’ for the Mobile team, then notify #billing-team in Slack.”
 
 You should see a confirmation card before any write action.
 
 ## Troubleshooting
-- Backend not running: start `uvicorn main:app --reload` in `backend/`.
-- Auth config not found: set the correct `COMPOSIO_*_AUTH_CONFIG_ID` or create the auth config in Composio.
-- Multiple connected accounts: remove duplicates in the Composio dashboard (Connected Accounts) and retry.
-- Authentication expired: use the “Reconnect” button in Settings > Integrations.
-- Rate limits: wait a minute and retry (provider quota limits apply).
-- Composio cache not writable: set `COMPOSIO_CACHE_DIR` to a writable path.
-- Microphone denied: System Settings > Privacy & Security > Microphone.
-- `xcodebuild` error: open Xcode and select it in `xcode-select`.
+- Backend not running: start `uvicorn main:app --reload` from `backend/`.
+- “Agent service not initialized”: check `COMPOSIO_API_KEY`.
+- “Auth config not found”: set the correct `COMPOSIO_*_AUTH_CONFIG_ID` in the backend env.
+- Integration shows “Reconnect”: token expired or inactive → click Reconnect in Settings → Integrations.
+- Microphone denied: System Settings → Privacy & Security → Microphone.
+- Xcode CLI issues: open Xcode once, then select it via `xcode-select`.
 
 ## Tests (optional)
-From repo root:
-```
-# Swift
+```bash
 xcodebuild test -scheme caddyAI -destination 'platform=macOS'
-
-# Python
-PYTHONPATH=. COMPOSIO_CACHE_DIR=/tmp/composio-cache pytest
+cd backend && pytest
 ```

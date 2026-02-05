@@ -1,10 +1,19 @@
 """
 Test suite for Slack Agent logic (Interception vs. Execution).
 """
+import os
+
 import pytest
 import httpx
 import json
 from typing import List, Dict, Any
+
+# These scenarios hit a live backend over HTTP.
+if os.getenv("CADDYAI_LIVE_TESTS") != "1":
+    pytest.skip(
+        "Live backend scenarios are skipped by default. Set CADDYAI_LIVE_TESTS=1 to enable.",
+        allow_module_level=True,
+    )
 
 # Base URL for the API
 BASE_URL = "http://localhost:8000"

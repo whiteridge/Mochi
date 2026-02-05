@@ -13,9 +13,9 @@ from llm.providers.anthropic import AnthropicChat, DEFAULT_BASE_URL as ANTHROPIC
 
 
 DEFAULT_MODELS = {
-    "google": "gemini-2.5-flash",
-    "openai": "gpt-4o",
-    "anthropic": "claude-3-5-sonnet",
+    "google": "gemini-3-flash-preview",
+    "openai": "gpt-5.2",
+    "anthropic": "claude-sonnet-4-5-20250929",
     "ollama": "llama3",
     "lmstudio": "llama3",
     "custom_openai": "llama3",

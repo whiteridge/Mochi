@@ -66,9 +66,13 @@ enum ModelProvider: String, CaseIterable, Identifiable, Codable {
 struct ModelCatalog {
 	static let customModelId = "custom"
 
-	static let googleModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
-	static let openaiModels = ["gpt-4o", "gpt-4o-mini"]
-	static let anthropicModels = ["claude-3-5-sonnet", "claude-3-5-haiku"]
+	static let googleModels = ["gemini-3-flash-preview", "gemini-3-pro-preview"]
+	static let openaiModels = ["gpt-5.2", "gpt-5-mini", "gpt-5-nano"]
+	static let anthropicModels = [
+		"claude-sonnet-4-5-20250929",
+		"claude-opus-4-5-20251101",
+		"claude-haiku-4-5-20251001"
+	]
 
 	static func models(for provider: ModelProvider) -> [String] {
 		switch provider {

@@ -202,7 +202,12 @@ final class SettingsViewModel: ObservableObject {
 	private func syncProviderState() {
 		let availableModels = ModelCatalog.models(for: selectedProvider)
 		if !availableModels.contains(selectedModel) {
-			selectedModel = ModelCatalog.defaultModel(for: selectedProvider)
+			if !selectedModel.isEmpty, selectedModel != ModelCatalog.customModelId {
+				customModelName = selectedModel
+				selectedModel = ModelCatalog.customModelId
+			} else {
+				selectedModel = ModelCatalog.defaultModel(for: selectedProvider)
+			}
 		}
 		if selectedProvider.supportsBaseURL,
 		   providerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

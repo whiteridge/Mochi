@@ -9,15 +9,15 @@ Usage:
     uvicorn mock_main:app --reload --port 8000
 
 Test scenarios:
-    - "test 1" / "test one" -> Demo flow #1 (Linear issue + Slack notify)
-    - "test 2" / "test two" -> Demo flow #2 (Slack message w/ confirm)
+    - "test 1" / "test one" -> Demo flow #1 (2 apps: Linear + Slack)
+    - "test 2" / "test two" -> Demo flow #2 (3 apps: GitHub + Notion + Calendar)
     - "test 3" / "test three" -> Multi-app flow (Linear + Slack)
     - "test 4" / "test four" -> Triple-app flow (Linear + Slack + Calendar)
     - "test 5" / "test five" -> Calendar event
     - "test 6" / "test six" -> GitHub PR
     - "test 7" / "test seven" -> Gmail email
     - "test 8" / "test eight" -> Notion page
-    - "test 9" / "test nine" -> Demo flow (GitHub digest + Notion + Calendar)
+    - "test 9" / "test nine" -> Demo flow (GitHub + Notion + Calendar) [alias of test 2]
     - anything else -> Help message
 """
 
@@ -130,8 +130,24 @@ class MockAgentService:
 
         # Scenario B: Demo flow #2 (test 2 / test two)
         elif any(k in user_input_lower for k in ["test 2", "test two", "testtwo"]):
-            print("[MOCK DEBUG] -> Matched: Demo flow #2 (Slack confirm)")
+            print("[MOCK DEBUG] -> Matched: Demo flow #2 (GitHub + Notion + Calendar)")
             async for event in self._demo_flow_two_scenario():
+                yield event
+
+        # Scenario B2: Natural-language demo triggers (multi-app keywords)
+        elif "linear" in user_input_lower and "slack" in user_input_lower and "test" not in user_input_lower:
+            print("[MOCK DEBUG] -> Matched: Demo flow #1 (keyword: linear+slack)")
+            async for event in self._demo_flow_one_scenario():
+                yield event
+
+        elif (
+            "github" in user_input_lower
+            and "notion" in user_input_lower
+            and ("calendar" in user_input_lower or "schedule" in user_input_lower)
+            and "test" not in user_input_lower
+        ):
+            print("[MOCK DEBUG] -> Matched: Demo flow #2 (keyword: github+notion+calendar)")
+            async for event in self._demo_flow_scenario():
                 yield event
 
         # Scenario C: Linear (keyword match)
@@ -196,14 +212,15 @@ class MockAgentService:
                     "🧪 **Mock Backend Active**\n\n"
                     "Try saying:\n"
                     "- `test 1` → Demo #1 (Linear + Slack)\n"
-                    "- `test 2` → Demo #2 (Slack confirm)\n"
+                    "- `test 2` → Demo #2 (GitHub + Notion + Calendar)\n"
                     "- `test 3` → Multi-app (Linear+Slack)\n"
                     "- `test 4` → Triple-app (+Calendar)\n"
                     "- `test 5` → Calendar\n"
                     "- `test 6` → GitHub\n"
                     "- `test 7` → Gmail\n"
                     "- `test 8` → Notion\n"
-                    "- `test 9` → Demo (GitHub + Notion + Calendar)"
+                    "- `test 9` → Demo (GitHub + Notion + Calendar) [alias]"
+                    "\n\nTip: saying a prompt that mentions **Linear + Slack** (or **GitHub + Notion + Calendar**) also triggers the demo flows."
                 ),
                 "action_performed": None,
             }
@@ -368,33 +385,9 @@ class MockAgentService:
         }
 
     async def _demo_flow_two_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
-        """Demo flow #2: Slack message with explicit confirmation (pain point #2)."""
-        async for event in self._emit_thinking():
+        """Demo flow #2: GitHub digest → Notion log → Calendar block (3 apps)."""
+        async for event in self._demo_flow_scenario():
             yield event
-
-        yield {
-            "type": "early_summary",
-            "content": "I'll draft that Slack announcement for review.",
-            "app_id": "slack",
-            "involved_apps": ["slack"],
-        }
-
-        await asyncio.sleep(MOCK_PRE_PROPOSAL_DELAY_SEC)
-
-        yield {
-            "type": "proposal",
-            "tool": "SLACK_SENDS_A_MESSAGE_TO_A_SLACK_CHANNEL",
-            "content": {
-                "channel": "C44556677",
-                "channelName": "#announcements",
-                "text": "We’re shipping at 6pm—please hold deploys.",
-                "mrkdwn": True,
-            },
-            "summary_text": "I'll post the 6pm ship notice in #announcements.",
-            "app_id": "slack",
-            "proposal_index": 0,
-            "total_proposals": 1,
-        }
 
     async def _linear_scenario(self) -> AsyncGenerator[Dict[str, Any], None]:
         """Simulate Linear ticket creation flow."""
@@ -752,7 +745,7 @@ class MockAgentService:
             "content": {
                 "owner": "acme-corp",
                 "repo": "triage",
-                "title": "GitHub Notifications Digest - Jan 30",
+                "title": "GitHub Notifications Digest - Feb 5",
                 "body": (
                     "Summary of new GitHub notifications (last 24h):\n\n"
                     "1) PR #428 - \"Improve onboarding quick setup\" (review requested)\n"
@@ -776,7 +769,7 @@ class MockAgentService:
                     "app_id": "notion",
                     "args": {
                         "parent_id": "workspace-digest-001",
-                        "title": "GitHub Daily Digest - Jan 30",
+                        "title": "GitHub Daily Digest - Feb 5",
                         "properties": {
                             "Status": "Ready",
                             "Owner": "Matteo",
@@ -802,8 +795,8 @@ class MockAgentService:
                     "args": {
                         "summary": "GitHub Triage (Daily Digest)",
                         "description": "Quick review of today's GitHub digest and action items.",
-                        "start": {"dateTime": "2026-01-30T16:00:00", "timeZone": "America/Los_Angeles"},
-                        "end": {"dateTime": "2026-01-30T16:30:00", "timeZone": "America/Los_Angeles"},
+                        "start": {"dateTime": "2026-02-06T10:00:00", "timeZone": "America/Los_Angeles"},
+                        "end": {"dateTime": "2026-02-06T10:30:00", "timeZone": "America/Los_Angeles"},
                         "location": "https://meet.google.com/triage-room",
                     },
                 },

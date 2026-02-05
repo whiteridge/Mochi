@@ -30,7 +30,7 @@
 - Tests: `caddyAITests/`, `caddyAIUITests/`, and `macos/MenuBarAppTests/` for XCTest; `backend/tests/` for pytest.
 - Assets: `caddyAI/Assets.xcassets` and `macos/MenuBarApp/Assets.xcassets`.
 - `backend/`: FastAPI + Composio tooling service (Python 3.11).
-- Reference docs: `README.md`, `SETUP.md`, `KEYBOARD_INTERACTION.md`.
+- Reference docs: `README.md`, `SETUP.md`, `DEMO_PAIN_POINTS.md`.
 
 ## Build, Test, and Development Commands
 - macOS app (Xcode):

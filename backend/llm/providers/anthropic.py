@@ -12,7 +12,7 @@ from llm.types import LLMChat, LLMResponse, ToolCall
 
 
 DEFAULT_BASE_URL = "https://api.anthropic.com"
-DEFAULT_MODEL = "claude-3-5-sonnet"
+DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_VERSION = "2023-06-01"
 
 
