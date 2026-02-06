@@ -1,5 +1,5 @@
 """
-Mock Backend for CaddyAI UI Testing.
+Mock Backend for Mochi UI Testing.
 
 This backend mimics the real API endpoints but uses deterministic scenario
 detection instead of LLM calls. Great for UI development and testing confirmation
@@ -40,7 +40,7 @@ except ImportError:
 
 load_dotenv()
 
-app = FastAPI(title="CaddyAI Mock Backend")
+app = FastAPI(title="Mochi Mock Backend")
 
 MOCK_THINKING_DELAY_SEC = float(os.getenv("MOCK_THINKING_DELAY_SEC", "0.9"))
 MOCK_SEARCHING_DELAY_SEC = float(os.getenv("MOCK_SEARCHING_DELAY_SEC", "1.4"))
@@ -841,7 +841,7 @@ class MockAgentService:
             "tool": "GITHUB_CREATE_PULL_REQUEST",
             "content": {
                 "owner": "acme-corp",
-                "repo": "caddyai-frontend",
+                "repo": "mochi-frontend",
                 "title": "feat: Implement voice command confirmation UI",
                 "body": "## Summary\n\nThis PR adds a new confirmation card component for voice commands.\n\n## Changes\n\n- Added `ConfirmationCardView.swift` with glassmorphism styling\n- Implemented animated status pills for multi-app workflows\n- Added haptic feedback on confirm/cancel actions\n\n## Testing\n\n- Tested with Linear, Slack, and Calendar integrations\n- Verified animations run at 60fps on M1 MacBook\n\n## Screenshots\n\nSee attached Figma designs for reference.",
                 "head": "feature/confirmation-ui",

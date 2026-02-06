@@ -1,4 +1,4 @@
-# caddyAI
+# mochi
 
 A native macOS voice overlay: transcribe locally, then propose actions across your tools (with confirmation before any write).
 
@@ -10,7 +10,7 @@ A native macOS voice overlay: transcribe locally, then propose actions across yo
 - Confirmation cards for tool writes (human-in-the-loop)
 
 ## Repo structure
-- `caddyAI/`: macOS SwiftUI app
+- `mochi/`: macOS SwiftUI app
 - `backend/`: FastAPI agent + Composio tool layer
 
 ## Integrations (via Composio)

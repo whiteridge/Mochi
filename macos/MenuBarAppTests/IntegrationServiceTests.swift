@@ -3,7 +3,7 @@ import XCTest
 
 final class IntegrationServiceTests: XCTestCase {
 	func testSlackConnectAndDisconnectUpdatesState() {
-		let keychain = KeychainStore(service: "com.matteofari.caddyAI.menu.tests.slack")
+		let keychain = KeychainStore(service: "com.matteofari.mochi.menu.tests.slack")
 		keychain.removeAll()
 		let service = IntegrationService(keychain: keychain)
 		
@@ -16,7 +16,7 @@ final class IntegrationServiceTests: XCTestCase {
 	}
 	
 	func testLinearConnectRequiresBothFields() {
-		let keychain = KeychainStore(service: "com.matteofari.caddyAI.menu.tests.linear")
+		let keychain = KeychainStore(service: "com.matteofari.mochi.menu.tests.linear")
 		keychain.removeAll()
 		let service = IntegrationService(keychain: keychain)
 		

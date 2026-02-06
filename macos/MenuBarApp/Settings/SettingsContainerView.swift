@@ -265,7 +265,7 @@ private struct IntegrationsSettingsView: View {
 				
 				IntegrationCard(
 					title: "Slack",
-					description: "Connect Slack to post updates and receive alerts directly from caddyAI.",
+					description: "Connect Slack to post updates and receive alerts directly from mochi.",
 					state: integrationService.slackState,
 					connectAction: viewModel.connectSlack,
 					disconnectAction: viewModel.disconnectSlack

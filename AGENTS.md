@@ -7,7 +7,7 @@
 
 ### Swift (macOS)
 - After Swift code changes, run:
-  - `xcodebuild test -scheme caddyAI -destination 'platform=macOS'`
+  - `xcodebuild test -scheme mochi -destination 'platform=macOS'`
 - `swift test` applies only if a SwiftPM `Package.swift` is added.
 
 ### Python backend
@@ -24,19 +24,19 @@
   - `docker compose exec backend ruff check .`
 
 ## Project Structure & Module Organization
-- `caddyAI/`: primary macOS SwiftUI app (views, view models, services, audio, settings).
+- `mochi/`: primary macOS SwiftUI app (views, view models, services, audio, settings).
 - `Shared/`: shared integration/core models used across targets.
 - `macos/MenuBarApp/`: menu bar companion app and settings UI.
-- Tests: `caddyAITests/`, `caddyAIUITests/`, and `macos/MenuBarAppTests/` for XCTest; `backend/tests/` for pytest.
-- Assets: `caddyAI/Assets.xcassets` and `macos/MenuBarApp/Assets.xcassets`.
+- Tests: `mochiTests/`, `mochiUITests/`, and `macos/MenuBarAppTests/` for XCTest; `backend/tests/` for pytest.
+- Assets: `mochi/Assets.xcassets` and `macos/MenuBarApp/Assets.xcassets`.
 - `backend/`: FastAPI + Composio tooling service (Python 3.11).
 - Reference docs: `README.md`, `SETUP.md`, `backend/README.md`.
 
 ## Build, Test, and Development Commands
 - macOS app (Xcode):
-  - `open caddyAI.xcodeproj` to run/debug the `caddyAI` scheme.
-  - `xcodebuild -scheme caddyAI -configuration Debug build` to build from CLI.
-  - `xcodebuild test -scheme caddyAI -destination 'platform=macOS'` to run Swift tests.
+  - `open mochi.xcodeproj` to run/debug the `mochi` scheme.
+  - `xcodebuild -scheme mochi -configuration Debug build` to build from CLI.
+  - `xcodebuild test -scheme mochi -destination 'platform=macOS'` to run Swift tests.
 - Backend (from `backend/`):
   - `pip install -r requirements.txt` to install deps.
   - `uvicorn main:app --reload` to run the API server locally.
@@ -48,7 +48,7 @@
 - No repository-wide formatter/linter is enforced; match surrounding style.
 
 ## Testing Guidelines
-- XCTest for macOS targets; add unit tests in `caddyAITests/` and UI tests in `caddyAIUITests/` or `macos/MenuBarAppTests/`.
+- XCTest for macOS targets; add unit tests in `mochiTests/` and UI tests in `mochiUITests/` or `macos/MenuBarAppTests/`.
 - pytest + pytest-asyncio for backend flows in `backend/tests/`.
 - Add or update tests when changing tool routing, integrations, or stateful UI logic.
 

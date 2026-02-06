@@ -38,7 +38,7 @@ Local providers (no API key required):
 ```bash
 pytest
 ```
-Set `CADDYAI_LIVE_TESTS=1` to enable HTTP scenario tests (expects a backend running on `http://localhost:8000`).
+Set `MOCHI_LIVE_TESTS=1` to enable HTTP scenario tests (expects a backend running on `http://localhost:8000`).
 
 ## Notes
 - Recent UI updates (draggable pill/confirmation card, status pill auto-sizing) are frontend-only.

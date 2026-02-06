@@ -7,7 +7,7 @@ import os
 from agent_service import AgentService
 from services.composio_service import ComposioService
 
-app = FastAPI(title="CaddyAI Backend")
+app = FastAPI(title="Mochi Backend")
 
 # Initialize Composio Service (for integrations)
 try:
