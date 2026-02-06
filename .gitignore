@@ -20,6 +20,7 @@ xcuserdata/
 *.mode2v3
 *.perspectivev3
 DerivedData/
+.derivedData/
 build/
 *.hmap
 *.ipa

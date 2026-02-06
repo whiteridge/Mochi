@@ -73,8 +73,16 @@ class MockAgentService:
     """Mock service that returns deterministic responses based on keywords."""
 
     def __init__(self):
-        # Initialize real service for execution if available
-        self.composio_service = ComposioService() if ComposioService else None
+        # Initialize real service for execution if available.
+        # In mock mode we should still boot even when Composio is not configured.
+        if ComposioService:
+            try:
+                self.composio_service = ComposioService()
+            except Exception as exc:  # noqa: BLE001 - fallback to mock-only mode
+                print(f"Warning: ComposioService unavailable in mock mode: {exc}")
+                self.composio_service = None
+        else:
+            self.composio_service = None
 
     async def _emit_thinking(self, text: str = "Thinking...") -> AsyncGenerator[Dict[str, Any], None]:
         yield {
