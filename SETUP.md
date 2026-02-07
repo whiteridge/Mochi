@@ -1,8 +1,8 @@
 # Setup
 
-caddyAI has two parts:
+mochi has two parts:
 1) `backend/` (FastAPI + Composio)
-2) `caddyAI/` (macOS SwiftUI app)
+2) `mochi/` (macOS SwiftUI app)
 
 ## Requirements
 - macOS + Xcode
@@ -39,9 +39,9 @@ Keep this terminal running while you use the app.
 ### 2) Run the macOS app
 ```bash
 cd ..
-open caddyAI.xcodeproj
+open mochi.xcodeproj
 ```
-Run the `caddyAI` scheme. The first time, macOS will ask for microphone access.
+Run the `mochi` scheme. The first time, macOS will ask for microphone access.
 The voice hotkey defaults to `Fn` and is configurable in Settings.
 
 ## Backend environment variables (optional)
@@ -49,7 +49,7 @@ Put these in `backend/.env` (never commit it) or export them in your shell.
 
 Recommended:
 ```bash
-COMPOSIO_USER_ID=caddyai-default
+COMPOSIO_USER_ID=mochi-default
 ```
 
 If Composio says “Auth config not found”, add auth config IDs from the Composio dashboard:
@@ -90,6 +90,6 @@ You should see a confirmation card before any write action.
 
 ## Tests (optional)
 ```bash
-xcodebuild test -scheme caddyAI -destination 'platform=macOS'
+xcodebuild test -scheme mochi -destination 'platform=macOS'
 cd backend && pytest
 ```

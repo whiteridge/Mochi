@@ -20,6 +20,7 @@ xcuserdata/
 *.mode2v3
 *.perspectivev3
 DerivedData/
+.derivedData/
 build/
 *.hmap
 *.ipa
@@ -132,3 +133,4 @@ backend/__pycache__/
 .DS_Store
 
 .codex/
+.cursor/

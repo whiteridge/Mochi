@@ -1,5 +1,5 @@
 """
-Mock Backend for CaddyAI UI Testing.
+Mock Backend for Mochi UI Testing.
 
 This backend mimics the real API endpoints but uses deterministic scenario
 detection instead of LLM calls. Great for UI development and testing confirmation
@@ -40,7 +40,7 @@ except ImportError:
 
 load_dotenv()
 
-app = FastAPI(title="CaddyAI Mock Backend")
+app = FastAPI(title="Mochi Mock Backend")
 
 MOCK_THINKING_DELAY_SEC = float(os.getenv("MOCK_THINKING_DELAY_SEC", "0.9"))
 MOCK_SEARCHING_DELAY_SEC = float(os.getenv("MOCK_SEARCHING_DELAY_SEC", "1.4"))
@@ -73,8 +73,16 @@ class MockAgentService:
     """Mock service that returns deterministic responses based on keywords."""
 
     def __init__(self):
-        # Initialize real service for execution if available
-        self.composio_service = ComposioService() if ComposioService else None
+        # Initialize real service for execution if available.
+        # In mock mode we should still boot even when Composio is not configured.
+        if ComposioService:
+            try:
+                self.composio_service = ComposioService()
+            except Exception as exc:  # noqa: BLE001 - fallback to mock-only mode
+                print(f"Warning: ComposioService unavailable in mock mode: {exc}")
+                self.composio_service = None
+        else:
+            self.composio_service = None
 
     async def _emit_thinking(self, text: str = "Thinking...") -> AsyncGenerator[Dict[str, Any], None]:
         yield {
@@ -841,7 +849,7 @@ class MockAgentService:
             "tool": "GITHUB_CREATE_PULL_REQUEST",
             "content": {
                 "owner": "acme-corp",
-                "repo": "caddyai-frontend",
+                "repo": "mochi-frontend",
                 "title": "feat: Implement voice command confirmation UI",
                 "body": "## Summary\n\nThis PR adds a new confirmation card component for voice commands.\n\n## Changes\n\n- Added `ConfirmationCardView.swift` with glassmorphism styling\n- Implemented animated status pills for multi-app workflows\n- Added haptic feedback on confirm/cancel actions\n\n## Testing\n\n- Tested with Linear, Slack, and Calendar integrations\n- Verified animations run at 60fps on M1 MacBook\n\n## Screenshots\n\nSee attached Figma designs for reference.",
                 "head": "feature/confirmation-ui",

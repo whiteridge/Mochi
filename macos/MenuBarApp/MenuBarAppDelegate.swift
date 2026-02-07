@@ -54,7 +54,7 @@ final class SettingsWindowController {
 				backing: .buffered,
 				defer: false
 			)
-			window.title = "caddyAI Setup"
+			window.title = "mochi Setup"
 			window.contentViewController = hostingController
 			window.center()
 			settingsWindow = window

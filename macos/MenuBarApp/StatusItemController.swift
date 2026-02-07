@@ -20,7 +20,7 @@ final class StatusItemController: NSObject {
 		if let button = statusItem.button {
 			button.image = NSImage(
 				systemSymbolName: "bubble.left.and.bubble.right.fill",
-				accessibilityDescription: "caddyAI Setup"
+				accessibilityDescription: "mochi Setup"
 			)
 			button.imagePosition = .imageOnly
 		}

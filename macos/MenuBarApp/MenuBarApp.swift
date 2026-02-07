@@ -26,7 +26,7 @@ final class MenuBarEnvironment: ObservableObject {
 	let settingsViewModel: SettingsViewModel
 	
 	init() {
-		let keychain = KeychainStore(service: "com.matteofari.caddyAI.menu")
+		let keychain = KeychainStore(service: "com.matteofari.mochi.menu")
 		let preferences = PreferencesStore()
 		let integrationService = IntegrationService(keychain: keychain)
 		let settingsViewModel = SettingsViewModel(preferences: preferences, integrationService: integrationService)

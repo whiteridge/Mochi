@@ -77,7 +77,7 @@ final class PreferencesStore: ObservableObject {
 		}
 	}
 	
-	init(store: UserDefaults = UserDefaults(suiteName: "com.matteofari.caddyAI.menu") ?? .standard) {
+	init(store: UserDefaults = UserDefaults(suiteName: "com.matteofari.mochi.menu") ?? .standard) {
 		self.store = store
 		self.accentColorHex = store.string(forKey: Keys.accent) ?? "#4A90E2"
 		self.themeRaw = store.string(forKey: Keys.theme) ?? ThemePreference.dark.rawValue

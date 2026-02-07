@@ -8,8 +8,8 @@ struct OnboardingView: View {
 	
 	private let steps = [
 		"Set your accent color and theme.",
-		"Add your API key.",
-		"Connect Slack and Linear to enable automations."
+		"Choose your model provider and key.",
+		"Connect your integrations (Slack, Linear, Notion, GitHub, Gmail, Google Calendar)."
 	]
 	
 	var body: some View {
@@ -52,7 +52,7 @@ struct OnboardingView: View {
 				Button("Back") {
 					step = max(step - 1, 0)
 				}
-				.buttonStyle(.bordered)
+				.buttonStyle(SettingsGlassButtonStyle())
 				.disabled(step == 0)
 				
 				Spacer()
@@ -60,7 +60,7 @@ struct OnboardingView: View {
 				Button(primaryButtonTitle) {
 					advance()
 				}
-				.buttonStyle(.borderedProminent)
+				.buttonStyle(SettingsGlassButtonStyle(kind: .accent(preferences.accentColor), prominence: .regular))
 			}
 		}
 		.padding(24)
@@ -84,4 +84,3 @@ struct OnboardingView: View {
 		}
 	}
 }
-

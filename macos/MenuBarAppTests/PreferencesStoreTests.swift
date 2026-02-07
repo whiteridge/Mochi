@@ -3,7 +3,7 @@ import XCTest
 
 final class PreferencesStoreTests: XCTestCase {
 	func testResetClearsValues() {
-		let suiteName = "com.matteofari.caddyAI.menu.tests.pref"
+		let suiteName = "com.matteofari.mochi.menu.tests.pref"
 		let store = UserDefaults(suiteName: suiteName)!
 		store.removePersistentDomain(forName: suiteName)
 		let prefs = PreferencesStore(store: store)
@@ -20,7 +20,7 @@ final class PreferencesStoreTests: XCTestCase {
 	}
 	
 	func testThemeSwitchUpdatesAppearance() {
-		let suiteName = "com.matteofari.caddyAI.menu.tests.pref.appearance"
+		let suiteName = "com.matteofari.mochi.menu.tests.pref.appearance"
 		let store = UserDefaults(suiteName: suiteName)!
 		store.removePersistentDomain(forName: suiteName)
 		let prefs = PreferencesStore(store: store)
