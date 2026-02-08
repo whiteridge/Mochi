@@ -136,3 +136,6 @@ backend/__pycache__/
 
 .codex/
 .cursor/
+
+# Website media artifacts (not required for deployment)
+mochi-site/assets/*.mp4
