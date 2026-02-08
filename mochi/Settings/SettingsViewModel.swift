@@ -312,6 +312,11 @@ final class SettingsViewModel: ObservableObject {
 			return "Backend not running. Start with: cd backend && uvicorn main:app --reload"
 		}
 
+		if lower.contains("composio service not initialized")
+			|| (lower.contains("composio") && lower.contains("api key")) {
+			return "Composio not configured. Set COMPOSIO_API_KEY for the bundled backend and relaunch Mochi."
+		}
+
 		if trimmed.contains("{") && trimmed.contains("}") {
 			return "Connection failed. Check your Composio auth config and try again."
 		}

@@ -960,13 +960,19 @@ async def chat_endpoint(request: ChatRequest):
 @app.get("/api/v1/integrations/connect/{app_name}")
 async def get_connect_url(app_name: str, user_id: str):
     """Get the authorization URL for connecting an app."""
-    if mock_service.composio_service:
-        try:
-            url = mock_service.composio_service.get_auth_url(app_name, user_id)
-            return {"url": url}
-        except Exception as e:
-            return {"url": f"https://composio.dev/connect/{app_name}?error={str(e)}"}
-    return {"url": f"https://composio.dev/connect/{app_name}"}
+    if not mock_service.composio_service:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Composio is not configured in backend. Set COMPOSIO_API_KEY and restart."
+            ),
+        )
+
+    try:
+        url = mock_service.composio_service.get_auth_url(app_name, user_id)
+        return {"url": url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/v1/integrations/status/{app_name}")

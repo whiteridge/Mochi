@@ -67,7 +67,7 @@ final class BackendProcessManager {
 		isLaunching = true
 		defer { isLaunching = false }
 
-		let preferredMode: LaunchMode = hasComposioConfiguration(in: backendDirectory) ? .real : .mock
+		let preferredMode = preferredLaunchMode()
 		if launchBackend(
 			mode: preferredMode,
 			endpoint: endpoint,
@@ -80,7 +80,7 @@ final class BackendProcessManager {
 			log("Backend launch timed out in \(preferredMode.rawValue) mode.")
 		}
 
-		guard preferredMode == .real else { return }
+		guard preferredMode == .real, allowMockFallback else { return }
 		if launchBackend(
 			mode: .mock,
 			endpoint: endpoint,
@@ -124,6 +124,14 @@ final class BackendProcessManager {
 		}
 
 		var environment = ProcessInfo.processInfo.environment
+		if (environment["COMPOSIO_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
+		   let key = dotenvValue(for: "COMPOSIO_API_KEY", in: backendDirectory) {
+			environment["COMPOSIO_API_KEY"] = key
+		}
+		if (environment["COMPOSIO_USER_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
+		   let userID = dotenvValue(for: "COMPOSIO_USER_ID", in: backendDirectory) {
+			environment["COMPOSIO_USER_ID"] = userID
+		}
 		let cacheDirectory = composioCacheDirectory()
 		try? FileManager.default.createDirectory(
 			at: cacheDirectory,
@@ -237,34 +245,41 @@ final class BackendProcessManager {
 		return nil
 	}
 
-	private func hasComposioConfiguration(in backendDirectory: URL) -> Bool {
-		if let envKey = ProcessInfo.processInfo.environment["COMPOSIO_API_KEY"]?
-			.trimmingCharacters(in: .whitespacesAndNewlines),
-		   !envKey.isEmpty {
-			return true
+	private func preferredLaunchMode() -> LaunchMode {
+		let raw = ProcessInfo.processInfo.environment["MOCHI_BACKEND_MODE"]?
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.lowercased()
+		if raw == "mock" {
+			return .mock
 		}
+		return .real
+	}
 
+	private var allowMockFallback: Bool {
+		let raw = ProcessInfo.processInfo.environment["MOCHI_BACKEND_ALLOW_MOCK_FALLBACK"]?
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.lowercased()
+		return raw == "1" || raw == "true" || raw == "yes"
+	}
+
+	private func dotenvValue(for key: String, in backendDirectory: URL) -> String? {
 		let dotenvURL = backendDirectory.appendingPathComponent(".env")
-		guard let contents = try? String(contentsOf: dotenvURL, encoding: .utf8) else {
-			return false
-		}
+		guard let contents = try? String(contentsOf: dotenvURL, encoding: .utf8) else { return nil }
 
 		for rawLine in contents.split(whereSeparator: \.isNewline) {
 			let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
 			if line.isEmpty || line.hasPrefix("#") { continue }
 			guard let separatorIndex = line.firstIndex(of: "=") else { continue }
 
-			let key = String(line[..<separatorIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-			if key != "COMPOSIO_API_KEY" { continue }
+			let parsedKey = String(line[..<separatorIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+			if parsedKey != key { continue }
 
 			let valueStart = line.index(after: separatorIndex)
 			let value = String(line[valueStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
-			if !value.isEmpty {
-				return true
-			}
+			if !value.isEmpty { return value }
 		}
 
-		return false
+		return nil
 	}
 
 	private func applicationSupportDirectory() -> URL {

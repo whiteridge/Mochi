@@ -109,7 +109,10 @@ async def chat_endpoint(request: ChatRequest):
 async def get_connect_url(app_name: str, user_id: str):
     """Get the Composio authorization URL for the specified app."""
     if not composio_service:
-        raise HTTPException(status_code=500, detail="Composio service not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Composio service not initialized. Set COMPOSIO_API_KEY and restart backend.",
+        )
         
     try:
         # We can pass a callback_url if we want the user to be redirected back 
@@ -123,7 +126,10 @@ async def get_connect_url(app_name: str, user_id: str):
 async def get_integration_status(app_name: str, user_id: str):
     """Check if the user is connected to the specified app via Composio."""
     if not composio_service:
-        raise HTTPException(status_code=500, detail="Composio service not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Composio service not initialized. Set COMPOSIO_API_KEY and restart backend.",
+        )
         
     try:
         details = composio_service.get_connection_details(app_name, user_id)
@@ -139,7 +145,10 @@ async def get_integration_status(app_name: str, user_id: str):
 async def disconnect_integration(app_name: str, user_id: str):
     """Disconnect the user from the specified app via Composio."""
     if not composio_service:
-        raise HTTPException(status_code=500, detail="Composio service not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Composio service not initialized. Set COMPOSIO_API_KEY and restart backend.",
+        )
         
     try:
         count = composio_service.disconnect_app(app_name, user_id)
