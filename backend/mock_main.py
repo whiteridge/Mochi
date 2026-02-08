@@ -34,8 +34,8 @@ from pydantic import BaseModel
 # Import ComposioService for optional real execution
 try:
     from services.composio_service import ComposioService
-except ImportError:
-    print("Warning: Could not import ComposioService. Execution will be mocked.")
+except Exception as exc:  # noqa: BLE001 - mock mode should run even if composio init fails
+    print(f"Warning: Could not import ComposioService ({exc}). Execution will be mocked.")
     ComposioService = None
 
 load_dotenv()

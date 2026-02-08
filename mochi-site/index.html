@@ -36,6 +36,9 @@
 			max-width: min(96vw, 1600px);
 			margin: 0 auto;
 			padding: 20px 14px 24px;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
 		}
 
 		nav {
@@ -84,7 +87,8 @@
 			grid-template-columns: 40% 60%;
 			gap: 14px;
 			align-items: stretch;
-			min-height: calc(100vh - 112px);
+			flex: 1;
+			min-height: 0;
 		}
 
 		.copy,
@@ -174,8 +178,12 @@
 		.video-wrap {
 			position: relative;
 			overflow: hidden;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 			background: #0b0e15;
-			min-height: 100%;
+			min-height: 0;
+			height: 100%;
 		}
 
 		.hero-embed {
@@ -183,40 +191,36 @@
 			height: 100%;
 			display: block;
 			border: 0;
-			object-fit: contain;
+			object-fit: cover;
+			object-position: center center;
 			background: #05070c;
 		}
 
-		.badge {
-			position: absolute;
-			left: 12px;
-			bottom: 12px;
-			padding: 7px 10px;
-			border-radius: 999px;
-			border: 1px solid rgba(255, 255, 255, 0.28);
-			background: rgba(7, 9, 14, 0.62);
-			color: #d8e2ff;
-			font-size: 0.8rem;
+		.hero-embed.full-visible {
+			object-fit: contain;
 		}
 
-		footer {
-			margin-top: 10px;
-			font-size: 0.86rem;
-			color: var(--muted);
+		.hero-embed.mobile-focus {
+			object-fit: cover;
+			object-position: 50% 55%;
 		}
 
 		@media (max-width: 980px) {
 			.hero {
 				grid-template-columns: 1fr;
 				min-height: auto;
+				flex: 0 0 auto;
 			}
 			.video-wrap {
-				min-height: 62vh;
+				min-height: 0;
+				height: clamp(300px, 55vh, 520px);
 			}
 		}
 
 		@media (max-width: 620px) {
 			main {
+				height: auto;
+				min-height: 100vh;
 				padding: 20px 14px 30px;
 			}
 			.copy {
@@ -254,13 +258,66 @@
 
 			<div class="video-wrap" id="demo">
 				<video class="hero-embed" autoplay muted loop playsinline>
-					<source src="./assets/main_demo_web.mp4" type="video/mp4" />
+					<source src="./assets/hi_res_website_vid.mp4" type="video/mp4" />
 				</video>
-				<div class="badge">On-site demo • short + muted</div>
 			</div>
 		</section>
-
-		<footer>Built for focused desktop workflows.</footer>
 	</main>
+	<script>
+		(() => {
+			const video = document.querySelector(".hero-embed");
+			const container = document.querySelector(".video-wrap");
+			if (!video || !container) return;
+			const MOBILE_BREAKPOINT = 980;
+			const SOURCE_ASPECT_RATIO = 3840 / 2152;
+			const MOBILE_MAX_HEIGHT_VH = 0.68;
+			const MOBILE_MIN_HEIGHT_PX = 300;
+			const FOCUS_VISIBLE_WIDTH = 0.93;
+
+			const updateVideoFit = () => {
+				if (!container.clientWidth) return;
+				const videoRatio = video.videoWidth && video.videoHeight
+					? video.videoWidth / video.videoHeight
+					: SOURCE_ASPECT_RATIO;
+
+				if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches) {
+					video.classList.add("mobile-focus");
+					video.classList.remove("full-visible");
+
+					const safeRatio = videoRatio * FOCUS_VISIBLE_WIDTH;
+					const width = container.clientWidth;
+					const maxHeight = window.innerHeight * MOBILE_MAX_HEIGHT_VH;
+					// Keep at least FOCUS_VISIBLE_WIDTH of source width visible.
+					let nextHeight = width / safeRatio;
+					nextHeight = Math.max(MOBILE_MIN_HEIGHT_PX, Math.min(maxHeight, nextHeight));
+					container.style.height = `${Math.round(nextHeight)}px`;
+					container.style.minHeight = `${Math.round(nextHeight)}px`;
+					return;
+				}
+				video.classList.remove("mobile-focus");
+				container.style.removeProperty("height");
+				container.style.removeProperty("min-height");
+
+				if (!container.clientHeight) return;
+				const containerRatio = container.clientWidth / container.clientHeight;
+
+				if (containerRatio >= videoRatio) {
+					video.classList.add("full-visible");
+				} else {
+					video.classList.remove("full-visible");
+				}
+			};
+
+			video.addEventListener("loadedmetadata", updateVideoFit);
+			window.addEventListener("resize", updateVideoFit);
+
+			if ("ResizeObserver" in window) {
+				const observer = new ResizeObserver(updateVideoFit);
+				observer.observe(container);
+			}
+
+			updateVideoFit();
+		})();
+	</script>
 </body>
 </html>

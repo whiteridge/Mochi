@@ -434,16 +434,18 @@ class ComposioService:
             The authorization URL for the user to visit
         """
         app_name_lower = app_name.lower()
-        if (
-            hasattr(self.composio, "get_entity")
-            and hasattr(self.composio.connected_accounts, "get")
-            and not hasattr(self.composio.connected_accounts, "list")
-        ):
-            return self._initiate_client_sdk_connection(
-                app_name=app_name_lower,
-                user_id=user_id,
-                callback_url=callback_url,
-            )
+        if hasattr(self.composio, "get_entity"):
+            try:
+                return self._initiate_client_sdk_connection(
+                    app_name=app_name_lower,
+                    user_id=user_id,
+                    callback_url=callback_url,
+                )
+            except Exception as exc:
+                print(
+                    "DEBUG: Client SDK connection initiation failed; "
+                    f"falling back to legacy auth config flow: {exc}"
+                )
 
         existing_accounts = self._list_accounts_for_app(user_id=user_id, app_name=app_name_lower)
         if existing_accounts:
