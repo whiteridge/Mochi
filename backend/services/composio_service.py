@@ -74,6 +74,8 @@ def _extract_account_items(accounts: Any) -> List[Any]:
         return accounts.get("items", [])
     if isinstance(accounts, list):
         return accounts
+    if getattr(accounts, "id", None) is not None:
+        return [accounts]
     return []
 
 
@@ -96,17 +98,23 @@ def _extract_account_id(account: Any) -> Optional[str]:
 def _extract_toolkit_slug(account: Any) -> Optional[str]:
     toolkit = getattr(account, "toolkit", None)
     toolkit_slug = getattr(account, "toolkit_slug", None) or getattr(account, "toolkitSlug", None)
+    app_unique_id = getattr(account, "appUniqueId", None) or getattr(account, "app_unique_id", None)
+    app_name = getattr(account, "appName", None) or getattr(account, "app_name", None)
     if isinstance(account, dict):
         toolkit = account.get("toolkit", toolkit)
         toolkit_slug = account.get("toolkit_slug") or account.get("toolkitSlug") or toolkit_slug
+        app_unique_id = account.get("appUniqueId") or account.get("app_unique_id") or app_unique_id
+        app_name = account.get("appName") or account.get("app_name") or app_name
     if toolkit:
         if isinstance(toolkit, dict):
             toolkit_slug = toolkit.get("slug") or toolkit_slug
         else:
             toolkit_slug = getattr(toolkit, "slug", toolkit_slug)
     if toolkit_slug is None:
+        toolkit_slug = app_unique_id or app_name
+    if toolkit_slug is None:
         return None
-    return str(toolkit_slug).lower()
+    return str(toolkit_slug).replace(" ", "").replace("-", "").replace("_", "").lower()
 
 
 def _tool_slug_to_app_slug(slug: Optional[str]) -> Optional[str]:
@@ -178,6 +186,21 @@ class ComposioService:
         toolkit_slugs: List[str],
         statuses: Optional[List[str]] = None,
     ):
+        if hasattr(self.composio.connected_accounts, "get") and not hasattr(self.composio.connected_accounts, "list"):
+            # New composio.client API: no toolkit/status filtering on server side.
+            active_only = (
+                statuses is not None
+                and len(statuses) == 1
+                and str(statuses[0]).upper() == "ACTIVE"
+            )
+            try:
+                return self.composio.connected_accounts.get(
+                    entity_ids=[user_id],
+                    active=active_only,
+                )
+            except TypeError:
+                return self.composio.connected_accounts.get(entity_ids=[user_id])
+
         try:
             if statuses is None:
                 return self.composio.connected_accounts.list(
@@ -200,6 +223,31 @@ class ComposioService:
                     user_id=user_id,
                     app_names=toolkit_slugs,
                 )
+
+    def _initiate_client_sdk_connection(
+        self,
+        app_name: str,
+        user_id: str,
+        callback_url: Optional[str] = None,
+    ) -> str:
+        """Initiate OAuth flow using composio.client SDK."""
+        entity = self.composio.get_entity(id=user_id)
+        try:
+            request = entity.initiate_connection(
+                app_name=app_name.lower(),
+                redirect_url=callback_url,
+                use_composio_auth=True,
+            )
+        except TypeError:
+            request = entity.initiate_connection(
+                app_name=app_name.lower(),
+                redirect_url=callback_url,
+            )
+
+        redirect_url = getattr(request, "redirectUrl", None) or getattr(request, "redirect_url", None)
+        if not redirect_url:
+            raise ValueError("No redirect URL in response")
+        return redirect_url
 
     def _toolkit_slugs_for_app(self, app_name: str) -> List[str]:
         slug = app_name.lower()
@@ -224,7 +272,10 @@ class ComposioService:
             print(f"DEBUG: Failed to list connected accounts for {app_name}: {exc}")
             return []
 
-        allowed = {slug.lower() for slug in toolkit_slugs}
+        allowed = {
+            slug.replace(" ", "").replace("-", "").replace("_", "").lower()
+            for slug in toolkit_slugs
+        }
         return [
             account
             for account in items
@@ -331,6 +382,14 @@ class ComposioService:
         user_id: str,
         allow_retry: bool = True,
     ):
+        if hasattr(self.composio, "actions") and not hasattr(self.composio, "tools"):
+            # New composio.client API.
+            return self.composio.actions.execute(
+                action=slug,
+                params=arguments,
+                entity_id=user_id,
+            )
+
         try:
             result = self.composio.tools.execute(
                 slug=slug,
@@ -375,6 +434,17 @@ class ComposioService:
             The authorization URL for the user to visit
         """
         app_name_lower = app_name.lower()
+        if (
+            hasattr(self.composio, "get_entity")
+            and hasattr(self.composio.connected_accounts, "get")
+            and not hasattr(self.composio.connected_accounts, "list")
+        ):
+            return self._initiate_client_sdk_connection(
+                app_name=app_name_lower,
+                user_id=user_id,
+                callback_url=callback_url,
+            )
+
         existing_accounts = self._list_accounts_for_app(user_id=user_id, app_name=app_name_lower)
         if existing_accounts:
             best_account = self._select_best_account(existing_accounts)
@@ -554,6 +624,13 @@ class ComposioService:
 
     def refresh_connection(self, connected_account_id: str) -> Dict[str, Any]:
         """Attempt to refresh a connected account."""
+        if not hasattr(self.composio.connected_accounts, "refresh"):
+            return {
+                "successful": False,
+                "redirect_url": None,
+                "status": None,
+            }
+
         try:
             result = self.composio.connected_accounts.refresh(nanoid=connected_account_id)
         except TypeError:
@@ -603,7 +680,10 @@ class ComposioService:
             return 0
 
         disconnected_count = 0
-        allowed_toolkits = {slug.lower() for slug in toolkit_slugs}
+        allowed_toolkits = {
+            slug.replace(" ", "").replace("-", "").replace("_", "").lower()
+            for slug in toolkit_slugs
+        }
 
         for account in items:
             toolkit_slug = _extract_toolkit_slug(account)
@@ -619,6 +699,15 @@ class ComposioService:
 
     def _delete_connected_account(self, account_id: str) -> bool:
         """Delete a connected account using whichever SDK signature is available."""
+        if not hasattr(self.composio.connected_accounts, "delete"):
+            try:
+                # composio.client API fallback
+                self.composio.http.delete(url=f"/v1/connectedAccounts/{account_id}")
+                return True
+            except Exception as exc:  # noqa: BLE001 - best-effort deletion
+                print(f"DEBUG: Failed to delete account {account_id}: {exc}")
+                return False
+
         try:
             self.composio.connected_accounts.delete(id=account_id)
             return True
@@ -664,11 +753,15 @@ class ComposioService:
         if slugs:
             normalized_slugs = [normalize_tool_slug(slug) for slug in slugs]
             normalized_slugs = list(dict.fromkeys(normalized_slugs))
+            if hasattr(self.composio, "actions") and not hasattr(self.composio, "tools"):
+                return self.composio.actions.get(actions=normalized_slugs)
             return self.composio.tools.get(
                 user_id=user_id,
                 tools=normalized_slugs,
             )
         if toolkits:
+            if hasattr(self.composio, "actions") and not hasattr(self.composio, "tools"):
+                return self.composio.actions.get(apps=toolkits)
             return self.composio.tools.get(user_id=user_id, toolkits=toolkits)
         raise ValueError("Must provide slugs or toolkits to fetch tools.")
     
