@@ -8,8 +8,9 @@ I wanted a voice assistant that feels *native* to the desktop: lightweight, alwa
 
 ## What I learned
 
-- **Latency is a product feature.** Every step—audio capture, speech-to-text, model calls, and UI updates—adds up. I learned to treat the pipeline like a performance budget.
+- **Latency is a product feature.** Every step—audio capture, speech-to-text, model calls, and UI updates—adds up. Gemini 3 Flash stood out here: consistently fast enough to keep the conversation feeling live, so I learned to treat the whole pipeline like a performance budget.
 - **Tool use needs UX, not just prompting.** It’s not enough to *tell* a model to be careful; you need UI primitives that make “preview → confirm → execute” the default path.
+- **Gemini 3 Flash is great at practical tool orchestration.** It’s quick to map intent to structured tool calls, handles multi-step tool flows cleanly, and stays responsive while doing it.
 - **Provider-agnostic design pays off.** Supporting multiple LLM providers (and local OpenAI-compatible servers) pushed me to be explicit about schemas, streaming, and error handling.
 
 ## How I built it
@@ -40,4 +41,3 @@ $$
 - **Audio preprocessing:** making transcription reliable meant handling resampling, mono conversion, and short clips without introducing noticeable delay.
 - **Streaming + state:** merging streaming model output with a UI that can switch between “thinking”, “proposing”, and “awaiting confirmation” is trickier than a simple request/response chat.
 - **Integration edge cases:** real tools have messy failure modes (expired auth, missing permissions, rate limits), so the agent and UI need to fail *gracefully* and guide recovery.
-
