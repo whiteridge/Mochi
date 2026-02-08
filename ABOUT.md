@@ -29,10 +29,10 @@ $$
 Once there’s text, the backend plans tool calls. Any “write” action (send a message, create an issue, update a doc, etc.) is queued for explicit confirmation. Conceptually:
 
 $$
-\text{execute}(a) =
+\operatorname{execute}(a) =
 \begin{cases}
-1, & \neg\text{write}(a) \\\\
-\text{user\_confirms}(a), & \text{write}(a)
+1, & \neg\operatorname{write}(a) \\
+\operatorname{userConfirms}(a), & \operatorname{write}(a)
 \end{cases}
 $$
 
