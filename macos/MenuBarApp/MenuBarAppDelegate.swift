@@ -8,7 +8,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 	private var settingsWindowController: SettingsWindowController?
 	
 	func applicationDidFinishLaunching(_ notification: Notification) {
-		guard let environment else { return }
+		guard let environment = Self.environment else { return }
 		
 		settingsWindowController = SettingsWindowController(environment: environment)
 		
@@ -95,4 +95,3 @@ final class SettingsWindowController {
 		NSApp.activate(ignoringOtherApps: true)
 	}
 }
-

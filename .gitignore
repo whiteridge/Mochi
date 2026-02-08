@@ -33,6 +33,8 @@ playground.xcworkspace
 *.xcodeproj/xcuserdata/
 *.xccheckout
 *.xcscmblueprint
+ExportOptions.*.plist
+!ExportOptions.plist
 
 # Swift Package Manager
 # Note: generally Package.resolved SHOULD be committed for reproducibility,

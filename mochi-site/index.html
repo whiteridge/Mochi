@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>mochi | Voice Overlay for Work</title>
+	<link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png" />
+	<link rel="apple-touch-icon" href="./assets/mochi-icon.png" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Sora:wght@500;700&display=swap" rel="stylesheet" />
+	<style>
+		:root {
+			--bg: #f3f3ef;
+			--panel: #ffffff;
+			--text: #111318;
+			--muted: #5f636b;
+			--border: #d9dde3;
+			--accent: #0f1726;
+		}
+
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		body {
+			font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			color: var(--text);
+			background: var(--bg);
+			min-height: 100vh;
+		}
+
+		main {
+			max-width: min(96vw, 1600px);
+			margin: 0 auto;
+			padding: 20px 14px 24px;
+		}
+
+		nav {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 14px;
+		}
+
+		.brand {
+			display: inline-flex;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.brand-icon {
+			width: 34px;
+			height: 34px;
+			border-radius: 9px;
+			display: block;
+			border: 1px solid var(--border);
+			background: #fff;
+		}
+
+		.logo {
+			font-family: "Sora", sans-serif;
+			font-size: 1.08rem;
+			letter-spacing: 0.05em;
+			text-transform: lowercase;
+		}
+
+		.pill {
+			display: inline-flex;
+			align-items: center;
+			padding: 8px 12px;
+			border: 1px solid var(--border);
+			border-radius: 999px;
+			font-size: 0.85rem;
+			color: var(--muted);
+			text-decoration: none;
+			background: var(--panel);
+		}
+
+		.hero {
+			display: grid;
+			grid-template-columns: 40% 60%;
+			gap: 14px;
+			align-items: stretch;
+			min-height: calc(100vh - 112px);
+		}
+
+		.copy,
+		.video-wrap {
+			background: var(--panel);
+			border: 1px solid var(--border);
+			border-radius: 20px;
+		}
+
+		.copy {
+			padding: 30px;
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+			justify-content: center;
+			min-height: 100%;
+		}
+
+		h1 {
+			font-family: "Sora", sans-serif;
+			font-size: clamp(2.1rem, 5vw, 3.25rem);
+			line-height: 1.05;
+			letter-spacing: -0.02em;
+		}
+
+		.lead {
+			font-size: 1.02rem;
+			line-height: 1.58;
+			color: var(--muted);
+			max-width: 54ch;
+		}
+
+		.actions {
+			display: flex;
+			gap: 10px;
+			flex-wrap: wrap;
+		}
+
+		.btn {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			padding: 11px 14px;
+			border-radius: 12px;
+			font-weight: 600;
+			font-size: 0.95rem;
+			text-decoration: none;
+			transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+			border: 1px solid var(--border);
+		}
+
+		.btn:hover {
+			transform: translateY(-1px);
+		}
+
+		.btn.primary {
+			background: var(--accent);
+			border-color: var(--accent);
+			color: #f8fbff;
+		}
+
+		.btn.secondary {
+			background: #fff;
+			color: var(--text);
+		}
+
+		.highlights {
+			list-style: none;
+			display: grid;
+			gap: 10px;
+			margin-top: 6px;
+		}
+
+		.highlights li {
+			padding: 10px 12px;
+			border-radius: 12px;
+			border: 1px solid var(--border);
+			background: #fafbfc;
+			font-size: 0.92rem;
+			color: #20242a;
+		}
+
+		.highlights span {
+			color: var(--muted);
+		}
+
+		.video-wrap {
+			position: relative;
+			overflow: hidden;
+			background: #0b0e15;
+			min-height: 100%;
+		}
+
+		.hero-embed {
+			width: 100%;
+			height: 100%;
+			display: block;
+			border: 0;
+			object-fit: contain;
+			background: #05070c;
+		}
+
+		.badge {
+			position: absolute;
+			left: 12px;
+			bottom: 12px;
+			padding: 7px 10px;
+			border-radius: 999px;
+			border: 1px solid rgba(255, 255, 255, 0.28);
+			background: rgba(7, 9, 14, 0.62);
+			color: #d8e2ff;
+			font-size: 0.8rem;
+		}
+
+		footer {
+			margin-top: 10px;
+			font-size: 0.86rem;
+			color: var(--muted);
+		}
+
+		@media (max-width: 980px) {
+			.hero {
+				grid-template-columns: 1fr;
+				min-height: auto;
+			}
+			.video-wrap {
+				min-height: 62vh;
+			}
+		}
+
+		@media (max-width: 620px) {
+			main {
+				padding: 20px 14px 30px;
+			}
+			.copy {
+				padding: 20px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<nav>
+			<div class="brand">
+				<img class="brand-icon" src="./assets/mochi-icon.png" alt="mochi icon" />
+				<div class="logo">mochi</div>
+			</div>
+			<a class="pill" href="#">macOS voice overlay</a>
+		</nav>
+
+		<section class="hero">
+			<div class="copy">
+				<h1>Speak naturally. Execute safely.</h1>
+				<p class="lead">
+					mochi is a native macOS overlay that turns voice into actions across your tools, with local transcription and confirmation before write operations.
+				</p>
+				<div class="actions">
+					<a class="btn primary" href="https://github.com/whiteridge/Mochi" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+					<a class="btn secondary" href="https://youtu.be/FS9eAOfU9GE" target="_blank" rel="noopener noreferrer">Watch Demo</a>
+				</div>
+				<ul class="highlights">
+					<li><strong>Local speech-to-text</strong> <span>with Parakeet for low-latency dictation.</span></li>
+					<li><strong>Tool routing</strong> <span>for Linear, Slack, GitHub, Notion, Gmail, and Calendar.</span></li>
+					<li><strong>Human-in-the-loop</strong> <span>to review and confirm writes before execution.</span></li>
+				</ul>
+			</div>
+
+			<div class="video-wrap" id="demo">
+				<video class="hero-embed" autoplay muted loop playsinline>
+					<source src="./assets/main_demo_web.mp4" type="video/mp4" />
+				</video>
+				<div class="badge">On-site demo • short + muted</div>
+			</div>
+		</section>
+
+		<footer>Built for focused desktop workflows.</footer>
+	</main>
+</body>
+</html>

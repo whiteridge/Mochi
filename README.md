@@ -37,6 +37,7 @@ Linear, Slack, GitHub, Notion, Gmail, Google Calendar (via Composio).
 - `SETUP.md` setup guide
 - `backend/README.md` backend notes
 - `ABOUT.md` project story
+- `mochi-site/README.md` landing page local preview and deployment
 
 ## Contributing
 Issues and PRs are welcome.

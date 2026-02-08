@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	func applicationDidFinishLaunching(_ notification: Notification) {
 		// Ensure the main app can present windows from the status item.
 		NSApp.setActivationPolicy(.regular)
+		BackendProcessManager.shared.bootstrapIfNeeded()
 		
 		panelController = PanelController(rootView: AnyView(
 			VoiceChatBubble()
@@ -87,6 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
 			self?.evaluateInitialSetup()
 		}
+	}
+
+	func applicationWillTerminate(_ notification: Notification) {
+		BackendProcessManager.shared.shutdown()
 	}
 
 	private func evaluateInitialSetup() {
