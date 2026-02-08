@@ -20,21 +20,16 @@ The system is intentionally split into two parts:
 1. **macOS app (SwiftUI):** an always-on-top bubble + expandable chat UI, audio capture, and local speech-to-text.
 2. **Backend (FastAPI):** an agent service that routes to an LLM provider and uses Composio to talk to integrations like Linear, Slack, GitHub, Notion, Gmail, and Google Calendar.
 
-At a high level, the speech part is the usual ASR objective: given audio $x(t)$, find the most likely text $\hat{y}$:
-
-$$
-\hat{y} = \arg\max_y p(y \mid x(t)).
-$$
+At a high level, the speech step turns audio into the most likely text transcription.
 
 Once there’s text, the backend plans tool calls. Any “write” action (send a message, create an issue, update a doc, etc.) is queued for explicit confirmation. Conceptually:
 
-$$
-\operatorname{execute}(a) =
-\begin{cases}
-1, & \neg\operatorname{write}(a) \\
-\operatorname{userConfirms}(a), & \operatorname{write}(a)
-\end{cases}
-$$
+```text
+if action_is_write:
+  execute only after explicit user confirmation
+else:
+  execute immediately
+```
 
 ## Challenges I faced
 
