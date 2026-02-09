@@ -71,7 +71,7 @@ struct QuickSetupView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Model")
                         .font(.headline)
-                    Text("Gemini 3 Flash is the only model used by mochi.")
+                    Text("Gemini models (default: Gemini 3 Flash).")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     

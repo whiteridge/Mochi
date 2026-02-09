@@ -5,7 +5,7 @@ Native macOS voice overlay for work: local transcription, smart tool actions, an
 ## Why mochi
 - Fast voice-to-action flow on desktop
 - Local speech-to-text with Parakeet (via FluidAudio)
-- Gemini 3 Flash-only LLM routing (`gemini-3-flash`)
+- Gemini models (default: Gemini 3 Flash, `gemini-3-flash`)
 - Human-in-the-loop confirmations for write actions
 
 ## Quick start
