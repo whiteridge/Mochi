@@ -145,7 +145,7 @@ class ComposioService:
         try:
             # We do NOT use GoogleProvider because it attempts to convert tool schemas
             # to Vertex AI format internally, which fails on some fields (humanParameterDescription).
-            # By omitting the provider, we get raw OpenAI-compatible schemas which we convert manually.
+            # By omitting the provider, we get raw tool schemas which we convert manually.
             self.composio = Composio(
                 api_key=os.getenv("COMPOSIO_API_KEY")
             )

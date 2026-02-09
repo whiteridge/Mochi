@@ -176,36 +176,11 @@ private struct APISettingsView: View {
 			
 			Form {
 				Section("Model") {
-					Picker("Provider", selection: $viewModel.selectedProvider) {
-						ForEach(ModelProvider.allCases) { provider in
-							Text(provider.displayName).tag(provider)
-						}
-					}
-					Picker("Model", selection: $viewModel.selectedModel) {
-						ForEach(ModelCatalog.models(for: viewModel.selectedProvider), id: \.self) { model in
-							Text(ModelCatalog.displayName(for: model)).tag(model)
-						}
-					}
-					if viewModel.isCustomModelSelected {
-						TextField("Custom model name", text: $viewModel.customModelName)
-							.textFieldStyle(.roundedBorder)
-					}
-					if viewModel.selectedProvider.requiresApiKey {
-						SecureField("API key", text: $viewModel.apiKey)
-							.textFieldStyle(.roundedBorder)
-					}
-					if viewModel.selectedProvider.supportsBaseURL {
-						TextField("Base URL", text: Binding(
-							get: { viewModel.providerBaseURL },
-							set: { viewModel.providerBaseURL = $0 }
-						))
+					Text(ModelCatalog.defaultModel(for: .google))
+						.font(.system(.footnote, design: .monospaced))
+						.foregroundStyle(.secondary)
+					SecureField("Gemini API key", text: $viewModel.apiKey)
 						.textFieldStyle(.roundedBorder)
-					}
-					if viewModel.selectedProvider.isLocal {
-						Text("Local models may not support tool calling.")
-							.font(.caption)
-							.foregroundStyle(.secondary)
-					}
 					HStack {
 						Button("Save") {
 							viewModel.saveAPISettings()

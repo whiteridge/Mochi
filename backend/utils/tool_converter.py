@@ -117,7 +117,7 @@ def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
             description = ""
             params = {}
             
-            # Case 1: Raw Dict (OpenAI format from Composio without provider)
+            # Case 1: Raw dict tool schema from Composio
             if isinstance(tool, dict):
                 # Check if it's wrapped in {"type": "function", "function": {...}}
                 if tool.get("type") == "function" and "function" in tool:
@@ -173,7 +173,6 @@ def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
         return [types.Tool(function_declarations=function_declarations)]
     
     return []
-
 
 
 

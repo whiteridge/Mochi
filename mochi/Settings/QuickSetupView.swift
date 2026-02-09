@@ -61,58 +61,32 @@ struct QuickSetupView: View {
                     Text("Welcome to mochi")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                     
-                    Text("Choose your model provider and connect at least one integration")
+                    Text("Connect Gemini 3 Flash and at least one integration")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 32)
                 
-                // Required: Model Provider
+                // Required: Gemini
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Model")
                         .font(.headline)
-                    Text("Choose a provider and model before connecting integrations.")
+                    Text("Gemini 3 Flash is the only model used by mochi.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
                     VStack(alignment: .leading, spacing: 10) {
-                        Picker("Provider", selection: $viewModel.selectedProvider) {
-                            ForEach(ModelProvider.allCases) { provider in
-                                Text(provider.displayName).tag(provider)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        Picker("Model", selection: $viewModel.selectedModel) {
-                            ForEach(ModelCatalog.models(for: viewModel.selectedProvider), id: \.self) { model in
-                                Text(ModelCatalog.displayName(for: model)).tag(model)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        if viewModel.isCustomModelSelected {
-                            TextField("Custom model name", text: $viewModel.customModelName)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        if viewModel.selectedProvider.requiresApiKey {
-                            SecureField("API key", text: $viewModel.apiKey)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        if viewModel.selectedProvider.supportsBaseURL {
-                            TextField("Base URL", text: Binding(
-                                get: { viewModel.providerBaseURL },
-                                set: { viewModel.providerBaseURL = $0 }
-                            ))
-                            .textFieldStyle(.roundedBorder)
-                        }
-
-                        if viewModel.selectedProvider.isLocal {
-                            Text("Local models may not support tool calling. If actions fail, switch to a hosted provider.")
-                                .font(.caption)
+                        HStack {
+                            Text("Model ID")
+                                .font(.subheadline.weight(.medium))
+                            Spacer()
+                            Text(ModelCatalog.defaultModel(for: .google))
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
+
+                        SecureField("Gemini API key", text: $viewModel.apiKey)
+                            .textFieldStyle(.roundedBorder)
 
                         HStack(spacing: 10) {
                             Button(apiSaveSuccess ? "Saved" : "Save") {
@@ -266,27 +240,7 @@ struct QuickSetupView: View {
             apiSaveSuccess = false
             apiError = nil
         }
-        .onChange(of: viewModel.selectedProvider) { _ in
-            apiSaveSuccess = false
-            apiError = nil
-        }
         .onChange(of: viewModel.selectedModel) { _ in
-            apiSaveSuccess = false
-            apiError = nil
-        }
-        .onChange(of: viewModel.customModelName) { _ in
-            apiSaveSuccess = false
-            apiError = nil
-        }
-        .onChange(of: viewModel.ollamaBaseURL) { _ in
-            apiSaveSuccess = false
-            apiError = nil
-        }
-        .onChange(of: viewModel.lmStudioBaseURL) { _ in
-            apiSaveSuccess = false
-            apiError = nil
-        }
-        .onChange(of: viewModel.customOpenAIBaseURL) { _ in
             apiSaveSuccess = false
             apiError = nil
         }

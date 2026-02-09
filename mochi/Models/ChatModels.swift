@@ -37,23 +37,17 @@ struct ChatRequest: Codable {
 }
 
 struct ModelConfig: Codable {
-    let provider: String?
     let model: String?
     let apiKey: String?
-    let baseURL: String?
 
     enum CodingKeys: String, CodingKey {
-        case provider
         case model
         case apiKey = "api_key"
-        case baseURL = "base_url"
     }
 
-    init(provider: String?, model: String?, apiKey: String?, baseURL: String?) {
-        self.provider = provider
+    init(model: String?, apiKey: String?) {
         self.model = model
         self.apiKey = apiKey
-        self.baseURL = baseURL
     }
 }
 

@@ -8,12 +8,10 @@ mochi has two parts:
 - macOS + Xcode
 - Python 3.11
 - A Composio API key (`COMPOSIO_API_KEY`)
-- A model provider key (Gemini/OpenAI/Anthropic) **or** a local OpenAI-compatible server
+- A Gemini API key (`GOOGLE_API_KEY`)
 
-Latest curated model IDs (in-app defaults):
-- Google Gemini (best performance): `gemini-3-flash-preview`, `gemini-3-pro-preview`
-- OpenAI: `gpt-5.2`, `gpt-5-mini`, `gpt-5-nano`
-- Anthropic: `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`
+Model used by mochi:
+- Google Gemini: `gemini-3-flash`
 
 ## Quick start
 
@@ -26,11 +24,7 @@ pip install -r requirements.txt
 
 # required
 export COMPOSIO_API_KEY=your_composio_key
-
-# pick one (optional if you enter it in the app)
 export GOOGLE_API_KEY=your_gemini_key
-# export OPENAI_API_KEY=your_openai_key
-# export ANTHROPIC_API_KEY=your_anthropic_key
 
 uvicorn main:app --reload
 ```
@@ -65,13 +59,9 @@ If Composio cache permissions fail:
 COMPOSIO_CACHE_DIR=/tmp/composio-cache
 ```
 
-Local models (no API key required):
-- Ollama: `http://localhost:11434/v1`
-- LM Studio: `http://localhost:1234/v1`
-
 ## First run (Quick Setup)
-If you’re missing a model key or any Composio connection, a Quick Setup window appears.
-- Add a model API key (stored in Keychain).
+If you’re missing your Gemini key or any Composio connection, a Quick Setup window appears.
+- Add your Gemini API key (stored in Keychain).
 - Connect at least one integration (Settings → Integrations).
 
 ## Smoke test

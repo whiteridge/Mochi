@@ -8,7 +8,7 @@ struct OnboardingView: View {
 	
 	private let steps = [
 		"Set your accent color and theme.",
-		"Choose your model provider and key.",
+		"Add your Gemini API key (Gemini 3 Flash).",
 		"Connect your integrations (Slack, Linear, Notion, GitHub, Gmail, Google Calendar)."
 	]
 	

@@ -13,7 +13,7 @@ from utils.tool_converter import convert_to_gemini_tools
 from llm.types import LLMChat, LLMResponse, ToolCall
 
 
-DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_MODEL = "gemini-3-flash"
 
 
 def build_tools(composio_tools: List[Any]) -> List[types.Tool]:

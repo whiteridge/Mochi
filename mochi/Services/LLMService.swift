@@ -46,13 +46,12 @@ actor LLMService {
                 
                 let userTimezone = TimeZone.current.identifier
                 let modelConfig = buildModelConfig()
-                let legacyApiKey = modelConfig?.provider == ModelProvider.google.rawValue ? modelConfig?.apiKey : nil
                 let requestPayload = ChatRequest(
                     messages: fullMessages,
                     userId: userId,
                     confirmedTool: confirmedTool,
                     userTimezone: userTimezone,
-                    apiKey: legacyApiKey,
+                    apiKey: modelConfig?.apiKey,
                     model: modelConfig
                 )
                 
@@ -95,53 +94,24 @@ actor LLMService {
 
     private func buildModelConfig() -> ModelConfig? {
         let defaults = UserDefaults.standard
-        let providerRaw = defaults.string(forKey: PreferencesStore.Keys.modelProvider) ?? ModelProvider.google.rawValue
-        let provider = ModelProvider(rawValue: providerRaw) ?? .google
-
-        let storedModel = defaults.string(forKey: PreferencesStore.Keys.modelName) ?? ModelCatalog.defaultModel(for: provider)
-        let customModel = defaults.string(forKey: PreferencesStore.Keys.customModelName) ?? ""
-        let resolvedModel = storedModel == ModelCatalog.customModelId ? customModel : storedModel
-
-        let apiKey = apiKeyForProvider(provider)
-        let baseURL = baseURLForProvider(provider, defaults: defaults)
+        let storedModel = defaults.string(forKey: PreferencesStore.Keys.modelName) ?? ModelCatalog.defaultModel(for: .google)
+        let resolvedModel = ModelCatalog.models(for: .google).contains(storedModel)
+            ? storedModel
+            : ModelCatalog.defaultModel(for: .google)
+        let apiKey = googleAPIKey()
 
         let trimmedModel = resolvedModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedURL = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return ModelConfig(
-            provider: provider.rawValue,
             model: trimmedModel.isEmpty ? nil : trimmedModel,
-            apiKey: (trimmedKey?.isEmpty ?? true) ? nil : trimmedKey,
-            baseURL: (trimmedURL?.isEmpty ?? true) ? nil : trimmedURL
+            apiKey: (trimmedKey?.isEmpty ?? true) ? nil : trimmedKey
         )
     }
 
-    private func apiKeyForProvider(_ provider: ModelProvider) -> String? {
+    private func googleAPIKey() -> String? {
         let credentials = CredentialManager.shared
         credentials.loadCredentials()
-        switch provider {
-        case .google:
-            return credentials.googleKey
-        case .openai:
-            return credentials.openaiKey
-        case .anthropic:
-            return credentials.anthropicKey
-        case .ollama, .lmStudio, .customOpenAI:
-            return nil
-        }
-    }
-
-    private func baseURLForProvider(_ provider: ModelProvider, defaults: UserDefaults) -> String? {
-        switch provider {
-        case .ollama:
-            return defaults.string(forKey: PreferencesStore.Keys.ollamaBaseURL) ?? ModelProvider.ollama.defaultBaseURL
-        case .lmStudio:
-            return defaults.string(forKey: PreferencesStore.Keys.lmStudioBaseURL) ?? ModelProvider.lmStudio.defaultBaseURL
-        case .customOpenAI:
-            return defaults.string(forKey: PreferencesStore.Keys.customOpenAIBaseURL)
-        default:
-            return nil
-        }
+        return credentials.googleKey
     }
 }

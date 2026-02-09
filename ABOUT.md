@@ -11,14 +11,14 @@ I wanted a voice assistant that feels *native* to the desktop: lightweight, alwa
 - **Latency is a product feature.** Every step—audio capture, speech-to-text, model calls, and UI updates—adds up. Gemini 3 Flash stood out here: consistently fast enough to keep the conversation feeling live, so I learned to treat the whole pipeline like a performance budget.
 - **Tool use needs UX, not just prompting.** It’s not enough to *tell* a model to be careful; you need UI primitives that make “preview → confirm → execute” the default path.
 - **Gemini 3 Flash is great at practical tool orchestration.** It’s quick to map intent to structured tool calls, handles multi-step tool flows cleanly, and stays responsive while doing it.
-- **Provider-agnostic design pays off.** Supporting multiple LLM providers (and local OpenAI-compatible servers) pushed me to be explicit about schemas, streaming, and error handling.
+- **Gemini-first design pays off.** Locking to Gemini 3 Flash let me simplify schemas, streaming, and error handling.
 
 ## How I built it
 
 The system is intentionally split into two parts:
 
 1. **macOS app (SwiftUI):** an always-on-top bubble + expandable chat UI, audio capture, and local speech-to-text.
-2. **Backend (FastAPI):** an agent service that routes to an LLM provider and uses Composio to talk to integrations like Linear, Slack, GitHub, Notion, Gmail, and Google Calendar.
+2. **Backend (FastAPI):** an agent service that routes to Gemini 3 Flash and uses Composio to talk to integrations like Linear, Slack, GitHub, Notion, Gmail, and Google Calendar.
 
 At a high level, the speech step turns audio into the most likely text transcription.
 

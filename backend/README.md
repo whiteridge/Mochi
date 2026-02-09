@@ -23,16 +23,10 @@ curl http://127.0.0.1:8000/health
 ## Env
 - `COMPOSIO_API_KEY` (required)
 - `COMPOSIO_USER_ID` (recommended)
-- `GOOGLE_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` (optional if you enter the key in the macOS app Quick Setup)
+- `GOOGLE_API_KEY` (optional if you enter the key in the macOS app Quick Setup)
 
-Latest curated model IDs (in-app defaults):
-- Google Gemini (best performance): `gemini-3-flash-preview`, `gemini-3-pro-preview`
-- OpenAI: `gpt-5.2`, `gpt-5-mini`, `gpt-5-nano`
-- Anthropic: `claude-sonnet-4-5-20250929`, `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`
-
-Local providers (no API key required):
-- Ollama: `http://localhost:11434/v1`
-- LM Studio: `http://localhost:1234/v1`
+Model used by the backend:
+- Google Gemini: `gemini-3-flash`
 
 ## Tests
 ```bash

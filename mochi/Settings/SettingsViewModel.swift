@@ -42,14 +42,8 @@ final class SettingsViewModel: ObservableObject {
 	@Published var linearTeamKey: String = ""
 	@Published var apiKey: String = ""
 	@Published var apiBaseURL: String = ""
-	@Published var selectedProvider: ModelProvider = .google {
-		didSet { syncProviderState() }
-	}
+	@Published var selectedProvider: ModelProvider = .google
 	@Published var selectedModel: String = ModelCatalog.defaultModel(for: .google)
-	@Published var customModelName: String = ""
-	@Published var ollamaBaseURL: String = ModelProvider.ollama.defaultBaseURL ?? ""
-	@Published var lmStudioBaseURL: String = ModelProvider.lmStudio.defaultBaseURL ?? ""
-	@Published var customOpenAIBaseURL: String = ""
 	@Published var slackWorkspaces: [SlackWorkspace] = []
 	@Published var slackChannels: [SlackChannel] = []
 	@Published var linearTeams: [LinearTeam] = []
@@ -91,138 +85,48 @@ final class SettingsViewModel: ObservableObject {
 	
 	func loadPersistedValues() {
 		credentialManager.loadCredentials()
-		selectedProvider = preferences.modelProvider
+		selectedProvider = .google
 		selectedModel = preferences.modelName
-		customModelName = preferences.customModelName
-		ollamaBaseURL = preferences.ollamaBaseURL
-		lmStudioBaseURL = preferences.lmStudioBaseURL
-		customOpenAIBaseURL = preferences.customOpenAIBaseURL
-		migrateLegacyGoogleKeyIfNeeded()
-		apiKey = apiKeyForProvider(selectedProvider)
+		apiKey = apiKeyForProvider()
 		apiBaseURL = preferences.apiBaseURL
 		slackToken = credentialManager.slackKey
 		linearApiKey = credentialManager.linearKey
-		linearTeamKey = "" // Not managed by CredentialManager yet? Spec only mentioned openai, linear, slack.
-		syncProviderState()
+		linearTeamKey = ""
+		syncModelState()
 	}
 	
 	func saveAPISettings() {
-		saveProviderKey()
+		saveGoogleKey()
 		credentialManager.saveCredentials()
 
-		preferences.modelProvider = selectedProvider
-		preferences.modelName = selectedModel
-		preferences.customModelName = customModelName
-		preferences.ollamaBaseURL = ollamaBaseURL
-		preferences.lmStudioBaseURL = lmStudioBaseURL
-		preferences.customOpenAIBaseURL = customOpenAIBaseURL
-
-		preferences.updateAPI(key: "", baseURL: apiBaseURL) // Clear key from prefs if feasible, or just update base URL
-	}
-
-	var isCustomModelSelected: Bool {
-		selectedModel == ModelCatalog.customModelId
-	}
-
-	var resolvedModelName: String {
-		isCustomModelSelected ? customModelName : selectedModel
-	}
-
-	var providerBaseURL: String {
-		get { baseURL(for: selectedProvider) }
-		set { setBaseURL(newValue, for: selectedProvider) }
+		preferences.modelProvider = .google
+		preferences.modelName = ModelCatalog.defaultModel(for: .google)
+		preferences.updateAPI(key: "", baseURL: apiBaseURL)
 	}
 
 	var isModelConfigValid: Bool {
-		let trimmedModel = resolvedModelName.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !trimmedModel.isEmpty else { return false }
-		if selectedProvider.requiresApiKey {
-			return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-		}
-		if selectedProvider.supportsBaseURL {
-			return !providerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-		}
-		return true
+		let isModelLocked = selectedModel == ModelCatalog.defaultModel(for: .google)
+		let hasApiKey = !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+		return isModelLocked && hasApiKey
 	}
 
-	private func baseURL(for provider: ModelProvider) -> String {
-		switch provider {
-		case .ollama:
-			return ollamaBaseURL
-		case .lmStudio:
-			return lmStudioBaseURL
-		case .customOpenAI:
-			return customOpenAIBaseURL
-		default:
-			return ""
-		}
-	}
-
-	private func setBaseURL(_ value: String, for provider: ModelProvider) {
-		switch provider {
-		case .ollama:
-			ollamaBaseURL = value
-		case .lmStudio:
-			lmStudioBaseURL = value
-		case .customOpenAI:
-			customOpenAIBaseURL = value
-		default:
-			break
-		}
-	}
-
-	private func apiKeyForProvider(_ provider: ModelProvider) -> String {
+	private func apiKeyForProvider() -> String {
 		credentialManager.loadCredentials()
-		switch provider {
-		case .google:
-			return credentialManager.googleKey
-		case .openai:
-			return credentialManager.openaiKey
-		case .anthropic:
-			return credentialManager.anthropicKey
-		default:
-			return ""
-		}
+		return credentialManager.googleKey
 	}
 
-	private func saveProviderKey() {
+	private func saveGoogleKey() {
 		let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-		switch selectedProvider {
-		case .google:
-			credentialManager.googleKey = trimmedKey
-		case .openai:
-			credentialManager.openaiKey = trimmedKey
-		case .anthropic:
-			credentialManager.anthropicKey = trimmedKey
-		case .ollama, .lmStudio, .customOpenAI:
-			break
-		}
+		credentialManager.googleKey = trimmedKey
 	}
 
-	private func syncProviderState() {
-		let availableModels = ModelCatalog.models(for: selectedProvider)
+	private func syncModelState() {
+		selectedProvider = .google
+		let availableModels = ModelCatalog.models(for: .google)
 		if !availableModels.contains(selectedModel) {
-			if !selectedModel.isEmpty, selectedModel != ModelCatalog.customModelId {
-				customModelName = selectedModel
-				selectedModel = ModelCatalog.customModelId
-			} else {
-				selectedModel = ModelCatalog.defaultModel(for: selectedProvider)
-			}
+			selectedModel = ModelCatalog.defaultModel(for: .google)
 		}
-		if selectedProvider.supportsBaseURL,
-		   providerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-		   let defaultURL = selectedProvider.defaultBaseURL {
-			providerBaseURL = defaultURL
-		}
-		apiKey = apiKeyForProvider(selectedProvider)
-	}
-
-	private func migrateLegacyGoogleKeyIfNeeded() {
-		guard selectedProvider == .google else { return }
-		if credentialManager.googleKey.isEmpty, !credentialManager.openaiKey.isEmpty {
-			credentialManager.googleKey = credentialManager.openaiKey
-			credentialManager.saveCredentials()
-		}
+		apiKey = apiKeyForProvider()
 	}
 	
 	func selectAccent(_ option: AccentColorOption) {
