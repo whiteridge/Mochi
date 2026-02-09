@@ -33,6 +33,9 @@ playground.xcworkspace
 *.xcodeproj/xcuserdata/
 *.xccheckout
 *.xcscmblueprint
+# Prevent accidental tracking of extra shared schemes that may contain local env vars
+*.xcodeproj/xcshareddata/xcschemes/*.xcscheme
+!mochi.xcodeproj/xcshareddata/xcschemes/mochi.xcscheme
 ExportOptions.*.plist
 !ExportOptions.plist
 
