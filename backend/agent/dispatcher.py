@@ -153,6 +153,9 @@ class DispatcherContext:
     proposal_queue: List[Dict[str, Any]] = field(default_factory=list)
     current_read_action: Optional[Tuple] = None
     exit_early: bool = False
+    confirmed_action_success: Optional[bool] = None
+    confirmed_action_app_id: Optional[str] = None
+    plain_text_retry_sent: bool = False
 
 
 class AgentDispatcher:
@@ -175,6 +178,15 @@ class AgentDispatcher:
         self.github_service = github_service
         self.gmail_service = gmail_service
         self.google_calendar_service = google_calendar_service
+
+    @staticmethod
+    def _response_has_nonempty_text(response: Any) -> bool:
+        if response is None:
+            return False
+        text = getattr(response, "text", None)
+        if text is None:
+            return False
+        return bool(str(text).strip())
 
     def _send_initial_message(
         self,
@@ -274,6 +286,7 @@ class AgentDispatcher:
         print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
         if app_id not in context.involved_apps:
             context.involved_apps.append(app_id)
+        context.confirmed_action_app_id = app_id
         executed_key = (tool_name, json.dumps(tool_args, sort_keys=True))
         context.executed_write_keys.add(executed_key)
         context.app_write_executing.add(app_id)
@@ -316,11 +329,16 @@ class AgentDispatcher:
                 context.action_performed = f"{app_display} action executed"
                 context.completed_write_apps.add(app_id)
                 context.app_read_status[app_id] = "done"
+                context.confirmed_action_success = True
+                context.app_write_executing.discard(app_id)
+                # Confirmed tool succeeded; stop here and avoid extra model planning/tool churn.
+                return None
             else:
                 # Keep app eligible for re-proposal if the confirmed execution failed.
                 context.completed_write_apps.discard(app_id)
                 context.executed_write_keys.discard(executed_key)
                 context.app_read_status[app_id] = "error"
+                context.confirmed_action_success = False
 
             context.app_write_executing.discard(app_id)
 
@@ -686,6 +704,42 @@ class AgentDispatcher:
                 context.iteration += 1
                 return DispatchPhase.PLANNING
 
+            # Gemini can occasionally return thoughts-only (no tools, no text).
+            # Force one plain-text retry before giving up and emitting fallback text.
+            if (
+                not self._response_has_nonempty_text(context.response)
+                and not context.plain_text_retry_sent
+            ):
+                context.plain_text_retry_sent = True
+                print(
+                    "DEBUG: Empty model response without tool calls; requesting plain-text retry",
+                    flush=True,
+                )
+                retry_text = (
+                    "Provide a concise final answer to the user's request in plain text. "
+                    "Do not call tools in this response."
+                )
+                response, send_error = _send_message_with_retry(
+                    lambda: chat.send_user_message(retry_text)
+                )
+                if send_error is not None:  # noqa: BLE001 - surface rate limits to client
+                    if _is_rate_limit_error(send_error):
+                        yield {
+                            "type": "message",
+                            "content": (
+                                "I'm temporarily rate-limited by the model provider. "
+                                "Please retry in a minute."
+                            ),
+                            "action_performed": None,
+                        }
+                        context.exit_early = True
+                        return DispatchPhase.FINISHED
+                    raise send_error
+
+                context.response = response
+                context.iteration += 1
+                return DispatchPhase.PLANNING
+
             if context.last_searching_app_id:
                 context.apps_with_tool_status.add(context.last_searching_app_id)
                 yield {
@@ -825,7 +879,22 @@ class AgentDispatcher:
             yield from self._emit_pre_detected_summary(context, confirmed_tool is None)
 
             if confirmed_tool:
-                response = yield from self._execute_confirmed_tool(chat, context, confirmed_tool)
+                response = yield from self._execute_confirmed_tool(
+                    chat,
+                    context,
+                    confirmed_tool,
+                )
+                if context.confirmed_action_success is True:
+                    app_display = format_app_name(
+                        context.confirmed_action_app_id
+                        or map_tool_to_app(confirmed_tool.get("tool", ""))
+                    )
+                    yield {
+                        "type": "message",
+                        "content": f"{app_display} action completed.",
+                        "action_performed": context.action_performed,
+                    }
+                    return
                 if response is None:
                     return
                 context.response = response
@@ -855,9 +924,22 @@ class AgentDispatcher:
                 return
 
             if hasattr(context.response, "text"):
-                final_text = context.response.text or ""
+                final_text = (context.response.text or "").strip()
             else:
-                final_text = str(context.response) if context.response is not None else ""
+                final_text = (
+                    str(context.response).strip()
+                    if context.response is not None
+                    else ""
+                )
+
+            # Keep client UI stable: always emit a non-empty final message.
+            if not final_text:
+                if context.action_performed:
+                    final_text = "Action completed."
+                else:
+                    final_text = (
+                        "I couldn't generate a complete response. Please try again."
+                    )
             yield {
                 "type": "message",
                 "content": final_text,

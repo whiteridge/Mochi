@@ -100,7 +100,10 @@ def _parse_response(response: Any) -> LLMResponse:
                             ToolCall(name=part.function_call.name, args=args)
                         )
                     if hasattr(part, "thought") and part.thought:
-                        thoughts.append(part.thought)
+                        # Never leak model thought text into final assistant text.
+                        if not thoughts:
+                            thoughts.append("Thinking...")
+                        continue
                     if hasattr(part, "text") and part.text:
                         text_parts.append(part.text)
 

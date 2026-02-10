@@ -198,3 +198,154 @@ def test_failed_confirmed_write_does_not_block_follow_up_proposals(mock_agent_se
     queued_tools = {proposal["tool"]}
     queued_tools.update(item["tool"] for item in proposal["remaining_proposals"])
     assert queued_tools == {"SLACK_SEND_MESSAGE", "LINEAR_CREATE_LINEAR_ISSUE"}
+
+
+def test_successful_confirmed_write_short_circuits_with_completion_message(
+    mock_agent_service,
+):
+    service = mock_agent_service
+    user_id = "test_user"
+
+    confirmed_tool = {
+        "tool": "SLACK_SEND_MESSAGE",
+        "args": {"channel": "C0A101WM3T4", "markdown_text": "hello"},
+        "app_id": "slack",
+    }
+
+    responses = [
+        LLMResponse(tool_calls=[]),  # initial "Execute confirmed action" prompt
+    ]
+    stub_chat = StubChat(responses)
+
+    service.composio_service.execute_tool.return_value = {
+        "data": {"ok": True},
+        "error": None,
+        "successful": True,
+    }
+
+    with patch("backend.agent_service.create_chat_session", return_value=(stub_chat, None)):
+        events = list(
+            service.run_agent(
+                user_input="Execute confirmed action",
+                user_id=user_id,
+                confirmed_tool=confirmed_tool,
+            )
+        )
+
+    message_events = [event for event in events if event["type"] == "message"]
+    assert len(message_events) == 1
+    assert message_events[0]["content"] == "Slack action completed."
+    assert message_events[0]["action_performed"] == "Slack action executed"
+    assert not any(event["type"] == "proposal" for event in events)
+    assert stub_chat.tool_results == []
+
+
+def test_successful_confirmed_linear_write_short_circuits_with_completion_message(
+    mock_agent_service,
+):
+    service = mock_agent_service
+    user_id = "test_user"
+    service.linear_service.load_tools.return_value = ["dummy_linear_tool"]
+
+    confirmed_tool = {
+        "tool": "LINEAR_CREATE_LINEAR_ISSUE",
+        "args": {"team_id": "0f5f3de8", "priority": 4, "title": "blue bug"},
+        "app_id": "linear",
+    }
+
+    responses = [
+        LLMResponse(tool_calls=[]),
+    ]
+    stub_chat = StubChat(responses)
+
+    service.composio_service.execute_tool.return_value = {
+        "data": {"id": "issue-123"},
+        "error": None,
+        "successful": True,
+    }
+
+    with patch("backend.agent_service.create_chat_session", return_value=(stub_chat, None)):
+        events = list(
+            service.run_agent(
+                user_input="Execute confirmed action",
+                user_id=user_id,
+                confirmed_tool=confirmed_tool,
+            )
+        )
+
+    message_events = [event for event in events if event["type"] == "message"]
+    assert len(message_events) == 1
+    assert message_events[0]["content"] == "Linear action completed."
+    assert message_events[0]["action_performed"] == "Linear action executed"
+    assert not any(event["type"] == "proposal" for event in events)
+    assert stub_chat.tool_results == []
+
+
+def test_empty_final_model_text_emits_fallback_message(mock_agent_service):
+    service = mock_agent_service
+    user_id = "test_user"
+
+    responses = [
+        LLMResponse(text=""),
+        LLMResponse(text=""),
+    ]
+    stub_chat = StubChat(responses)
+
+    with patch("backend.agent_service.create_chat_session", return_value=(stub_chat, None)):
+        events = list(
+            service.run_agent(
+                user_input="Thank you.",
+                user_id=user_id,
+            )
+        )
+
+    message_events = [event for event in events if event["type"] == "message"]
+    assert len(message_events) == 1
+    assert (
+        message_events[0]["content"]
+        == "I couldn't generate a complete response. Please try again."
+    )
+    assert message_events[0]["action_performed"] is None
+
+
+def test_empty_model_response_retries_for_plain_text_once(mock_agent_service):
+    service = mock_agent_service
+    user_id = "test_user"
+
+    responses = [
+        LLMResponse(text="", thoughts=["Thinking..."]),
+        LLMResponse(text="Hello!"),
+    ]
+    stub_chat = StubChat(responses)
+
+    with patch("backend.agent_service.create_chat_session", return_value=(stub_chat, None)):
+        events = list(
+            service.run_agent(
+                user_input="Say hi.",
+                user_id=user_id,
+            )
+        )
+
+    message_events = [event for event in events if event["type"] == "message"]
+    assert len(message_events) == 1
+    assert message_events[0]["content"] == "Hello!"
+    assert len(stub_chat.user_messages) == 2
+    assert "Do not call tools in this response." in stub_chat.user_messages[1]
+
+
+def test_capabilities_query_returns_concise_static_message(mock_agent_service):
+    service = mock_agent_service
+
+    with patch("backend.agent_service.create_chat_session") as mock_create_chat:
+        events = list(service.run_agent("what can you do?", "test_user"))
+
+    message_events = [event for event in events if event["type"] == "message"]
+    assert len(message_events) == 1
+    assert (
+        message_events[0]["content"]
+        == "I can help across Slack, Linear, GitHub, Gmail, and Google Calendar: "
+        "send/read Slack messages, create/update Linear issues, manage GitHub issues/PRs, "
+        "draft/search emails, and create/update calendar events."
+    )
+    assert message_events[0]["action_performed"] is None
+    mock_create_chat.assert_not_called()

@@ -253,3 +253,50 @@ def looks_like_tool_request(user_input: str) -> bool:
         "fetch",
     ]
     return any(keyword in user_lower for keyword in intent_keywords)
+
+
+def is_capabilities_query(user_input: str) -> bool:
+    """Detect short capability/help prompts that should return a concise static answer."""
+    text = " ".join(user_input.lower().strip().split())
+    if not text:
+        return False
+
+    direct_matches = {
+        "help",
+        "help?",
+        "what can you do",
+        "what can you do?",
+        "what can u do",
+        "what can u do?",
+        "what do you do",
+        "what do you do?",
+        "capabilities",
+        "your capabilities",
+        "what are your capabilities",
+        "what are your capabilities?",
+        "list commands",
+        "list commands?",
+        "what commands do you have",
+        "what commands do you have?",
+    }
+    if text in direct_matches:
+        return True
+
+    capability_phrases = (
+        "what can you do",
+        "what can u do",
+        "what do you do",
+        "what are your capabilities",
+        "list your capabilities",
+        "list your commands",
+    )
+    return any(phrase in text for phrase in capability_phrases)
+
+
+def capability_summary_message() -> str:
+    """A deterministic, concise capability summary for help/capability prompts."""
+    return (
+        "I can help across Slack, Linear, GitHub, Gmail, and Google Calendar: "
+        "send/read Slack messages, create/update Linear issues, manage GitHub issues/PRs, "
+        "draft/search emails, and create/update calendar events."
+    )

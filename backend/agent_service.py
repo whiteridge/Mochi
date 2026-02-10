@@ -2,7 +2,13 @@ import os
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
-from agent.common import detect_apps_from_input, detect_intent_scope, map_tool_to_app
+from agent.common import (
+    capability_summary_message,
+    detect_apps_from_input,
+    detect_intent_scope,
+    is_capabilities_query,
+    map_tool_to_app,
+)
 from agent.dispatcher import AgentDispatcher
 from agent.tool_loader import load_composio_tools
 from llm.router import create_chat_session, ModelConfigError
@@ -60,6 +66,15 @@ class AgentService:
         - {"type": "message", "content": "Final response"}
         """
         print(f"Running agent for user: {user_id} with input: {user_input}")
+
+        # Fast path for capabilities/help prompts: avoid token-heavy model responses.
+        if not confirmed_tool and is_capabilities_query(user_input):
+            yield {
+                "type": "message",
+                "content": capability_summary_message(),
+                "action_performed": None,
+            }
+            return
 
         # 1. Get tools for the user (Linear, Slack, Notion, GitHub, Gmail, Calendar)
         required_apps = detect_apps_from_input(user_input)

@@ -1,6 +1,6 @@
 """Utility functions for converting Composio tools to Gemini format."""
 
-from typing import Any, List, Dict
+from typing import Any, Dict, List, Optional
 from google.genai import types
 
 
@@ -99,6 +99,96 @@ def _sanitize_schema_dict(d: Dict[str, Any]) -> None:
                     _sanitize_schema_dict(item)
 
 
+def _coerce_parameters(raw_params: Any) -> Dict[str, Any]:
+    """Convert tool parameter payloads into a plain dict."""
+    if raw_params is None:
+        return {}
+    if isinstance(raw_params, dict):
+        return raw_params
+
+    if hasattr(raw_params, "model_dump"):
+        try:
+            dumped = raw_params.model_dump()
+            if isinstance(dumped, dict):
+                return dumped
+        except Exception:
+            pass
+
+    if hasattr(raw_params, "to_dict"):
+        try:
+            dumped = raw_params.to_dict()
+            if isinstance(dumped, dict):
+                return dumped
+        except Exception:
+            pass
+
+    return {}
+
+
+def _extract_tool_spec(tool: Any) -> Optional[Dict[str, Any]]:
+    """
+    Normalize heterogeneous Composio tool objects into:
+    {"name": str, "description": str, "parameters": dict}
+    """
+    if isinstance(tool, dict):
+        if tool.get("type") == "function" and "function" in tool:
+            func_def = tool.get("function", {})
+            return {
+                "name": func_def.get("name", "unknown"),
+                "description": func_def.get("description", "") or "",
+                "parameters": _coerce_parameters(func_def.get("parameters", {})),
+            }
+
+        return {
+            "name": tool.get("name", "unknown"),
+            "description": tool.get("description", "") or "",
+            "parameters": _coerce_parameters(tool.get("parameters", {})),
+        }
+
+    if hasattr(tool, "function_declarations"):
+        return {"function_declarations": list(tool.function_declarations)}
+
+    if hasattr(tool, "to_dict"):
+        try:
+            dumped = tool.to_dict()
+            if isinstance(dumped, dict):
+                return {
+                    "name": dumped.get("name", "unknown"),
+                    "description": dumped.get("description", "") or "",
+                    "parameters": _coerce_parameters(dumped.get("parameters", {})),
+                }
+        except Exception:
+            pass
+
+    # composio.client ActionModel and similar Pydantic-style objects
+    if hasattr(tool, "model_dump"):
+        try:
+            dumped = tool.model_dump()
+            if isinstance(dumped, dict):
+                return {
+                    "name": dumped.get("name", getattr(tool, "name", "unknown")),
+                    "description": dumped.get(
+                        "description",
+                        getattr(tool, "description", ""),
+                    )
+                    or "",
+                    "parameters": _coerce_parameters(
+                        dumped.get("parameters", getattr(tool, "parameters", {}))
+                    ),
+                }
+        except Exception:
+            pass
+
+    if hasattr(tool, "name") and hasattr(tool, "parameters"):
+        return {
+            "name": getattr(tool, "name", "unknown"),
+            "description": getattr(tool, "description", "") or "",
+            "parameters": _coerce_parameters(getattr(tool, "parameters", {})),
+        }
+
+    return None
+
+
 def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
     """
     Convert Composio FunctionDeclarations to google-genai format.
@@ -113,48 +203,22 @@ def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
     
     for tool in composio_tools:
         try:
-            tool_name = "unknown"
-            description = ""
-            params = {}
-            
-            # Case 1: Raw dict tool schema from Composio
-            if isinstance(tool, dict):
-                # Check if it's wrapped in {"type": "function", "function": {...}}
-                if tool.get("type") == "function" and "function" in tool:
-                    func_def = tool["function"]
-                    tool_name = func_def.get("name", "unknown")
-                    description = func_def.get("description", "")
-                    raw_params = func_def.get("parameters", {})
-                else:
-                    # Maybe it's the function dict directly?
-                    tool_name = tool.get("name", "unknown")
-                    description = tool.get("description", "")
-                    raw_params = tool.get("parameters", {})
-                
-                # Sanitize parameters
-                _sanitize_schema_dict(raw_params)
-                params = clean_schema(raw_params)
-                
-            # Case 2: FunctionDeclaration object (from VertexAI/GoogleProvider)
-            elif hasattr(tool, 'to_dict'):
-                # Convert to dict and then to google-genai format
-                tool_dict = tool.to_dict()
-                tool_name = tool_dict.get('name', 'unknown')
-                
-                # Clean the parameters to remove unsupported fields
-                raw_params = tool_dict.get('parameters', {})
-                _sanitize_schema_dict(raw_params)
-                params = clean_schema(raw_params)
-                
-            # Case 3: Already in Tool format (google-genai)
-            elif hasattr(tool, 'function_declarations'):
-                # Already in Tool format, extract function declarations
-                for fd in tool.function_declarations:
-                    function_declarations.append(fd)
-                continue
-            else:
+            spec = _extract_tool_spec(tool)
+            if spec is None:
                 print(f"DEBUG: Unknown tool format: {type(tool)}", flush=True)
                 continue
+
+            existing_fds = spec.get("function_declarations")
+            if existing_fds is not None:
+                for fd in existing_fds:
+                    function_declarations.append(fd)
+                continue
+
+            tool_name = spec.get("name", "unknown")
+            description = spec.get("description", "")
+            raw_params = _coerce_parameters(spec.get("parameters", {}))
+            _sanitize_schema_dict(raw_params)
+            params = clean_schema(raw_params)
 
             # Create a FunctionDeclaration in google-genai format
             func_decl = types.FunctionDeclaration(
@@ -173,7 +237,6 @@ def convert_to_gemini_tools(composio_tools: List[Any]) -> List[types.Tool]:
         return [types.Tool(function_declarations=function_declarations)]
     
     return []
-
 
 
 
