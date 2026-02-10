@@ -6,14 +6,14 @@ struct ProposalDataTests {
 		let proposal = ProposalData(
 			tool: "SLACK_SEND_MESSAGE",
 			args: [
-				"channelDisplay": "#general (C0A101WM3T4)",
+				"channelDisplay": "#general",
 				"channelName": "#general",
 				"channel": "C0A101WM3T4",
 			]
 		)
 
-		#expect(proposal.channelDisplay == "#general (C0A101WM3T4)")
-		#expect(proposal.channel == "#general (C0A101WM3T4)")
+		#expect(proposal.channelDisplay == "#general")
+		#expect(proposal.channel == "#general")
 	}
 
 	@Test func testSlackChannelFallsBackToChannelNameThenRawId() {

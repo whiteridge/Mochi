@@ -23,7 +23,7 @@ def test_enrich_proposal_adds_channel_display_when_resolved():
     )
 
     assert enriched["channelName"] == "#general"
-    assert enriched["channelDisplay"] == "#general (C0A101WM3T4)"
+    assert enriched["channelDisplay"] == "#general"
     composio_service.execute_tool.assert_called_once_with(
         slug="SLACK_LIST_ALL_CHANNELS",
         arguments={"types": "public_channel,private_channel"},
@@ -42,7 +42,7 @@ def test_enrich_proposal_uses_pretty_fallback_when_unresolved():
         tool_name="SLACK_SEND_MESSAGE",
     )
 
-    assert enriched["channelDisplay"] == "Channel (C1234567890)"
+    assert enriched["channelDisplay"] == "Channel"
     assert "channelName" not in enriched
 
 
@@ -68,6 +68,6 @@ def test_channel_name_lookup_uses_cache_for_repeated_ids():
         tool_name="SLACK_SEND_MESSAGE",
     )
 
-    assert first["channelDisplay"] == "#general (C0A101WM3T4)"
-    assert second["channelDisplay"] == "#general (C0A101WM3T4)"
+    assert first["channelDisplay"] == "#general"
+    assert second["channelDisplay"] == "#general"
     assert composio_service.execute_tool.call_count == 1

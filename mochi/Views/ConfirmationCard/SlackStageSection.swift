@@ -112,8 +112,16 @@ struct SlackStageSection: View {
             if name.hasPrefix("#") || name.hasPrefix("@") {
                 return name
             }
-            if (name.hasPrefix("C") || name.hasPrefix("G")) && name.count > 8 {
-                return "Channel (\(name))"
+            if name.count > 8 {
+                if name.hasPrefix("G") {
+                    return "Group"
+                }
+                if name.hasPrefix("D") || name.hasPrefix("U") || name.hasPrefix("W") {
+                    return "Direct Message"
+                }
+                if name.hasPrefix("C") {
+                    return "Channel"
+                }
             }
             return "#\(name)"
         }

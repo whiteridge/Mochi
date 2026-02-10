@@ -193,7 +193,7 @@ class SlackService:
                     resolved = self._resolve_channel_name(user_id, channel_id)
                     if resolved:
                         enriched_args["channelName"] = f"#{resolved}"
-                        enriched_args["channelDisplay"] = f"#{resolved} ({channel_id})"
+                        enriched_args["channelDisplay"] = f"#{resolved}"
                     else:
                         # Fallback: maybe it's a user DM? Or not in joined channels?
                         if channel_id.startswith("U") or channel_id.startswith("W"):
@@ -271,12 +271,14 @@ class SlackService:
     def _channel_display_for_id(self, channel_id: str) -> str:
         channel_id = channel_id.strip()
         if channel_id.startswith("C") and len(channel_id) > 3:
-            return f"Channel ({channel_id})"
+            return "Channel"
         if channel_id.startswith("G") and len(channel_id) > 3:
-            return f"Group ({channel_id})"
+            return "Group"
         if channel_id.startswith("D") and len(channel_id) > 3:
-            return f"Direct Message ({channel_id})"
-        return f"Channel ({channel_id})"
+            return "Direct Message"
+        if (channel_id.startswith("U") or channel_id.startswith("W")) and len(channel_id) > 3:
+            return "Direct Message"
+        return "Channel"
 
     def _enrich_user_name(self, user_id: str, target_user_id: str, enriched_args: Dict[str, Any], key: str):
         """Helper to resolve user ID to name."""
