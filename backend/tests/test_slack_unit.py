@@ -134,3 +134,67 @@ def test_slack_write_action_interception(mock_agent_service):
     service.github_service.is_write_action.assert_not_called()
     service.gmail_service.is_write_action.assert_not_called()
     service.google_calendar_service.is_write_action.assert_not_called()
+
+
+def test_failed_confirmed_write_does_not_block_follow_up_proposals(mock_agent_service):
+    service = mock_agent_service
+    user_id = "test_user"
+
+    # Confirmed Slack action fails (e.g. channel_not_found)
+    confirmed_tool = {
+        "tool": "SLACK_SEND_MESSAGE",
+        "args": {"channel": "C_BAD", "markdown_text": "hello"},
+        "app_id": "slack",
+    }
+
+    responses = [
+        LLMResponse(tool_calls=[]),  # initial "Execute confirmed action" prompt
+        LLMResponse(
+            tool_calls=[
+                ToolCall(
+                    name="SLACK_SEND_MESSAGE",
+                    args={"channel": "C0A101WM3T4", "markdown_text": "hello"},
+                ),
+                ToolCall(
+                    name="LINEAR_CREATE_LINEAR_ISSUE",
+                    args={"title": "blue bug", "priority": 1},
+                ),
+            ]
+        ),
+    ]
+    stub_chat = StubChat(responses)
+
+    service.composio_service.execute_tool.return_value = {
+        "data": {"message": "Slack API error: channel_not_found"},
+        "error": "Slack API error: channel_not_found",
+        "successful": False,
+    }
+    service.slack_service.is_write_action.side_effect = (
+        lambda tool_name, _args: tool_name == "SLACK_SEND_MESSAGE"
+    )
+    service.linear_service.is_write_action.side_effect = (
+        lambda tool_name, _args: tool_name == "LINEAR_CREATE_LINEAR_ISSUE"
+    )
+    service.slack_service.enrich_proposal.side_effect = (
+        lambda _user_id, args, _tool_name: args
+    )
+    service.linear_service.enrich_proposal.side_effect = (
+        lambda _user_id, args, _tool_name: args
+    )
+
+    with patch("backend.agent_service.create_chat_session", return_value=(stub_chat, None)):
+        events = list(
+            service.run_agent(
+                user_input="Execute confirmed action",
+                user_id=user_id,
+                confirmed_tool=confirmed_tool,
+            )
+        )
+
+    proposal_events = [event for event in events if event["type"] == "proposal"]
+    assert len(proposal_events) == 1
+    proposal = proposal_events[0]
+    assert proposal["total_proposals"] == 2
+    queued_tools = {proposal["tool"]}
+    queued_tools.update(item["tool"] for item in proposal["remaining_proposals"])
+    assert queued_tools == {"SLACK_SEND_MESSAGE", "LINEAR_CREATE_LINEAR_ISSUE"}

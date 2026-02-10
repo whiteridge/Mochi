@@ -272,10 +272,10 @@ class AgentDispatcher:
         app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
 
         print(f"DEBUG: Executing CONFIRMED action: {tool_name}")
-        context.involved_apps.append(app_id)
+        if app_id not in context.involved_apps:
+            context.involved_apps.append(app_id)
         executed_key = (tool_name, json.dumps(tool_args, sort_keys=True))
         context.executed_write_keys.add(executed_key)
-        context.completed_write_apps.add(app_id)
         context.app_write_executing.add(app_id)
 
         app_display = format_app_name(app_id)
@@ -300,10 +300,29 @@ class AgentDispatcher:
             else:
                 result_data = result
 
-            context.write_action_executed = True
-            context.action_performed = f"{app_display} action executed"
+            result_success = True
+            if hasattr(result, "successful"):
+                result_success = bool(getattr(result, "successful"))
+            elif isinstance(result, dict):
+                if "successful" in result:
+                    result_success = bool(result.get("successful"))
+                elif result.get("error") is not None:
+                    result_success = False
+            if hasattr(result, "error") and getattr(result, "error", None) is not None:
+                result_success = False
+
+            if result_success:
+                context.write_action_executed = True
+                context.action_performed = f"{app_display} action executed"
+                context.completed_write_apps.add(app_id)
+                context.app_read_status[app_id] = "done"
+            else:
+                # Keep app eligible for re-proposal if the confirmed execution failed.
+                context.completed_write_apps.discard(app_id)
+                context.executed_write_keys.discard(executed_key)
+                context.app_read_status[app_id] = "error"
+
             context.app_write_executing.discard(app_id)
-            context.app_read_status[app_id] = "done"
 
             response_payload = _build_tool_response_payload(result_data)
             response, send_error = _send_message_with_retry(
@@ -315,25 +334,40 @@ class AgentDispatcher:
                     flush=True,
                 )
                 if _is_rate_limit_error(send_error):
-                    content = (
-                        f"{app_display} action completed. "
-                        "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
-                        "Please retry in a minute."
-                    )
+                    if result_success:
+                        content = (
+                            f"{app_display} action completed. "
+                            "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
+                            "Please retry in a minute."
+                        )
+                    else:
+                        content = (
+                            f"{app_display} action failed. "
+                            "I'm temporarily rate-limited, so I couldn't continue the follow-up. "
+                            "Please retry in a minute."
+                        )
                 else:
-                    content = (
-                        f"{app_display} action completed, but I couldn't continue the follow-up "
-                        "due to a model error. Please retry."
-                    )
+                    if result_success:
+                        content = (
+                            f"{app_display} action completed, but I couldn't continue the follow-up "
+                            "due to a model error. Please retry."
+                        )
+                    else:
+                        content = (
+                            f"{app_display} action failed, and I couldn't continue the follow-up "
+                            "due to a model error. Please retry."
+                        )
                 yield {
                     "type": "message",
                     "content": content,
-                    "action_performed": f"{app_display} action executed",
+                    "action_performed": f"{app_display} action executed" if result_success else None,
                 }
                 return None
         except Exception as exec_error:  # noqa: BLE001 - emit error to stream
             print(f"DEBUG: ❌ Confirmed tool execution error: {exec_error}", flush=True)
             context.app_write_executing.discard(app_id)
+            context.completed_write_apps.discard(app_id)
+            context.executed_write_keys.discard(executed_key)
             context.app_read_status[app_id] = "error"
             yield {
                 "type": "message",
