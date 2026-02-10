@@ -248,8 +248,8 @@ final class SettingsViewModel: ObservableObject {
 		}
 	}
 
-	func refreshStatus(appName: String) {
-		integrationService.refreshComposioStatus(for: appName)
+	func refreshStatus(appName: String, force: Bool = false) {
+		integrationService.refreshComposioStatus(for: appName, force: force)
 	}
 	
 	/// Polls the connection status for an app until connected or timeout
@@ -266,11 +266,11 @@ final class SettingsViewModel: ObservableObject {
 		maxAttempts: Int = 30,
 		onStatusChange: ((Bool) -> Void)? = nil
 	) async -> Bool {
-		for _ in 0..<maxAttempts {
-			try? await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
-			
-			// Refresh status from backend
-			integrationService.refreshComposioStatus(for: appName)
+			for _ in 0..<maxAttempts {
+				try? await Task.sleep(nanoseconds: UInt64(intervalSeconds * 1_000_000_000))
+				
+				// Refresh status from backend
+				integrationService.refreshComposioStatus(for: appName, force: true)
 			
 			// Small delay to let the state update propagate
 			try? await Task.sleep(nanoseconds: 300_000_000)

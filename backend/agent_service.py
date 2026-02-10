@@ -2,7 +2,7 @@ import os
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
-from agent.common import detect_apps_from_input, map_tool_to_app
+from agent.common import detect_apps_from_input, detect_intent_scope, map_tool_to_app
 from agent.dispatcher import AgentDispatcher
 from agent.tool_loader import load_composio_tools
 from llm.router import create_chat_session, ModelConfigError
@@ -63,12 +63,15 @@ class AgentService:
 
         # 1. Get tools for the user (Linear, Slack, Notion, GitHub, Gmail, Calendar)
         required_apps = detect_apps_from_input(user_input)
+        intent_scope = detect_intent_scope(user_input, required_apps=required_apps)
         if confirmed_tool:
             confirmed_app = confirmed_tool.get("app_id") or map_tool_to_app(
                 confirmed_tool.get("tool", "")
             )
             if confirmed_app and confirmed_app not in required_apps:
                 required_apps.append(confirmed_app)
+            if confirmed_app:
+                intent_scope[confirmed_app] = "write"
         if not required_apps:
             required_apps = None
         all_composio_tools, errors = load_composio_tools(
@@ -80,6 +83,7 @@ class AgentService:
             self.google_calendar_service,
             user_id,
             required_apps=required_apps,
+            intent_scope=intent_scope,
         )
 
         if not all_composio_tools:

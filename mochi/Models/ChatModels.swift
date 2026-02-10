@@ -299,10 +299,18 @@ struct ProposalData: Equatable {
     
     // MARK: - Slack Fields
     
+    /// The fully formatted Slack channel label for confirmations
+    var channelDisplay: String? {
+        args["channelDisplay"] as? String ?? args["channel_display"] as? String
+    }
+
     /// The channel name or ID for Slack messages
     var channel: String? {
-        // Prefer enriched channelName, fall back to raw channel ID
-        args["channelName"] as? String ?? args["channel_name"] as? String ?? args["channel"] as? String
+        // Prefer enriched channelDisplay/channelName, fall back to raw channel ID
+        channelDisplay
+            ?? args["channelName"] as? String
+            ?? args["channel_name"] as? String
+            ?? args["channel"] as? String
     }
     
     /// The message text for Slack

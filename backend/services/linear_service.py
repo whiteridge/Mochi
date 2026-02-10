@@ -40,6 +40,23 @@ class LinearService:
         "LINEAR_UPDATE_LINEAR_COMMENT",
         "LINEAR_UPDATE_LINEAR_PROJECT",
     ]
+
+    LINEAR_READ_CORE_SLUGS = [
+        "LINEAR_GET_LINEAR_ISSUE",
+        "LINEAR_LIST_LINEAR_ISSUES",
+        "LINEAR_LIST_LINEAR_TEAMS",
+        "LINEAR_LIST_LINEAR_USERS",
+        "LINEAR_LIST_LINEAR_STATES",
+        "LINEAR_LIST_LINEAR_PROJECTS",
+        "LINEAR_GET_ALL_LINEAR_TEAMS",
+    ]
+
+    LINEAR_WRITE_CORE_SLUGS = [
+        "LINEAR_CREATE_LINEAR_ISSUE",
+        "LINEAR_CREATE_LINEAR_ISSUE_DETAILS",
+        "LINEAR_CREATE_LINEAR_COMMENT",
+        "LINEAR_UPDATE_ISSUE",
+    ]
     
     def __init__(self, composio_service: ComposioService):
         """
@@ -63,24 +80,31 @@ class LinearService:
         Returns:
             True if this is a write action, False otherwise
         """
-        normalized_name = normalize_tool_slug(tool_name)
-        tool_name_lower = normalized_name.lower()
+        tool_name_lower = normalize_tool_slug(tool_name).lower()
         
         # Check for common write prefixes
         write_prefixes = ["create_", "update_", "delete_", "remove_", "manage_"]
         if any(prefix in tool_name_lower for prefix in write_prefixes):
-            print(f"DEBUG: Detected WRITE action (prefix match): {normalized_name}")
             return True
         
         # Special case: GraphQL mutations via run_query_or_mutation
         if "run_query_or_mutation" in tool_name_lower:
             query = tool_args.get("query_or_mutation", "").strip().lower()
             if query.startswith("mutation"):
-                print(f"DEBUG: Detected WRITE action (mutation): {normalized_name}")
                 return True
         
-        print(f"DEBUG: Detected READ action: {normalized_name}")
         return False
+
+    def _slugs_for_scope(self, scope: str) -> List[str]:
+        if scope == "read":
+            selected = self.LINEAR_READ_CORE_SLUGS
+        elif scope == "write":
+            selected = self.LINEAR_WRITE_CORE_SLUGS
+        elif scope == "mixed":
+            selected = self.LINEAR_READ_CORE_SLUGS + self.LINEAR_WRITE_CORE_SLUGS
+        else:
+            selected = self.LINEAR_ACTION_SLUGS
+        return list(dict.fromkeys(selected))
     
     def _extract_missing_action_slug(self, error_message: str) -> Optional[str]:
         """
@@ -95,7 +119,7 @@ class LinearService:
         match = re.search(r"`([A-Z0-9_]+)`", error_message)
         return match.group(1) if match else None
     
-    def load_tools(self, user_id: str) -> List[Any]:
+    def load_tools(self, user_id: str, scope: str = "full") -> List[Any]:
         """
         Attempt to load the curated list of Linear tools for a user, skipping deprecated ones.
         
@@ -108,7 +132,7 @@ class LinearService:
         Raises:
             RuntimeError: If no tools could be loaded
         """
-        remaining = self.LINEAR_ACTION_SLUGS.copy()
+        remaining = self._slugs_for_scope(scope)
         skipped: List[str] = []
 
         while remaining:
@@ -147,6 +171,9 @@ class LinearService:
                 else:
                     raise
 
+        if scope != "full":
+            print(f"DEBUG: No Linear tools available for scope={scope}.")
+            return []
         missing_list = ", ".join(skipped) if skipped else "unknown"
         raise RuntimeError(
             f"Unable to load any Linear tools from Composio. Missing actions: {missing_list}"

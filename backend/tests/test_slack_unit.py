@@ -86,6 +86,15 @@ def test_slack_read_action(mock_agent_service):
         arguments={"query": "bug"},
         user_id=user_id,
     )
+    service.slack_service.is_write_action.assert_called_once_with(
+        "SLACK_SEARCH_MESSAGES",
+        {"query": "bug"},
+    )
+    service.linear_service.is_write_action.assert_not_called()
+    service.notion_service.is_write_action.assert_not_called()
+    service.github_service.is_write_action.assert_not_called()
+    service.gmail_service.is_write_action.assert_not_called()
+    service.google_calendar_service.is_write_action.assert_not_called()
 
 
 def test_slack_write_action_interception(mock_agent_service):
@@ -116,3 +125,12 @@ def test_slack_write_action_interception(mock_agent_service):
     proposal = proposal_events[0]
     assert proposal["tool"] == "SLACK_SEND_MESSAGE"
     assert proposal["content"]["channelName"] == "#general"
+    service.slack_service.is_write_action.assert_called_once_with(
+        "SLACK_SEND_MESSAGE",
+        {"channel": "C123", "text": "Hello"},
+    )
+    service.linear_service.is_write_action.assert_not_called()
+    service.notion_service.is_write_action.assert_not_called()
+    service.github_service.is_write_action.assert_not_called()
+    service.gmail_service.is_write_action.assert_not_called()
+    service.google_calendar_service.is_write_action.assert_not_called()

@@ -1,6 +1,6 @@
 """Shared helpers for agent orchestration."""
 
-from typing import List
+from typing import Dict, List, Optional
 
 
 def map_tool_to_app(tool_name: str) -> str:
@@ -118,6 +118,106 @@ def detect_apps_from_input(user_input: str) -> List[str]:
         detected.append("google_calendar")
 
     return detected
+
+
+def detect_intent_scope(
+    user_input: str,
+    required_apps: Optional[List[str]] = None,
+) -> Dict[str, str]:
+    """Infer a minimal tool scope per app from user input."""
+    user_lower = user_input.lower()
+    apps = required_apps.copy() if required_apps else detect_apps_from_input(user_input)
+    scopes: Dict[str, str] = {}
+    if not apps:
+        return scopes
+
+    read_keywords = (
+        "show",
+        "list",
+        "find",
+        "search",
+        "read",
+        "check",
+        "what",
+        "which",
+        "status",
+        "history",
+    )
+    write_keywords = (
+        "create",
+        "make",
+        "send",
+        "post",
+        "tell",
+        "say",
+        "notify",
+        "schedule",
+        "update",
+        "edit",
+        "change",
+        "delete",
+        "remove",
+        "archive",
+        "reply",
+        "forward",
+    )
+
+    has_read = any(keyword in user_lower for keyword in read_keywords)
+    has_write = any(keyword in user_lower for keyword in write_keywords)
+
+    if has_read and has_write:
+        base_scope = "mixed"
+    elif has_write:
+        base_scope = "write"
+    else:
+        base_scope = "read"
+
+    slack_schedule_keywords = ("schedule", "later", "tomorrow", "tonight")
+    slack_dm_keywords = (
+        "dm",
+        "direct message",
+        "private message",
+        "message @",
+        "to @",
+    )
+    slack_send_keywords = (
+        "send",
+        "post",
+        "say",
+        "tell",
+        "notify",
+        "message",
+        "channel",
+    )
+    slack_read_keywords = ("search", "find", "history", "list")
+
+    for app in apps:
+        normalized_app = app.lower().replace("-", "_")
+        if normalized_app == "slack":
+            if any(keyword in user_lower for keyword in slack_schedule_keywords):
+                scopes[normalized_app] = "schedule"
+            elif any(keyword in user_lower for keyword in slack_dm_keywords):
+                scopes[normalized_app] = "dm"
+            elif any(keyword in user_lower for keyword in slack_read_keywords) and not any(
+                keyword in user_lower for keyword in slack_send_keywords
+            ):
+                scopes[normalized_app] = "read"
+            elif any(keyword in user_lower for keyword in slack_send_keywords):
+                scopes[normalized_app] = "send"
+            elif base_scope == "mixed":
+                scopes[normalized_app] = "mixed"
+            elif base_scope == "write":
+                scopes[normalized_app] = "send"
+            else:
+                scopes[normalized_app] = "read"
+            continue
+
+        if normalized_app in {"googlecalendar", "google_calendar"}:
+            normalized_app = "google_calendar"
+
+        scopes[normalized_app] = base_scope
+
+    return scopes
 
 
 def looks_like_tool_request(user_input: str) -> bool:

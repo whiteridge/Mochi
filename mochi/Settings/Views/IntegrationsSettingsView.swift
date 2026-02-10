@@ -22,6 +22,15 @@ struct IntegrationsSettingsView: View {
 	@State private var showAdvanced = false
 	@State private var showSaved = false
 	@State private var refreshTimer: Timer?
+
+	private var isConnectionFlowActive: Bool {
+		slackLoading
+			|| linearLoading
+			|| notionLoading
+			|| githubLoading
+			|| gmailLoading
+			|| googleCalendarLoading
+	}
 	
 	var body: some View {
 		ScrollView {
@@ -229,20 +238,20 @@ struct IntegrationsSettingsView: View {
 	
 	// MARK: - Auto Refresh
 	
+	private func refreshAllStatuses(force: Bool = false) {
+		viewModel.refreshStatus(appName: "slack", force: force)
+		viewModel.refreshStatus(appName: "linear", force: force)
+		viewModel.refreshStatus(appName: "notion", force: force)
+		viewModel.refreshStatus(appName: "github", force: force)
+		viewModel.refreshStatus(appName: "gmail", force: force)
+		viewModel.refreshStatus(appName: "googlecalendar", force: force)
+	}
+
 	private func startAutoRefresh() {
-		viewModel.refreshStatus(appName: "slack")
-		viewModel.refreshStatus(appName: "linear")
-		viewModel.refreshStatus(appName: "notion")
-		viewModel.refreshStatus(appName: "github")
-		viewModel.refreshStatus(appName: "gmail")
-		viewModel.refreshStatus(appName: "googlecalendar")
-		refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
-			viewModel.refreshStatus(appName: "slack")
-			viewModel.refreshStatus(appName: "linear")
-			viewModel.refreshStatus(appName: "notion")
-			viewModel.refreshStatus(appName: "github")
-			viewModel.refreshStatus(appName: "gmail")
-			viewModel.refreshStatus(appName: "googlecalendar")
+		refreshAllStatuses(force: true)
+		refreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
+			guard !self.isConnectionFlowActive else { return }
+			self.refreshAllStatuses()
 		}
 	}
 	
@@ -356,7 +365,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectSlack()
 				slackLoading = false
-				viewModel.refreshStatus(appName: "slack")
+				viewModel.refreshStatus(appName: "slack", force: true)
 			}
 		}
 	}
@@ -368,7 +377,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectLinear()
 				linearLoading = false
-				viewModel.refreshStatus(appName: "linear")
+				viewModel.refreshStatus(appName: "linear", force: true)
 			}
 		}
 	}
@@ -380,7 +389,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectNotion()
 				notionLoading = false
-				viewModel.refreshStatus(appName: "notion")
+				viewModel.refreshStatus(appName: "notion", force: true)
 			}
 		}
 	}
@@ -392,7 +401,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectGitHub()
 				githubLoading = false
-				viewModel.refreshStatus(appName: "github")
+				viewModel.refreshStatus(appName: "github", force: true)
 			}
 		}
 	}
@@ -404,7 +413,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectGmail()
 				gmailLoading = false
-				viewModel.refreshStatus(appName: "gmail")
+				viewModel.refreshStatus(appName: "gmail", force: true)
 			}
 		}
 	}
@@ -416,7 +425,7 @@ struct IntegrationsSettingsView: View {
 			await MainActor.run {
 				integrationService.disconnectGoogleCalendar()
 				googleCalendarLoading = false
-				viewModel.refreshStatus(appName: "googlecalendar")
+				viewModel.refreshStatus(appName: "googlecalendar", force: true)
 			}
 		}
 	}
@@ -435,7 +444,7 @@ struct IntegrationsSettingsView: View {
 		Task {
 			for _ in 0..<30 {
 				try? await Task.sleep(nanoseconds: 2_000_000_000)
-				viewModel.refreshStatus(appName: app)
+				viewModel.refreshStatus(appName: app, force: true)
 				try? await Task.sleep(nanoseconds: 500_000_000)
 				
 				let connected = await MainActor.run {

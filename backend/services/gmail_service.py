@@ -35,6 +35,23 @@ class GmailService:
         "GMAIL_DELETE_DRAFT",
     ]
 
+    GMAIL_READ_CORE_SLUGS = [
+        "GMAIL_FETCH_EMAILS",
+        "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID",
+        "GMAIL_FETCH_MESSAGE_BY_THREAD_ID",
+        "GMAIL_LIST_THREADS",
+        "GMAIL_LIST_LABELS",
+        "GMAIL_GET_PROFILE",
+    ]
+
+    GMAIL_WRITE_CORE_SLUGS = [
+        "GMAIL_SEND_EMAIL",
+        "GMAIL_CREATE_EMAIL_DRAFT",
+        "GMAIL_SEND_DRAFT",
+        "GMAIL_REPLY_TO_THREAD",
+        "GMAIL_FORWARD_MESSAGE",
+    ]
+
     def __init__(self, composio_service: ComposioService):
         """
         Initialize GmailService with a ComposioService instance.
@@ -60,8 +77,7 @@ class GmailService:
         Returns:
             True if this is a write action, False otherwise
         """
-        normalized_name = normalize_tool_slug(tool_name)
-        tool_name_lower = normalized_name.lower()
+        tool_name_lower = normalize_tool_slug(tool_name).lower()
         write_prefixes = (
             "gmail_send_",
             "gmail_reply_",
@@ -75,13 +91,22 @@ class GmailService:
             "gmail_batch_",
         )
         if tool_name_lower.startswith(write_prefixes):
-            print(f"DEBUG: Detected GMAIL WRITE action: {normalized_name}")
             return True
 
-        print(f"DEBUG: Detected GMAIL READ action: {normalized_name}")
         return False
 
-    def load_tools(self, user_id: str) -> List[Any]:
+    def _slugs_for_scope(self, scope: str) -> List[str]:
+        if scope == "read":
+            selected = self.GMAIL_READ_CORE_SLUGS
+        elif scope == "write":
+            selected = self.GMAIL_WRITE_CORE_SLUGS
+        elif scope == "mixed":
+            selected = self.GMAIL_READ_CORE_SLUGS + self.GMAIL_WRITE_CORE_SLUGS
+        else:
+            selected = self.GMAIL_ACTION_SLUGS
+        return list(dict.fromkeys(selected))
+
+    def load_tools(self, user_id: str, scope: str = "full") -> List[Any]:
         """
         Load the curated list of Gmail tools for the user.
 
@@ -93,7 +118,7 @@ class GmailService:
         """
         return self.composio_service.fetch_tools(
             user_id=user_id,
-            slugs=self.GMAIL_ACTION_SLUGS,
+            slugs=self._slugs_for_scope(scope),
         )
 
     def enrich_proposal(

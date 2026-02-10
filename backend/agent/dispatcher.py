@@ -95,6 +95,29 @@ def _build_tool_response_payload(result_data: Any, max_chars: int = 12000) -> Di
     return {"result": safe_data}
 
 
+PROPOSAL_ENRICHMENT_KEYS = {
+    "assigneeName",
+    "channelDisplay",
+    "channelName",
+    "priorityName",
+    "projectName",
+    "stateName",
+    "teamName",
+    "userName",
+}
+
+
+def _sanitize_tool_args_for_execution(tool_args: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove UI-only enrichment fields before executing confirmed actions."""
+    if not isinstance(tool_args, dict):
+        return {}
+    return {
+        key: value
+        for key, value in tool_args.items()
+        if key not in PROPOSAL_ENRICHMENT_KEYS
+    }
+
+
 class DispatchPhase(Enum):
     PLANNING = "planning"
     EXECUTING_READ = "executing_read"
@@ -244,7 +267,7 @@ class AgentDispatcher:
         confirmed_tool: Dict,
     ) -> Generator[Dict, None, Optional[Any]]:
         tool_name = confirmed_tool.get("tool")
-        tool_args = confirmed_tool.get("args", {})
+        tool_args = _sanitize_tool_args_for_execution(confirmed_tool.get("args", {}))
         tool_call_id = confirmed_tool.get("tool_call_id")
         app_id = confirmed_tool.get("app_id", map_tool_to_app(tool_name))
 
@@ -331,25 +354,19 @@ class AgentDispatcher:
             args,
             tool_call_id,
             app_id,
-            is_linear_write,
-            is_slack_write,
-            is_notion_write,
-            is_github_write,
-            is_gmail_write,
-            is_calendar_write,
         ) in context.pending_write_actions:
             enriched_args = args
-            if is_linear_write:
+            if app_id == "linear":
                 enriched_args = self.linear_service.enrich_proposal(context.user_id, args, tool_name)
-            elif is_slack_write:
+            elif app_id == "slack":
                 enriched_args = self.slack_service.enrich_proposal(context.user_id, args, tool_name)
-            elif is_notion_write:
+            elif app_id == "notion":
                 enriched_args = self.notion_service.enrich_proposal(context.user_id, args, tool_name)
-            elif is_github_write:
+            elif app_id == "github":
                 enriched_args = self.github_service.enrich_proposal(context.user_id, args, tool_name)
-            elif is_gmail_write:
+            elif app_id == "gmail":
                 enriched_args = self.gmail_service.enrich_proposal(context.user_id, args, tool_name)
-            elif is_calendar_write:
+            elif app_id == "google_calendar":
                 enriched_args = self.google_calendar_service.enrich_proposal(context.user_id, args, tool_name)
 
             context.proposal_queue.append(
@@ -440,6 +457,21 @@ class AgentDispatcher:
             "Respond with function calls only."
         )
 
+    def _is_write_action(self, app_id: str, tool_name: str, args: Dict[str, Any]) -> bool:
+        if app_id == "linear":
+            return self.linear_service.is_write_action(tool_name, args)
+        if app_id == "slack":
+            return self.slack_service.is_write_action(tool_name, args)
+        if app_id == "notion":
+            return self.notion_service.is_write_action(tool_name, args)
+        if app_id == "github":
+            return self.github_service.is_write_action(tool_name, args)
+        if app_id == "gmail":
+            return self.gmail_service.is_write_action(tool_name, args)
+        if app_id == "google_calendar":
+            return self.google_calendar_service.is_write_action(tool_name, args)
+        return False
+
     def _collect_actions_from_response(
         self,
         context: DispatcherContext,
@@ -475,19 +507,11 @@ class AgentDispatcher:
                     }
                     context.early_summary_sent = True
 
-                is_linear_write = self.linear_service.is_write_action(tool_name, args)
-                is_slack_write = self.slack_service.is_write_action(tool_name, args)
-                is_notion_write = self.notion_service.is_write_action(tool_name, args)
-                is_github_write = self.github_service.is_write_action(tool_name, args)
-                is_gmail_write = self.gmail_service.is_write_action(tool_name, args)
-                is_calendar_write = self.google_calendar_service.is_write_action(tool_name, args)
-                is_write = (
-                    is_linear_write
-                    or is_slack_write
-                    or is_notion_write
-                    or is_github_write
-                    or is_gmail_write
-                    or is_calendar_write
+                is_write = self._is_write_action(app_id, tool_name, args)
+                mode = "write" if is_write else "read"
+                print(
+                    f"DEBUG: Classified tool {tool_name} for app={app_id} mode={mode}",
+                    flush=True,
                 )
                 executed_key = (tool_name, json.dumps(args, sort_keys=True))
 
@@ -517,12 +541,6 @@ class AgentDispatcher:
                             args,
                             tool_call_id,
                             app_id,
-                            is_linear_write,
-                            is_slack_write,
-                            is_notion_write,
-                            is_github_write,
-                            is_gmail_write,
-                            is_calendar_write,
                         )
                     )
                     context.executed_write_keys.add(executed_key)

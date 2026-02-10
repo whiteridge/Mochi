@@ -157,6 +157,9 @@ final class IntegrationService: ObservableObject {
 	private let credentialManager: CredentialManager
 	private var backendBaseURL: String { BackendConfig.integrationsBaseURL }
 	private var userId: String { BackendConfig.userId }
+	private let statusCacheTTL: TimeInterval = 15
+	private var statusLastRefreshAt: [String: Date] = [:]
+	private var statusRequestsInFlight: Set<String> = []
 
 	var hasAnyComposioConnection: Bool {
 		slackState.isConnected
@@ -209,9 +212,41 @@ final class IntegrationService: ObservableObject {
 		return redirectURL
 	}
 	
-	func refreshComposioStatus(for appName: String) {
+	private func normalizedAppName(_ appName: String) -> String {
+		switch appName.lowercased() {
+		case "googlecalendar", "google_calendar":
+			return "googlecalendar"
+		default:
+			return appName.lowercased()
+		}
+	}
+
+	func refreshComposioStatus(for appName: String, force: Bool = false) {
+		let normalizedApp = normalizedAppName(appName)
 		Task {
-			var components = URLComponents(string: "\(backendBaseURL)/status/\(appName.lowercased())")
+			let shouldStartRequest = await MainActor.run { () -> Bool in
+				let now = Date()
+				if !force,
+				   let lastRefresh = statusLastRefreshAt[normalizedApp],
+				   now.timeIntervalSince(lastRefresh) < statusCacheTTL {
+					return false
+				}
+				if statusRequestsInFlight.contains(normalizedApp) {
+					return false
+				}
+				statusRequestsInFlight.insert(normalizedApp)
+				return true
+			}
+
+			guard shouldStartRequest else { return }
+			defer {
+				Task { @MainActor in
+					statusRequestsInFlight.remove(normalizedApp)
+					statusLastRefreshAt[normalizedApp] = Date()
+				}
+			}
+
+			var components = URLComponents(string: "\(backendBaseURL)/status/\(normalizedApp)")
 			components?.queryItems = [URLQueryItem(name: "user_id", value: userId)]
 			
 			guard let url = components?.url else { return }
@@ -237,13 +272,14 @@ final class IntegrationService: ObservableObject {
 					} else if normalizedStatus == "inactive" {
 						newState = .error("Access paused. Reconnect to enable.")
 					} else if normalizedStatus == "initiated"
-								|| normalizedStatus == "initializing"
-								|| normalizedStatus == "pending" {
+						|| normalizedStatus == "initializing"
+						|| normalizedStatus == "pending" {
 						newState = .error("Connection pending. Complete setup in browser.")
 					} else {
 						newState = .disconnected
 					}
-					switch appName.lowercased() {
+
+					switch normalizedApp {
 					case "slack":
 						self.slackState = newState
 					case "linear":
@@ -254,7 +290,7 @@ final class IntegrationService: ObservableObject {
 						self.githubState = newState
 					case "gmail":
 						self.gmailState = newState
-					case "googlecalendar", "google_calendar":
+					case "googlecalendar":
 						self.googleCalendarState = newState
 					default:
 						break

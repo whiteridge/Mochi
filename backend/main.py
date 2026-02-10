@@ -39,6 +39,16 @@ class ChatRequest(BaseModel):
     api_key: Optional[str] = None
     model: Optional[ModelConfig] = None
 
+
+def _resolve_effective_user_id(request_user_id: str) -> tuple[str, str]:
+    """Resolve effective user id, preferring request value over env fallback."""
+    if request_user_id and request_user_id.strip():
+        return request_user_id.strip(), "request"
+    fallback_user_id = os.getenv("COMPOSIO_USER_ID", "").strip()
+    if fallback_user_id:
+        return fallback_user_id, "fallback"
+    return request_user_id, "request"
+
 # ChatResponse model is no longer used for the return type of the endpoint directly, 
 # but the events yielded will match the structure we want.
 # We'll keep it for reference or if we want to document the event structure.
@@ -86,9 +96,10 @@ async def chat_endpoint(request: ChatRequest):
 
     # Create a generator that yields JSON strings followed by a newline
     def event_generator():
-        # Use configured user_id if available (for dev/single-user mode), otherwise use request user_id
-        effective_user_id = os.getenv("COMPOSIO_USER_ID", request.user_id)
-        print(f"DEBUG: Using effective user_id: {effective_user_id}")
+        effective_user_id, source = _resolve_effective_user_id(request.user_id)
+        print(
+            f"DEBUG: Using effective user_id: {effective_user_id} (source={source})"
+        )
         
         for event in service.run_agent(
             user_input,

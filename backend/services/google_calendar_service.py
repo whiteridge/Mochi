@@ -44,6 +44,24 @@ class GoogleCalendarService:
         "GOOGLECALENDAR_ACL_DELETE",
     ]
 
+    GOOGLE_CALENDAR_READ_CORE_SLUGS = [
+        "GOOGLECALENDAR_LIST_CALENDARS",
+        "GOOGLECALENDAR_EVENTS_LIST",
+        "GOOGLECALENDAR_EVENTS_GET",
+        "GOOGLECALENDAR_FIND_EVENT",
+        "GOOGLECALENDAR_FIND_FREE_SLOTS",
+        "GOOGLECALENDAR_FREE_BUSY_QUERY",
+        "GOOGLECALENDAR_GET_CURRENT_DATE_TIME",
+    ]
+
+    GOOGLE_CALENDAR_WRITE_CORE_SLUGS = [
+        "GOOGLECALENDAR_CREATE_EVENT",
+        "GOOGLECALENDAR_UPDATE_EVENT",
+        "GOOGLECALENDAR_PATCH_EVENT",
+        "GOOGLECALENDAR_DELETE_EVENT",
+        "GOOGLECALENDAR_QUICK_ADD",
+    ]
+
     def __init__(self, composio_service: ComposioService):
         """
         Initialize GoogleCalendarService with a ComposioService instance.
@@ -69,8 +87,7 @@ class GoogleCalendarService:
         Returns:
             True if this is a write action, False otherwise
         """
-        normalized_name = normalize_tool_slug(tool_name)
-        tool_name_lower = normalized_name.lower()
+        tool_name_lower = normalize_tool_slug(tool_name).lower()
         write_tokens = (
             "create_",
             "update_",
@@ -85,13 +102,25 @@ class GoogleCalendarService:
             "insert",
         )
         if any(token in tool_name_lower for token in write_tokens):
-            print(f"DEBUG: Detected CALENDAR WRITE action: {normalized_name}")
             return True
 
-        print(f"DEBUG: Detected CALENDAR READ action: {normalized_name}")
         return False
 
-    def load_tools(self, user_id: str) -> List[Any]:
+    def _slugs_for_scope(self, scope: str) -> List[str]:
+        if scope == "read":
+            selected = self.GOOGLE_CALENDAR_READ_CORE_SLUGS
+        elif scope == "write":
+            selected = self.GOOGLE_CALENDAR_WRITE_CORE_SLUGS
+        elif scope == "mixed":
+            selected = (
+                self.GOOGLE_CALENDAR_READ_CORE_SLUGS
+                + self.GOOGLE_CALENDAR_WRITE_CORE_SLUGS
+            )
+        else:
+            selected = self.GOOGLE_CALENDAR_ACTION_SLUGS
+        return list(dict.fromkeys(selected))
+
+    def load_tools(self, user_id: str, scope: str = "full") -> List[Any]:
         """
         Load the curated list of Google Calendar tools for the user.
 
@@ -103,7 +132,7 @@ class GoogleCalendarService:
         """
         return self.composio_service.fetch_tools(
             user_id=user_id,
-            slugs=self.GOOGLE_CALENDAR_ACTION_SLUGS,
+            slugs=self._slugs_for_scope(scope),
         )
 
     def enrich_proposal(

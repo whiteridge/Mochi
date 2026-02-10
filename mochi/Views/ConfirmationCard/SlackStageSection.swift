@@ -103,17 +103,17 @@ struct SlackStageSection: View {
     // MARK: - Slack Display Helpers
     
     var slackChannelDisplay: String? {
-        // Prefer enriched channelName from backend
+        if let display = proposal.channelDisplay?.nilIfEmpty {
+            return display.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         if let channelName = proposal.channel?.nilIfEmpty {
-            // Ensure it has # prefix for channels
             let name = channelName.trimmingCharacters(in: .whitespacesAndNewlines)
             if name.hasPrefix("#") || name.hasPrefix("@") {
                 return name
             }
-            // If it's a channel ID (starts with C), show it with # prefix for consistency
-            // The backend should ideally enrich this, but showing the ID is better than nothing
-            if name.hasPrefix("C") && name.count > 8 {
-                return "#\(name)"
+            if (name.hasPrefix("C") || name.hasPrefix("G")) && name.count > 8 {
+                return "Channel (\(name))"
             }
             return "#\(name)"
         }

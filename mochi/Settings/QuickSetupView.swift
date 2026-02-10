@@ -23,6 +23,7 @@ struct QuickSetupView: View {
     @State private var googleCalendarError: String?
     @State private var apiSaveSuccess = false
     @State private var apiError: String?
+    @State private var statusPollTasks: [String: Task<Void, Never>] = [:]
 
     private var backgroundGradient: LinearGradient {
         let colors: [Color] = colorScheme == .dark
@@ -229,12 +230,15 @@ struct QuickSetupView: View {
         .onAppear {
             viewModel.loadPersistedValues()
             // Refresh connection status when view appears
-            viewModel.refreshStatus(appName: "slack")
-            viewModel.refreshStatus(appName: "linear")
-            viewModel.refreshStatus(appName: "notion")
-            viewModel.refreshStatus(appName: "github")
-            viewModel.refreshStatus(appName: "gmail")
-            viewModel.refreshStatus(appName: "googlecalendar")
+            viewModel.refreshStatus(appName: "slack", force: true)
+            viewModel.refreshStatus(appName: "linear", force: true)
+            viewModel.refreshStatus(appName: "notion", force: true)
+            viewModel.refreshStatus(appName: "github", force: true)
+            viewModel.refreshStatus(appName: "gmail", force: true)
+            viewModel.refreshStatus(appName: "googlecalendar", force: true)
+        }
+        .onDisappear {
+            cancelAllPollingTasks()
         }
         .onChange(of: viewModel.apiKey) { _ in
             apiSaveSuccess = false
@@ -377,14 +381,19 @@ struct QuickSetupView: View {
     }
     
     private func pollStatus(app: String, completion: @escaping () -> Void) {
-        Task {
+        statusPollTasks[app]?.cancel()
+
+        let pollTask = Task {
             // Poll every 2 seconds for up to 60 seconds
             for _ in 0..<30 {
+                if Task.isCancelled { return }
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                viewModel.refreshStatus(appName: app)
+                if Task.isCancelled { return }
+                viewModel.refreshStatus(appName: app, force: true)
                 
                 // Small delay to let the state update
                 try? await Task.sleep(nanoseconds: 500_000_000)
+                if Task.isCancelled { return }
                 
                 let connected = await MainActor.run {
                     switch app {
@@ -406,12 +415,26 @@ struct QuickSetupView: View {
                 }
                 
                 if connected {
-                    await MainActor.run { completion() }
+                    await MainActor.run {
+                        completion()
+                        statusPollTasks[app] = nil
+                    }
                     return
                 }
             }
-            await MainActor.run { completion() }
+            await MainActor.run {
+                completion()
+                statusPollTasks[app] = nil
+            }
         }
+        statusPollTasks[app] = pollTask
+    }
+
+    private func cancelAllPollingTasks() {
+        for task in statusPollTasks.values {
+            task.cancel()
+        }
+        statusPollTasks.removeAll()
     }
     
     private func completeSetup() {
