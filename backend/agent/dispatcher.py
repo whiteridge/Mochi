@@ -56,8 +56,9 @@ def _parse_retry_delay_seconds(exc: Exception) -> Optional[float]:
 def _send_message_with_retry(
     send_fn: Callable[[], Any],
     *,
-    max_retries: int = 2,
+    max_retries: int = 1,
     base_delay: float = 1.0,
+    max_retry_delay: float = 5.0,
 ) -> Tuple[Optional[Any], Optional[Exception]]:
     last_exc: Optional[Exception] = None
     for attempt in range(max_retries + 1):
@@ -67,7 +68,14 @@ def _send_message_with_retry(
             last_exc = exc
             if not _is_rate_limit_error(exc) or attempt >= max_retries:
                 break
-            delay = _parse_retry_delay_seconds(exc) or (base_delay * (attempt + 1))
+            raw_delay = _parse_retry_delay_seconds(exc) or (base_delay * (attempt + 1))
+            delay = min(raw_delay, max_retry_delay)
+            if raw_delay > max_retry_delay:
+                print(
+                    "DEBUG: Model provider requested long retry "
+                    f"({raw_delay:.2f}s); capping to {delay:.2f}s",
+                    flush=True,
+                )
             print(
                 f"DEBUG: Model provider rate-limited; retrying in {delay:.2f}s",
                 flush=True,

@@ -133,6 +133,7 @@ extension AgentViewModel {
     /// Primary streaming logic for new user input
     func sendMessageToBackend(text: String) async {
         var didReceiveEvent = false
+        var didReceiveTerminalEvent = false
         do {
             let historyForRequest = messages.dropLast().map { msg in
                 Message(role: msg.role == .user ? "user" : "assistant", content: msg.content)
@@ -262,6 +263,7 @@ extension AgentViewModel {
                     }
                     
                 case .proposal:
+                    didReceiveTerminalEvent = true
                     if let tool = event.tool, let content = event.content?.value as? [String: Any] {
                         handleProposalEvent(event: event, tool: tool, content: content)
                     }
@@ -290,6 +292,7 @@ extension AgentViewModel {
                     }
                     
                 case .message:
+                    didReceiveTerminalEvent = true
                     if let content = event.content?.value as? String {
                         await MainActor.run {
                             isThinking = false
@@ -340,11 +343,11 @@ extension AgentViewModel {
                 }
             }
             
-            // Fallback: if stream ends without yielding proposals/messages, clear waiting UI
-            if !didReceiveEvent || (proposalQueue.isEmpty && proposal == nil) {
+            // Fallback: if stream ends without a proposal/message, clear waiting UI and surface a visible error.
+            if !didReceiveTerminalEvent {
                 await MainActor.run {
                     withAnimation(.easeOut(duration: 0.35)) {
-                        showStatusPill = false  // Hide pill
+                        showStatusPill = false
                     }
                     activeTool = nil
                     isThinking = false
@@ -359,6 +362,10 @@ extension AgentViewModel {
                             appSteps.removeAll()
                         }
                     }
+                    let fallbackMessage = didReceiveEvent
+                        ? "I couldn't generate a complete response. Please try again."
+                        : "I couldn't reach the backend. Please try again."
+                    messages.append(ChatMessage(role: .assistant, content: fallbackMessage))
                     state = .chat
                 }
             }

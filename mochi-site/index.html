@@ -258,7 +258,7 @@
 
 			<div class="video-wrap" id="demo">
 				<video class="hero-embed" autoplay muted loop playsinline>
-					<source src="./assets/hi_res_website_vid.mp4" type="video/mp4" />
+					<source src="./assets/site_video.mp4" type="video/mp4" />
 				</video>
 			</div>
 		</section>
@@ -268,13 +268,40 @@
 			const video = document.querySelector(".hero-embed");
 			const container = document.querySelector(".video-wrap");
 			if (!video || !container) return;
+			const FALLBACK_DEMO_VIDEO_ID = "FS9eAOfU9GE";
+			const FAST_PLAYBACK_RATE = 2;
 			const MOBILE_BREAKPOINT = 980;
 			const SOURCE_ASPECT_RATIO = 3840 / 2152;
 			const MOBILE_MAX_HEIGHT_VH = 0.68;
 			const MOBILE_MIN_HEIGHT_PX = 300;
 			const FOCUS_VISIBLE_WIDTH = 0.93;
+			let usingFallbackEmbed = false;
+
+			const applyPlaybackRate = () => {
+				video.defaultPlaybackRate = FAST_PLAYBACK_RATE;
+				video.playbackRate = FAST_PLAYBACK_RATE;
+			};
+
+			const mountYouTubeFallback = () => {
+				if (usingFallbackEmbed) return;
+				usingFallbackEmbed = true;
+
+				const iframe = document.createElement("iframe");
+				iframe.className = "hero-embed";
+				iframe.title = "Mochi demo video";
+				iframe.loading = "lazy";
+				iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+				iframe.referrerPolicy = "strict-origin-when-cross-origin";
+				iframe.allowFullscreen = true;
+				iframe.src = `https://www.youtube.com/embed/${FALLBACK_DEMO_VIDEO_ID}?autoplay=1&mute=1&loop=1&playlist=${FALLBACK_DEMO_VIDEO_ID}&controls=0&modestbranding=1&rel=0&playsinline=1`;
+
+				container.style.removeProperty("height");
+				container.style.removeProperty("min-height");
+				video.replaceWith(iframe);
+			};
 
 			const updateVideoFit = () => {
+				if (usingFallbackEmbed || !video.isConnected) return;
 				if (!container.clientWidth) return;
 				const videoRatio = video.videoWidth && video.videoHeight
 					? video.videoWidth / video.videoHeight
@@ -308,7 +335,16 @@
 				}
 			};
 
-			video.addEventListener("loadedmetadata", updateVideoFit);
+			video.addEventListener("loadedmetadata", () => {
+				applyPlaybackRate();
+				updateVideoFit();
+			});
+			video.addEventListener("play", applyPlaybackRate);
+			video.addEventListener("error", mountYouTubeFallback);
+			const source = video.querySelector("source");
+			if (source) {
+				source.addEventListener("error", mountYouTubeFallback);
+			}
 			window.addEventListener("resize", updateVideoFit);
 
 			if ("ResizeObserver" in window) {
@@ -316,6 +352,7 @@
 				observer.observe(container);
 			}
 
+			applyPlaybackRate();
 			updateVideoFit();
 		})();
 	</script>

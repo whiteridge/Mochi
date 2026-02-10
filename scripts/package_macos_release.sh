@@ -94,15 +94,36 @@ mkdir -p "$STAGING_PATH"
 cp -R "$APP_SOURCE_PATH" "$STAGING_PATH/$APP_BUNDLE_NAME.app"
 
 echo "Creating DMG at $DMG_PATH ..."
+CREATE_DMG_ARGS=(
+	--volname "Mochi Installer"
+	--volicon "$ROOT_DIR/mochi/mochi.icns"
+	--window-pos 200 120
+	--window-size 800 400
+	--icon-size 100
+	--icon "$APP_BUNDLE_NAME.app" 200 185
+	--app-drop-link 600 185
+	--hdiutil-retries 10
+)
+
+# In non-GUI/sandboxed environments, Finder prettifying can hang while the DMG
+# is already created. Default to a deterministic, non-hanging mode.
+if [[ "${MOCHI_DMG_PRETTY:-0}" != "1" ]]; then
+	CREATE_DMG_ARGS+=(--skip-jenkins --sandbox-safe)
+fi
+
 create-dmg \
-	--volname "Mochi Installer" \
-	--volicon "$ROOT_DIR/mochi/mochi.icns" \
-	--window-pos 200 120 \
-	--window-size 800 400 \
-	--icon-size 100 \
-	--icon "$APP_BUNDLE_NAME.app" 200 185 \
-	--app-drop-link 600 185 \
+	"${CREATE_DMG_ARGS[@]}" \
 	"$DMG_PATH" \
 	"$STAGING_PATH/$APP_BUNDLE_NAME.app"
+
+# If create-dmg was interrupted after producing the temporary rw.* artifact,
+# recover it so callers always get exactly one final DMG path.
+if [[ ! -f "$DMG_PATH" ]]; then
+	TEMP_DMG="$(ls "$BUILD_DIR"/rw.*."$APP_BUNDLE_NAME".dmg 2>/dev/null | head -n 1 || true)"
+	if [[ -n "${TEMP_DMG:-}" ]]; then
+		mv "$TEMP_DMG" "$DMG_PATH"
+	fi
+fi
+rm -f "$BUILD_DIR"/rw.*."$APP_BUNDLE_NAME".dmg 2>/dev/null || true
 
 echo "Done: $DMG_PATH"
