@@ -18,6 +18,10 @@ def test_normalize_tool_slug_passthrough():
     assert normalize_tool_slug("SLACK_SEND_MESSAGE") == "SLACK_SEND_MESSAGE"
 
 
+def test_normalize_tool_slug_uppercases_unknown_slug():
+    assert normalize_tool_slug("linear_list_linear_teams") == "LINEAR_LIST_LINEAR_TEAMS"
+
+
 def test_slack_write_action_aliases():
     service = SlackService(MagicMock())
 

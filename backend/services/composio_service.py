@@ -383,12 +383,28 @@ class ComposioService:
         allow_retry: bool = True,
     ):
         if hasattr(self.composio, "actions") and not hasattr(self.composio, "tools"):
-            # New composio.client API.
-            return self.composio.actions.execute(
-                action=slug,
-                params=arguments,
-                entity_id=user_id,
-            )
+            try:
+                return self._execute_client_action(
+                    slug=slug,
+                    arguments=arguments,
+                    user_id=user_id,
+                )
+            except Exception as exc:
+                if not self._is_auth_error(exc) or not allow_retry:
+                    raise
+                refresh_outcome = self._attempt_auth_refresh(slug, user_id)
+                if refresh_outcome.get("refreshed"):
+                    return self._execute_with_auth_retry(
+                        slug,
+                        arguments,
+                        user_id,
+                        allow_retry=False,
+                    )
+                app_slug = _tool_slug_to_app_slug(slug) or "integration"
+                raise RuntimeError(
+                    f"Authentication expired for {self._format_app_label(app_slug)}. "
+                    "Please reconnect in Settings."
+                ) from exc
 
         try:
             result = self.composio.tools.execute(
@@ -420,6 +436,38 @@ class ComposioService:
             )
 
         return result
+
+    def _execute_client_action(
+        self,
+        slug: str,
+        arguments: Dict[str, Any],
+        user_id: str,
+    ):
+        """
+        Execute actions for composio.client API versions.
+
+        Newer SDKs expose `actions` + `get_entity(...)` (no `tools.execute`).
+        For authenticated apps, entity-scoped execution is required so the
+        SDK can resolve the connected account by entity ID.
+        """
+        normalized_slug = normalize_tool_slug(slug)
+        action_obj = self._resolve_client_action(normalized_slug)
+        entity = self.composio.get_entity(id=user_id)
+        return entity.execute(
+            action=action_obj,
+            params=arguments,
+        )
+
+    def _resolve_client_action(self, slug: str):
+        """Resolve an action slug into a composio.client Action object."""
+        normalized_slug = normalize_tool_slug(slug)
+        try:
+            from composio.client.enums import Action as ClientAction
+
+            return ClientAction(normalized_slug)
+        except Exception:
+            # Fallback: fetch the action model directly.
+            return self.composio.actions.get(action=normalized_slug)
     
     def get_auth_url(self, app_name: str, user_id: str, callback_url: Optional[str] = None) -> str:
         """

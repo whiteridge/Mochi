@@ -21,4 +21,5 @@ def normalize_tool_slug(slug: str) -> str:
     """Normalize legacy Composio tool slugs to current equivalents."""
     if not slug:
         return slug
-    return TOOL_SLUG_ALIASES.get(slug.upper(), slug)
+    upper_slug = slug.upper()
+    return TOOL_SLUG_ALIASES.get(upper_slug, upper_slug)
