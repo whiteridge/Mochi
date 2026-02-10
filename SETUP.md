@@ -11,7 +11,7 @@ mochi has two parts:
 - A Gemini API key (`GOOGLE_API_KEY`)
 
 Model used by mochi:
-- Google Gemini: `gemini-3-flash`
+- Google Gemini: `gemini-3-flash-preview`
 
 ## Quick start
 

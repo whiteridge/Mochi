@@ -137,7 +137,7 @@ def create_chat(
     gemini_tools,
     chat_history,
     user_context: Optional[str] = None,
-    model: str = "gemini-3-flash",
+    model: str = "gemini-3-flash-preview",
 ):
     """Create a Gemini chat with tools and system instruction."""
     formatted_history = format_history(chat_history)

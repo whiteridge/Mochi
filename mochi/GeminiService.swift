@@ -55,9 +55,9 @@ class GeminiService: ObservableObject {
 			return
 		}
 		
-		// Initialize the model with Gemini 3 Flash.
+		// Initialize the model with a stable Gemini Flash model ID.
 		model = GenerativeModel(
-			name: "gemini-3-flash",
+			name: "gemini-3-flash-preview",
 			apiKey: apiKey,
 			systemInstruction: ModelContent(role: "system", parts: systemInstruction)
 		)

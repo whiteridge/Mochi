@@ -11,7 +11,7 @@ from llm.providers.gemini import GeminiChat
 
 
 DEFAULT_PROVIDER = "google"
-DEFAULT_MODEL = "gemini-3-flash"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
 
 @dataclass

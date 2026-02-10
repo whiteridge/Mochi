@@ -26,7 +26,7 @@ curl http://127.0.0.1:8000/health
 - `GOOGLE_API_KEY` (optional if you enter the key in the macOS app Quick Setup)
 
 Model used by the backend:
-- Google Gemini: `gemini-3-flash`
+- Google Gemini: `gemini-3-flash-preview`
 
 ## Tests
 ```bash

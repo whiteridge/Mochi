@@ -71,7 +71,7 @@ struct QuickSetupView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Model")
                         .font(.headline)
-                    Text("Gemini models (default: Gemini 3 Flash).")
+                    Text("Gemini models (default: \(ModelCatalog.displayName(for: ModelCatalog.defaultModel(for: .google))).")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     

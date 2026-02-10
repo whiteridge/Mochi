@@ -28,7 +28,7 @@ enum ModelProvider: String, CaseIterable, Identifiable, Codable {
 }
 
 struct ModelCatalog {
-	static let geminiFlashModel = "gemini-3-flash"
+	static let geminiFlashModel = "gemini-3-flash-preview"
 
 	static func models(for provider: ModelProvider) -> [String] {
 		_ = provider
